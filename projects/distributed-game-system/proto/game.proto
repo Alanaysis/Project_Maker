@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package game;
+
+option go_package = "./;protocol";
+
+// 消息类型枚举
+enum MessageType {
+    MSG_UNKNOWN         = 0;
+
+    // 连接管理
+    MSG_CONNECT         = 1;
+    MSG_CONNECT_ACK     = 2;
+    MSG_DISCONNECT      = 3;
+    MSG_HEARTBEAT       = 4;
+
+    // 游戏状态
+    MSG_PLAYER_INPUT    = 10;
+    MSG_STATE_SNAPSHOT  = 11;
+    MSG_STATE_DELTA     = 12;
+
+    // 游戏事件
+    MSG_PLAYER_JOIN     = 20;
+    MSG_PLAYER_LEAVE    = 21;
+    MSG_PLAYER_ATTACK   = 22;
+    MSG_PLAYER_DAMAGE   = 23;
+}
+
+// 2D 向量
+message Vector2 {
+    double x = 1;
+    double y = 2;
+}
+
+// 玩家动作
+enum Action {
+    ACTION_NONE     = 0;
+    ACTION_MOVE     = 1;
+    ACTION_ATTACK   = 2;
+    ACTION_DIE      = 3;
+}
+
+// 玩家状态
+message PlayerState {
+    uint32 id = 1;
+    Vector2 position = 2;
+    Vector2 velocity = 3;
+    int32 health = 4;
+    double direction = 5;
+    Action action = 6;
+    int64 timestamp = 7;
+}
+
+// 玩家输入
+message PlayerInput {
+    uint32 sequence = 1;
+    int64 timestamp = 2;
+    double move_x = 3;
+    double move_y = 4;
+    bool attack = 5;
+    double view_angle = 6;
+}
+
+// 世界快照
+message WorldSnapshot {
+    uint32 tick = 1;
+    int64 timestamp = 2;
+    map<uint32, PlayerState> players = 3;
+}
+
+// 玩家增量
+message PlayerDelta {
+    uint32 id = 1;
+    optional Vector2 position = 2;
+    optional Vector2 velocity = 3;
+    optional int32 health = 4;
+    optional Action action = 5;
+}
+
+// 增量快照
+message DeltaSnapshot {
+    uint32 base_tick = 1;
+    uint32 tick = 2;
+    map<uint32, PlayerDelta> players = 3;
+}
+
+// 连接请求
+message ConnectRequest {
+    string player_name = 1;
+    string client_version = 2;
+}
+
+// 连接响应
+message ConnectResponse {
+    bool success = 1;
+    uint32 player_id = 2;
+    string message = 3;
+    WorldSnapshot initial_state = 4;
+}
+
+// 攻击事件
+message AttackEvent {
+    uint32 attacker_id = 1;
+    uint32 target_id = 2;
+    int32 damage = 3;
+    Vector2 position = 4;
+    int64 timestamp = 5;
+}
+
+// 游戏数据包
+message GamePacket {
+    MessageType type = 1;
+    uint32 sequence = 2;
+    int64 timestamp = 3;
+
+    oneof payload {
+        ConnectRequest connect_request = 10;
+        ConnectResponse connect_response = 11;
+        PlayerInput player_input = 12;
+        WorldSnapshot state_snapshot = 13;
+        DeltaSnapshot state_delta = 14;
+        AttackEvent attack_event = 15;
+    }
+}

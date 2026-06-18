@@ -1,0 +1,22 @@
+{
+  "server": {
+    "port": 8080,
+    "host": "0.0.0.0"
+  },
+  "database": {
+    "type": "sqlite",
+    "path": "./data/chat.db"
+  },
+  "redis": {
+    "url": "redis://localhost:6379",
+    "enabled": false
+  },
+  "jwt": {
+    "secret": "change-this-to-a-secure-secret-key",
+    "expiry": "24h"
+  },
+  "logging": {
+    "level": "info",
+    "file": "./logs/chat.log"
+  }
+}

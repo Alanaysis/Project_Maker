@@ -1,0 +1,43 @@
+# 推理配置文件
+
+# 推理后端: cpu, cuda, opencl
+backend: "cpu"
+
+# 线程数
+num_threads: 4
+
+# 内存池大小 (元素数量)
+memory_pool_size: 1048576  # 1M 元素
+
+# 是否启用性能分析
+enable_profiling: false
+
+# 是否启用算子融合
+enable_fusion: true
+
+# 融合规则配置
+fusion_rules:
+  - name: "Conv+BN+ReLU"
+    pattern: ["Conv", "BatchNormalization", "Relu"]
+    enabled: true
+
+  - name: "Conv+BN"
+    pattern: ["Conv", "BatchNormalization"]
+    enabled: true
+
+  - name: "Linear+ReLU"
+    pattern: ["Linear", "Relu"]
+    enabled: true
+
+# 输出配置
+output:
+  # 是否返回中间结果
+  return_intermediate: false
+
+  # 输出数据类型
+  dtype: "float32"
+
+# 日志配置
+logging:
+  level: "INFO"
+  file: null

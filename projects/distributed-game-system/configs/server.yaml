@@ -1,0 +1,17 @@
+server:
+  id: "server-1"
+  host: "0.0.0.0"
+  udp_port: 8080
+  tcp_port: 8081
+  max_players: 100
+
+game:
+  tick_rate: 20
+  snapshot_rate: 10
+  world_width: 2000
+  world_height: 2000
+
+network:
+  heartbeat_interval: 5
+  connection_timeout: 30
+  max_packet_size: 1024

@@ -1,0 +1,21 @@
+# Finetune-RL Framework 依赖
+
+# 核心依赖
+torch>=2.0.0
+transformers>=4.30.0
+accelerate>=0.21.0
+datasets>=2.14.0
+
+# 配置和工具
+pyyaml>=6.0
+tqdm>=4.65.0
+numpy>=1.24.0
+
+# 测试
+pytest>=7.0.0
+
+# 可选依赖（用于高级功能）
+# peft>=0.5.0              # 参数高效微调（参考实现）
+# deepspeed>=0.10.0        # 分布式训练
+# bitsandbytes>=0.41.0     # 量化支持
+# wandb>=0.15.0            # 实验追踪

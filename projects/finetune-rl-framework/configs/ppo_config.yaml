@@ -1,0 +1,68 @@
+# PPO 训练配置
+# ⭐ 重点参数说明见注释
+
+# 模型配置
+model:
+  policy_model: "gpt2"            # 策略模型
+  ref_model: "gpt2"               # 参考模型（通常与策略模型相同）
+  reward_model: null              # 奖励模型（null 表示使用自定义奖励函数）
+
+# PPO 配置
+ppo:
+  learning_rate: 1.5e-5           # 学习率
+                                  # PPO 通常使用较小的学习率
+
+  clip_range: 0.2                 # ⭐ PPO 裁剪范围 (ε)
+                                  # 控制策略更新的幅度
+                                  # 典型值: 0.1 - 0.3
+
+  kl_penalty: 0.1                 # ⭐ KL 散度惩罚系数
+                                  # 防止策略偏离原始模型太远
+                                  # 典型值: 0.01 - 0.5
+
+  gamma: 1.0                      # 折扣因子
+                                  # 通常设为 1.0（无折扣）
+
+  lam: 0.95                       # ⭐ GAE lambda
+                                  # 控制偏差-方差权衡
+                                  # 典型值: 0.9 - 0.99
+
+  ppo_epochs: 4                   # 每批数据的 PPO 更新轮数
+                                  # 典型值: 2 - 8
+
+  max_grad_norm: 0.5             # 梯度裁剪
+
+  vf_coef: 0.5                   # 价值损失系数
+  ent_coef: 0.01                 # 熵损失系数（鼓励探索）
+
+# 生成配置
+generation:
+  max_new_tokens: 128             # 最大生成长度
+  temperature: 1.0                # 生成温度
+                                  # < 1.0: 更确定性
+                                  # > 1.0: 更随机
+
+  top_k: 50                       # Top-K 采样
+  top_p: 0.9                      # Top-P 采样
+  do_sample: true                 # 是否采样
+
+# 训练配置
+training:
+  batch_size: 16                  # 批大小
+  mini_batch_size: 4              # 小批大小
+  num_steps: 1000                 # 总训练步数
+
+# 奖励配置
+reward:
+  type: "custom"                  # 奖励类型: "model" 或 "custom"
+  normalize: true                 # 是否归一化奖励
+  # 自定义奖励函数参数
+  custom:
+    min_length: 20                # 最小理想长度
+    max_length: 200               # 最大理想长度
+
+# 输出配置
+output:
+  dir: "./ppo_output"             # 输出目录
+  logging_steps: 10               # 日志间隔
+  save_steps: 100                 # 保存间隔

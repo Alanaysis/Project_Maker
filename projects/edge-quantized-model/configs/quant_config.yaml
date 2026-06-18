@@ -1,0 +1,39 @@
+# 量化配置文件
+
+# 量化类型: int8, int4
+quant_type: "int8"
+
+# 校准方法: minmax, percentile, entropy
+calibration_method: "percentile"
+
+# 百分位校准参数 (仅 percentile 方法有效)
+calibration_percentile: 99.99
+
+# 校准样本数量
+num_calibration_samples: 100
+
+# 是否逐通道量化
+per_channel: true
+
+# 是否对称量化
+symmetric: true
+
+# 跳过量化的算子列表
+skip_ops: []
+
+# 量化范围配置
+quant_range:
+  int8:
+    symmetric:
+      min: -128
+      max: 127
+    asymmetric:
+      min: 0
+      max: 255
+  int4:
+    symmetric:
+      min: -8
+      max: 7
+    asymmetric:
+      min: 0
+      max: 15
