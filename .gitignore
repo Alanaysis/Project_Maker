@@ -1,0 +1,188 @@
+# Git Ignore - 敏感信息和临时文件
+
+# ==================== 系统文件 ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ==================== IDE 文件 ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ==================== Python ====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+*.log
+
+# ==================== Node.js ====================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+.eslintcache
+.node_repl_history
+*.tgz
+.yarn-integrity
+.env.local
+.env.*.local
+
+# ==================== 环境变量和密钥 ====================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.csr
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.secret
+*.secrets
+secrets.json
+secrets.yaml
+secrets.yml
+credentials.json
+credentials.yaml
+credentials.yml
+*.credentials
+token.json
+token.yaml
+token.yml
+
+# ==================== 配置文件（可能包含敏感信息） ====================
+config.local.*
+config.local.json
+config.local.yaml
+config.local.yml
+*.local.json
+*.local.yaml
+*.local.yml
+
+# ==================== 数据库文件 ====================
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
+
+# ==================== 日志文件 ====================
+*.log
+logs/
+log/
+
+# ==================== 临时文件 ====================
+tmp/
+temp/
+.tmp/
+.temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+
+# ==================== 编译产物 ====================
+*.o
+*.obj
+*.exe
+*.out
+*.app
+*.dll
+*.dylib
+*.so
+*.a
+*.lib
+
+# ==================== 依赖目录 ====================
+vendor/
+vendored/
+third_party/
+external/
+
+# ==================== 构建产物 ====================
+build/
+dist/
+out/
+target/
+bin/
+obj/
+
+# ==================== Docker ====================
+.docker/
+docker-compose.override.yml
+
+# ==================== 测试覆盖率 ====================
+htmlcov/
+.coverage
+.coverage.*
+coverage/
+coverage.xml
+
+# ==================== 文档生成 ====================
+docs/_build/
+site/
+_public/
+
+# ==================== 其他 ====================
+*.swp
+*.swo
+*~
+\#*\#
+.#*
+
+# 但保留这些文件
+!.gitkeep
+!README.md
+!LICENSE
+!CONTRIBUTING.md
+!CHANGELOG.md
