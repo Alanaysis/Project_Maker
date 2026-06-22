@@ -186,3 +186,4 @@ _public/
 !LICENSE
 !CONTRIBUTING.md
 !CHANGELOG.md
+*.deb
