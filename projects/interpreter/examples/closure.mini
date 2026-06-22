@@ -1,0 +1,34 @@
+// Closure demonstration
+// Shows how functions can capture variables from their enclosing scope
+
+fn makeAdder(x) {
+    fn adder(y) {
+        return x + y;
+    }
+    return adder;
+}
+
+fn makeCounter() {
+    let count = 0;
+    fn increment() {
+        count = count + 1;
+        return count;
+    }
+    fn decrement() {
+        count = count - 1;
+        return count;
+    }
+    // Return a string description (since we can't return multiple values yet)
+    return increment;
+}
+
+// Create an adder that adds 10
+let add10 = makeAdder(10);
+print add10(5);   // 15
+print add10(20);  // 30
+
+// Create a counter
+let counter = makeCounter();
+print counter();  // 1
+print counter();  // 2
+print counter();  // 3

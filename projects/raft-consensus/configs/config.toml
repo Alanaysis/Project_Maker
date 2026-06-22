@@ -1,0 +1,32 @@
+# Raft 节点配置
+
+[node]
+# 节点 ID
+id = 1
+
+# 节点地址
+address = "localhost:50051"
+
+# 对等节点列表
+peers = ["localhost:50052", "localhost:50053"]
+
+[election]
+# 最小选举超时（毫秒）
+timeout_min = 150
+
+# 最大选举超时（毫秒）
+timeout_max = 300
+
+# 心跳间隔（毫秒）
+heartbeat_interval = 50
+
+[log]
+# 最大日志条目数
+max_entries = 10000
+
+[storage]
+# 存储类型：memory 或 bolt
+type = "memory"
+
+# BoltDB 存储路径（仅在 type = "bolt" 时使用）
+# path = "/var/lib/raft/data"

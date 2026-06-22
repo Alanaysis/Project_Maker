@@ -1,0 +1,201 @@
+# 音视频编解码器 - 学习笔记
+
+## 学习目标
+
+1. 理解音视频编解码原理
+2. 掌握 H.264/H.265 编码技术
+3. 学会音频 AAC 编码
+4. 了解容器格式封装
+
+## 学习路线
+
+### 第一阶段：基础知识 (1-2周)
+
+#### 1.1 音视频基础概念
+- **帧率 (Frame Rate)**: 每秒显示的帧数，单位fps
+- **分辨率**: 视频的宽高像素数
+- **码率 (Bitrate)**: 每秒传输的比特数，单位bps
+- **采样率 (Sample Rate)**: 每秒采样的次数，单位Hz
+- **声道数 (Channels)**: 音频通道数量
+
+#### 1.2 色彩空间
+- **RGB**: 红绿蓝三原色
+- **YUV**: 亮度(Y)和色度(U,V)分离
+  - YUV 4:2:0: 色度信号水平和垂直方向均下采样2倍
+  - YUV 4:2:2: 色度信号水平方向下采样2倍
+  - YUV 4:4:4: 色度信号不下采样
+
+#### 1.3 像素格式
+- YUV420P: Planar格式，Y/U/V平面分开存储
+- NV12: Semi-Planar格式，Y平面和UV交错存储
+- RGB24: 24位RGB格式
+
+### 第二阶段：视频编码 (2-3周)
+
+#### 2.1 H.264编码原理
+
+##### 帧内预测 (Intra Prediction)
+- 利用图像内部相邻像素的相关性
+- 支持4x4和16x16预测模式
+- 减少空间冗余
+
+##### 帧间预测 (Inter Prediction)
+- 利用相邻帧之间的相似性
+- 运动估计：找到最佳匹配块
+- 运动补偿：使用运动向量预测
+- 减少时间冗余
+
+##### 变换量化
+- DCT变换：将空间域转换到频率域
+- 量化：减少变换系数的精度
+- 有损压缩的核心步骤
+
+##### 熵编码
+- CAVLC: 上下文自适应可变长编码
+- CABAC: 上下文自适应二进制算术编码
+- 进一步压缩编码数据
+
+##### 环路滤波
+- 去块效应滤波器
+- 减少方块效应
+- 提高图像质量
+
+#### 2.2 H.264编码流程
+
+```
+输入帧 → 帧内/帧间预测 → 残差计算 → DCT变换 → 量化 → 熵编码 → 输出码流
+         ↓
+      重建帧 ← 反量化 ← 反DCT变换 ← 量化系数
+         ↓
+      环路滤波
+         ↓
+      参考帧缓存
+```
+
+#### 2.3 帧类型
+- **I帧**: 关键帧，帧内编码，可独立解码
+- **P帧**: 预测帧，使用前向参考帧
+- **B帧**: 双向预测帧，使用前后参考帧
+
+#### 2.4 GOP (Group of Pictures)
+- 两个I帧之间的帧序列
+- GOP越大，压缩率越高，但随机访问延迟增大
+- 典型值：30-120帧
+
+### 第三阶段：音频编码 (1-2周)
+
+#### 3.1 AAC编码原理
+
+##### 心理声学模型
+- 人耳听觉特性
+- 掩蔽效应：强信号掩盖弱信号
+- 临界频带：人耳频率分辨率
+
+##### 频谱分析
+- MDCT变换：改进的离散余弦变换
+- 频域处理更符合人耳特性
+
+##### 量化编码
+- 非均匀量化
+- 比特分配：根据心理声学模型分配比特
+- 哈夫曼编码
+
+##### AAC编码流程
+```
+输入PCM → 分帧 → MDCT变换 → 心理声学模型 → 量化 → 哈夫曼编码 → 输出AAC
+```
+
+#### 3.2 AAC编码类型
+- **AAC-LC**: 低复杂度，最常用
+- **HE-AAC**: 高效AAC，使用SBR技术
+- **HE-AAC v2**: 使用PS技术
+
+### 第四阶段：容器格式 (1周)
+
+#### 4.1 MP4格式
+- 基于box的结构
+- moov: 元数据
+- mdat: 媒体数据
+- 支持随机访问
+
+#### 4.2 FLV格式
+- 流媒体格式
+- 适合网络传输
+- 结构简单
+
+#### 4.3 复用/解复用
+- 将音视频流封装到容器
+- 从容器中提取音视频流
+- 时间戳同步
+
+### 第五阶段：FFmpeg API (2-3周)
+
+#### 5.1 核心数据结构
+- AVFormatContext: 格式上下文
+- AVCodecContext: 编解码器上下文
+- AVFrame: 帧数据
+- AVPacket: 编码数据包
+
+#### 5.2 编码流程
+```cpp
+// 1. 查找编码器
+AVCodec *codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+
+// 2. 创建编码器上下文
+AVCodecContext *ctx = avcodec_alloc_context3(codec);
+
+// 3. 设置编码参数
+ctx->width = 1920;
+ctx->height = 1080;
+ctx->bit_rate = 2000000;
+ctx->time_base = {1, 30};
+
+// 4. 打开编码器
+avcodec_open2(ctx, codec, NULL);
+
+// 5. 编码循环
+AVFrame *frame = av_frame_alloc();
+AVPacket *pkt = av_packet_alloc();
+avcodec_send_frame(ctx, frame);
+avcodec_receive_packet(ctx, pkt);
+```
+
+#### 5.3 解码流程
+```cpp
+// 1. 查找解码器
+AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+
+// 2. 创建解码器上下文
+AVCodecContext *ctx = avcodec_alloc_context3(codec);
+
+// 3. 打开解码器
+avcodec_open2(ctx, codec, NULL);
+
+// 4. 解码循环
+avcodec_send_packet(ctx, pkt);
+avcodec_receive_frame(ctx, frame);
+```
+
+## 实践心得
+
+### 调试技巧
+1. 使用ffplay验证编码结果
+2. 使用ffprobe分析码流结构
+3. 使用YUV播放器查看原始数据
+
+### 性能优化
+1. 合理设置编码预设
+2. 使用硬件加速
+3. 多线程编码
+
+### 常见问题
+1. 时间戳处理
+2. 内存管理
+3. 错误处理
+
+## 参考资料
+
+1. [FFmpeg官方文档](https://ffmpeg.org/documentation.html)
+2. [H.264/AVC标准](https://www.itu.int/rec/T-REC-H.264)
+3. [AAC标准](https://www.iso.org/standard/43345.html)
+4. [音视频开发基础](https://blog.csdn.net/leixiaohua1020)

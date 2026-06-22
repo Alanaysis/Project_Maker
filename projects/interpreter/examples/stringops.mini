@@ -1,0 +1,40 @@
+// String operations demonstration
+
+let greeting = "Hello";
+let name = "World";
+let message = greeting + ", " + name + "!";
+
+print message;
+print "Length: " + str(len(message));
+
+// String comparison
+let a = "apple";
+let b = "banana";
+if a < b {
+    print a + " comes before " + b;
+} else {
+    print b + " comes before " + a;
+}
+
+// Building strings with loops
+let result = "";
+let i = 0;
+while i < 5 {
+    result = result + "*";
+    i = i + 1;
+}
+print result;
+
+// Nested string building
+let triangle = "";
+let row = 0;
+while row < 5 {
+    let col = 0;
+    let line = "";
+    while col <= row {
+        line = line + "*";
+        col = col + 1;
+    }
+    print line;
+    row = row + 1;
+}

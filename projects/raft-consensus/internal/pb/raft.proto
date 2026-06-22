@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package raft;
+
+option go_package = "github.com/raft-consensus/internal/pb";
+
+// RaftService 定义 Raft 节点间的 RPC 服务
+service RaftService {
+    // RequestVote 候选人请求投票
+    rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse);
+
+    // AppendEntries 领导者复制日志/心跳
+    rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
+}
+
+// RequestVoteRequest 请求投票请求
+message RequestVoteRequest {
+    // 候选人的任期号
+    int64 term = 1;
+
+    // 候选人 ID
+    int64 candidateId = 2;
+
+    // 候选人最后日志条目的索引
+    int64 lastLogIndex = 3;
+
+    // 候选人最后日志条目的任期号
+    int64 lastLogTerm = 4;
+}
+
+// RequestVoteResponse 请求投票响应
+message RequestVoteResponse {
+    // 当前任期号，用于候选人更新自己
+    int64 term = 1;
+
+    // 候选人获得投票
+    bool granted = 2;
+}
+
+// AppendEntriesRequest 追加日志请求（也用作心跳）
+message AppendEntriesRequest {
+    // 领导者的任期号
+    int64 term = 1;
+
+    // 领导者 ID
+    int64 leaderId = 2;
+
+    // 新日志条目前一个条目的索引
+    int64 prevLogIndex = 3;
+
+    // 新日志条目前一个条目的任期号
+    int64 prevLogTerm = 4;
+
+    // 要存储的日志条目（心跳时为空）
+    repeated LogEntry entries = 5;
+
+    // 领导者的 commitIndex
+    int64 leaderCommit = 6;
+}
+
+// AppendEntriesResponse 追加日志响应
+message AppendEntriesResponse {
+    // 当前任期号，用于领导者更新自己
+    int64 term = 1;
+
+    // 如果跟随者包含匹配 prevLogIndex 和 prevLogTerm 的条目则为 true
+    bool success = 2;
+
+    // 冲突条目的索引（用于快速回退）
+    int64 conflictIndex = 3;
+
+    // 冲突条目的任期号
+    int64 conflictTerm = 4;
+}
+
+// LogEntry 日志条目
+message LogEntry {
+    // 条目创建时的任期号
+    int64 term = 1;
+
+    // 条目的索引
+    int64 index = 2;
+
+    // 状态机要执行的命令
+    bytes command = 3;
+}

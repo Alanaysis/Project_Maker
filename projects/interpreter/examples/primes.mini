@@ -1,0 +1,35 @@
+// Prime number finder
+// Demonstrates nested loops and function definitions
+
+fn isPrime(n) {
+    if n <= 1 {
+        return false;
+    }
+    if n <= 3 {
+        return true;
+    }
+    if n % 2 == 0 {
+        return false;
+    }
+    let i = 3;
+    while i * i <= n {
+        if n % i == 0 {
+            return false;
+        }
+        i = i + 2;
+    }
+    return true;
+}
+
+// Print all primes up to 50
+print "Prime numbers up to 50:";
+let n = 2;
+let count = 0;
+while n <= 50 {
+    if isPrime(n) {
+        print n;
+        count = count + 1;
+    }
+    n = n + 1;
+}
+print "Total: " + str(count) + " primes found";

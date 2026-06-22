@@ -1,0 +1,32 @@
+// Higher-order functions demonstration
+// Functions that take other functions as arguments
+
+fn apply(f, x) {
+    return f(x);
+}
+
+fn double(n) {
+    return n * 2;
+}
+
+fn square(n) {
+    return n * n;
+}
+
+fn compose(f, g) {
+    fn composed(x) {
+        return f(g(x));
+    }
+    return composed;
+}
+
+// Use apply
+print apply(double, 5);   // 10
+print apply(square, 4);   // 16
+
+// Create composed functions
+let doubleThenSquare = compose(square, double);
+let squareThenDouble = compose(double, square);
+
+print doubleThenSquare(3);  // square(double(3)) = square(6) = 36
+print squareThenDouble(3);  // double(square(3)) = double(9) = 18
