@@ -1,0 +1,21 @@
+{
+  "name": "document-editor",
+  "version": "1.0.0",
+  "description": "A rich text editor with collaborative editing and version control using CRDT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "ts-node tests/run-tests.ts",
+    "example:basic": "ts-node examples/basic-editing.ts",
+    "example:collab": "ts-node examples/collaborative-editing.ts",
+    "example:history": "ts-node examples/version-history.ts"
+  },
+  "keywords": ["editor", "rich-text", "crdt", "collaborative-editing"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.0.0"
+  }
+}

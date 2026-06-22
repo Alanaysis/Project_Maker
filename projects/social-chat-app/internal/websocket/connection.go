@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"social-chat-app/pkg/models"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -31,6 +32,7 @@ type Connection struct {
 	Manager   *Manager
 	CreatedAt time.Time
 	LastPing  time.Time
+	closeOnce sync.Once
 }
 
 // NewConnection 创建新的连接
@@ -45,11 +47,19 @@ func NewConnection(userID string, conn *websocket.Conn, manager *Manager) *Conne
 	}
 }
 
+// Close 安全关闭连接，确保 Send channel 只关闭一次
+func (c *Connection) Close() {
+	c.closeOnce.Do(func() {
+		close(c.Send)
+		c.Conn.Close()
+	})
+}
+
 // ReadPump 读取消息的 goroutine
 func (c *Connection) ReadPump() {
 	defer func() {
 		c.Manager.unregister <- c
-		c.Conn.Close()
+		c.Close()
 	}()
 
 	// 设置读取限制和超时
@@ -78,7 +88,7 @@ func (c *Connection) WritePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		c.Conn.Close()
+		c.Close()
 	}()
 
 	for {
@@ -212,8 +222,8 @@ func (c *Connection) SendMessage(msg *models.WSResponse) {
 	select {
 	case c.Send <- data:
 	default:
-		// 通道已满，关闭连接
-		close(c.Send)
+		// 通道已满，安全关闭连接
+		c.Close()
 	}
 }
 

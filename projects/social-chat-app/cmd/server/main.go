@@ -13,9 +13,9 @@ import (
 	"social-chat-app/internal/auth"
 	"social-chat-app/internal/message"
 	"social-chat-app/internal/user"
-	"social-chat-app/internal/websocket"
+	wsManager "social-chat-app/internal/websocket"
 
-	"github.com/gorilla/websocket"
+	gorillaWS "github.com/gorilla/websocket"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -54,10 +54,10 @@ type Server struct {
 	authService    *auth.AuthService
 	userService    *user.Service
 	messageService *message.Service
-	wsManager      *websocket.Manager
+	wsMgr          *wsManager.Manager
 	jwtManager     *auth.JWTManager
 	authMiddleware *auth.Middleware
-	upgrader       websocket.Upgrader
+	upgrader       gorillaWS.Upgrader
 }
 
 // NewServer 创建新的服务器
@@ -81,13 +81,13 @@ func NewServer(config *Config) (*Server, error) {
 	messageService := message.NewService(messageRepo)
 
 	// 创建 WebSocket 管理器
-	wsManager := websocket.NewManager(messageService, userService)
+	manager := wsManager.NewManager(messageService, userService)
 
 	// 创建认证中间件
 	authMiddleware := auth.NewMiddleware(jwtManager)
 
 	// WebSocket Upgrader
-	upgrader := websocket.Upgrader{
+	upgrader := gorillaWS.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
@@ -101,7 +101,7 @@ func NewServer(config *Config) (*Server, error) {
 		authService:    authService,
 		userService:    userService,
 		messageService: messageService,
-		wsManager:      wsManager,
+		wsMgr:          manager,
 		jwtManager:     jwtManager,
 		authMiddleware: authMiddleware,
 		upgrader:       upgrader,
@@ -111,7 +111,7 @@ func NewServer(config *Config) (*Server, error) {
 // Start 启动服务器
 func (s *Server) Start() error {
 	// 启动 WebSocket 管理器
-	go s.wsManager.Start()
+	go s.wsMgr.Start()
 
 	// 设置路由
 	mux := http.NewServeMux()
@@ -133,6 +133,19 @@ func (s *Server) Start() error {
 	mux.Handle("/api/user/", s.authMiddleware.Authenticate(protectedMux))
 	mux.Handle("/api/users", s.authMiddleware.Authenticate(protectedMux))
 	mux.Handle("/api/messages/", s.authMiddleware.Authenticate(protectedMux))
+
+	// 健康检查
+	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":    "ok",
+			"timestamp": time.Now().Unix(),
+		})
+	})
+
+	// 静态文件（Web UI）
+	fs := http.FileServer(http.Dir("./web"))
+	mux.Handle("/", fs)
 
 	addr := fmt.Sprintf(":%d", s.config.Port)
 	log.Printf("Server starting on %s", addr)
@@ -208,10 +221,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 创建连接对象
-	wsConn := websocket.NewConnection(claims.UserID, conn, s.wsManager)
+	wsConn := wsManager.NewConnection(claims.UserID, conn, s.wsMgr)
 
-	// 注册连接
-	s.wsManager.register <- wsConn
+	// 注册连接（使用导出方法）
+	s.wsMgr.RegisterConnection(wsConn)
 
 	// 启动读写 goroutine
 	go wsConn.WritePump()
@@ -231,13 +244,13 @@ func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		// 获取用户信息
-		user, err := s.userService.GetByID(userID)
+		u, err := s.userService.GetByID(userID)
 		if err != nil {
 			http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(user)
+		json.NewEncoder(w).Encode(u)
 
 	case http.MethodPut:
 		// 更新用户信息（只能更新自己的信息）
@@ -256,14 +269,14 @@ func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		user, err := s.userService.UpdateProfile(userID, req.Nickname, req.Avatar, req.Email)
+		u, err := s.userService.UpdateProfile(userID, req.Nickname, req.Avatar, req.Email)
 		if err != nil {
 			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(user)
+		json.NewEncoder(w).Encode(u)
 
 	default:
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
@@ -349,9 +362,6 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 // initDB 初始化数据库
 func initDB(dbPath string) (*sql.DB, error) {
-	// 确保数据目录存在
-	// os.MkdirAll 由调用方处理
-
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, err
@@ -439,6 +449,9 @@ func createTables(db *sql.DB) error {
 }
 
 func main() {
+	// 确保数据目录存在
+	os.MkdirAll("./data", 0755)
+
 	// 加载配置
 	config := LoadConfig()
 
@@ -448,6 +461,14 @@ func main() {
 		log.Fatalf("Failed to create server: %v", err)
 	}
 	defer server.Close()
+
+	fmt.Printf(`
+╔═══════════════════════════════════════════════════════════╗
+║          Social Chat Server v1.0.0                       ║
+║          Listening on http://localhost:%-5d              ║
+║          WebSocket: ws://localhost:%-5d/ws              ║
+╚═══════════════════════════════════════════════════════════╝
+`, config.Port, config.Port)
 
 	// 启动服务器
 	log.Printf("Starting Social Chat Server...")

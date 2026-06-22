@@ -1,0 +1,42 @@
+# Build directories
+build/
+cmake-build-*/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Compiled files
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# Test files
+Testing/
+test_results.xml
+
+# Coverage files
+*.gcda
+*.gcno
+*.gcov
+coverage/
+
+# Documentation builds
+docs/html/
+docs/latex/
+
+# Data files
+data/
+*.dat
+
+# Log files
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

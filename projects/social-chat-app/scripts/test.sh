@@ -37,7 +37,9 @@ echo -e "${GREEN}✓ 测试通过${NC}"
 # 编译项目
 echo ""
 echo "编译项目..."
+mkdir -p bin
 go build -o bin/chat-server ./cmd/server
+go build -o bin/chat-client ./cmd/client
 echo -e "${GREEN}✓ 编译成功${NC}"
 
 # 创建数据目录

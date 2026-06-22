@@ -1,0 +1,34 @@
+# Build artifacts
+build/
+*.o
+*.ko
+*.mod
+*.mod.c
+*.cmd
+*.order
+*.symvers
+*.unsigned
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Test files
+test_*
+*_test
+
+# Documentation build
+docs/_build/

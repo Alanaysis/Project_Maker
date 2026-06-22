@@ -1,0 +1,141 @@
+# Industrial Vision Detection - .gitignore
+
+# ==================== Python ====================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# ==================== Distribution / packaging ====================
+
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ==================== Virtual environments ====================
+
+venv/
+env/
+ENV/
+.env
+.venv
+
+# ==================== IDE ====================
+
+# PyCharm
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ==================== Testing ====================
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ==================== Logs ====================
+
+*.log
+logs/
+
+# ==================== Model files ====================
+
+# Checkpoints
+*.pth
+*.pt
+*.ckpt
+
+# ONNX models
+*.onnx
+
+# TensorRT
+*.engine
+*.trt
+
+# ==================== Data ====================
+
+# Datasets
+data/
+datasets/
+
+# Images
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+!docs/images/**
+
+# ==================== Results ====================
+
+# Training results
+runs/
+results/
+output/
+
+# ==================== Temporary files ====================
+
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ==================== OS specific ====================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+
+# ==================== Project specific ====================
+
+# Wandb
+wandb/
+
+# TensorBoard
+tb_events/
+
+# Mlflow
+mlruns/

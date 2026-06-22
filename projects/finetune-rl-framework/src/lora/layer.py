@@ -92,6 +92,9 @@ class LoRALinear(nn.Module):
         # B 使用零初始化: 确保初始时 ΔW = BA = 0
         nn.init.zeros_(self.lora_B)
 
+        # 合并状态标记
+        self.merged = False
+
         # 标记哪些参数需要梯度
         self._freeze_base_weights()
 
@@ -110,10 +113,12 @@ class LoRALinear(nn.Module):
         合并后模型可以像普通模型一样推理，无需额外计算
         """
         if not self.merged:
-            # 计算 ΔW = (α/r) * B @ A
-            delta_w = (self.lora_B @ self.lora_A.T) * self.scaling
+            # 计算 ΔW = (α/r) * (A @ B).T
+            # lora_A: (in_features, rank), lora_B: (rank, out_features)
+            # A @ B -> (in_features, out_features), .T -> (out_features, in_features)
+            delta_w = (self.lora_A @ self.lora_B).T * self.scaling
             # 合并到基础权重
-            self.linear.weight.data += delta_w.T
+            self.linear.weight.data += delta_w
             self.merged = True
 
     def unmerge(self):
@@ -123,8 +128,8 @@ class LoRALinear(nn.Module):
         W = W' - (α/r) * B @ A
         """
         if self.merged:
-            delta_w = (self.lora_B @ self.lora_A.T) * self.scaling
-            self.linear.weight.data -= delta_w.T
+            delta_w = (self.lora_A @ self.lora_B).T * self.scaling
+            self.linear.weight.data -= delta_w
             self.merged = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -222,7 +227,7 @@ def inject_lora_layers(
         parent = model
         for part in parts[:-1]:
             parent = getattr(parent, part)
-        setattr(parent, parts[-1], lora_layer)
+        parent._modules[parts[-1]] = lora_layer
 
     return model
 

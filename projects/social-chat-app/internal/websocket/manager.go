@@ -53,9 +53,9 @@ func (m *Manager) registerConnection(conn *Connection) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 如果用户已有连接，关闭旧连接
+	// 如果用户已有连接，安全关闭旧连接
 	if oldConn, ok := m.connections[conn.UserID]; ok {
-		close(oldConn.Send)
+		oldConn.Close()
 	}
 
 	m.connections[conn.UserID] = conn
@@ -77,7 +77,7 @@ func (m *Manager) unregisterConnection(conn *Connection) {
 
 	if _, ok := m.connections[conn.UserID]; ok {
 		delete(m.connections, conn.UserID)
-		close(conn.Send)
+		conn.Close()
 		log.Printf("User %s disconnected", conn.UserID)
 
 		// 更新用户状态为离线
@@ -96,10 +96,15 @@ func (m *Manager) broadcastMessage(message []byte) {
 		select {
 		case conn.Send <- message:
 		default:
-			close(conn.Send)
+			conn.Close()
 			delete(m.connections, conn.UserID)
 		}
 	}
+}
+
+// RegisterConnection 注册新连接（供外部包调用）
+func (m *Manager) RegisterConnection(conn *Connection) {
+	m.register <- conn
 }
 
 // GetConnection 获取用户的连接

@@ -53,8 +53,10 @@
 ```
 social-chat-app/
 ├── cmd/
-│   └── server/
-│       └── main.go           # 程序入口
+│   ├── server/
+│   │   └── main.go           # 服务器入口
+│   └── client/
+│       └── main.go           # CLI 聊天客户端
 ├── internal/
 │   ├── auth/                 # 认证模块
 │   │   ├── auth.go          # 认证服务
@@ -91,10 +93,14 @@ social-chat-app/
 │   ├── message_test.go
 │   ├── user_test.go
 │   └── integration_test.go
+├── web/
+│   └── index.html            # Web 聊天界面
 ├── scripts/                 # 脚本
 │   └── test.sh
 ├── go.mod
 ├── Makefile
+├── Dockerfile
+├── docker-compose.yml
 ├── README.md
 └── LEARNING_NOTES.md
 ```

@@ -1,0 +1,31 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+chat-server
+chat-client
+
+# Database
+data/
+*.db
+*.sqlite
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage.out
+*.test
+
+# Environment
+.env

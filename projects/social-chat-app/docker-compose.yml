@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  chat-server:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - CHAT_SERVER_PORT=8080
+      - CHAT_DB_PATH=/app/data/chat.db
+      - CHAT_JWT_SECRET=change-this-to-a-secure-secret-key
+      - CHAT_JWT_EXPIRY=24h
+    volumes:
+      - chat-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  chat-data:

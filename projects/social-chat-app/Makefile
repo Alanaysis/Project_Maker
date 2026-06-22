@@ -1,66 +1,79 @@
-.PHONY: all build run test clean
+.PHONY: all build run test clean tidy
 
-# 变量
 APP_NAME=chat-server
+CLIENT_NAME=chat-client
 BUILD_DIR=./bin
-MAIN_PATH=./cmd/server
 
-# 默认目标
 all: build
 
-# 编译
-build:
-	@echo "Building $(APP_NAME)..."
-	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PATH)
-	@echo "Build complete: $(BUILD_DIR)/$(APP_NAME)"
-
-# 运行
-run:
-	@echo "Starting server..."
-	go run $(MAIN_PATH)
-
-# 测试
-test:
-	@echo "Running tests..."
-	go test -v ./...
-
-# 清理
-clean:
-	@echo "Cleaning..."
-	@rm -rf $(BUILD_DIR)
-	@rm -rf ./data
-	@echo "Clean complete"
-
-# 安装依赖
-deps:
-	@echo "Installing dependencies..."
+# Install dependencies
+tidy:
 	go mod tidy
 
-# 格式化代码
+# Build server and client
+build: tidy
+	@echo "Building $(APP_NAME) and $(CLIENT_NAME)..."
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=1 go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd/server
+	CGO_ENABLED=1 go build -o $(BUILD_DIR)/$(CLIENT_NAME) ./cmd/client
+	@echo "Build complete: $(BUILD_DIR)/$(APP_NAME), $(BUILD_DIR)/$(CLIENT_NAME)"
+
+# Build server only
+build-server: tidy
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=1 go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd/server
+	@echo "Server built: $(BUILD_DIR)/$(APP_NAME)"
+
+# Build client only
+build-client: tidy
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=1 go build -o $(BUILD_DIR)/$(CLIENT_NAME) ./cmd/client
+	@echo "Client built: $(BUILD_DIR)/$(CLIENT_NAME)"
+
+# Run server
+run: build-server
+	@mkdir -p data
+	./$(BUILD_DIR)/$(APP_NAME)
+
+# Run server in development mode
+dev:
+	@mkdir -p data
+	go run ./cmd/server
+
+# Run tests
+test:
+	go test -v ./tests/...
+
+# Run tests with coverage
+test-cover:
+	go test -v -coverprofile=coverage.out ./tests/...
+	go tool cover -func=coverage.out
+	@rm -f coverage.out
+
+# Clean build artifacts
+clean:
+	rm -rf $(BUILD_DIR) data *.db coverage.out
+
+# Format code
 fmt:
-	@echo "Formatting code..."
 	go fmt ./...
 
-# 代码检查
+# Lint
 lint:
-	@echo "Running linter..."
-	golangci-lint run
+	golangci-lint run ./...
 
-# 生成文档
-docs:
-	@echo "Documentation is in the docs/ directory"
-
-# 帮助
+# Help
 help:
 	@echo "Available targets:"
-	@echo "  all     - Build the application (default)"
-	@echo "  build   - Build the application"
-	@echo "  run     - Run the server"
-	@echo "  test    - Run tests"
-	@echo "  clean   - Clean build artifacts"
-	@echo "  deps    - Install dependencies"
-	@echo "  fmt     - Format code"
-	@echo "  lint    - Run linter"
-	@echo "  docs    - Show documentation location"
-	@echo "  help    - Show this help"
+	@echo "  make build        - Build server and client"
+	@echo "  make build-server - Build server only"
+	@echo "  make build-client - Build client only"
+	@echo "  make run          - Build and run server"
+	@echo "  make dev          - Run server in development mode"
+	@echo "  make test         - Run all tests"
+	@echo "  make test-cover   - Run tests with coverage"
+	@echo "  make clean        - Remove build artifacts"
+	@echo "  make fmt          - Format code"
+	@echo "  make lint         - Lint code"
+	@echo "  make tidy         - Install dependencies"
+	@echo "  make help         - Show this help"

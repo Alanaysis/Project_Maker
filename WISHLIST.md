@@ -886,6 +886,309 @@ AI 请求 → 协议解析 → 工具路由 → 执行 → 结果返回
 
 ---
 
+## 🚗 自动驾驶模块
+
+### [自动驾驶感知系统]
+
+**一句话描述**：实现一个自动驾驶感知系统，支持目标检测、车道线检测、点云处理
+
+**学习目标**：
+- 理解自动驾驶感知架构
+- 掌握 3D 目标检测算法
+- 学会多传感器融合
+
+**技术栈**：
+- 主语言：Python / C++
+- 框架：PyTorch
+- 其他：Open3D、ROS2
+
+**核心循环**：
+```
+传感器数据 → 预处理 → 特征提取 → 目标检测 → 3D 定位 → 输出
+```
+
+**参考项目**：
+- [OpenPCDet](https://github.com/open-mmlab/OpenPCDet)
+- [mmdetection3d](https://github.com/open-mmlab/mmdetection3d)
+- [PointPillars](https://github.com/traveller59/second.pytorch)
+
+**优先级**：P1
+
+**预估时长**：10 小时
+
+**最小可用版本**：
+- 支持 LiDAR 点云处理
+- 实现 PointPillars 3D 检测
+- 简单的可视化
+- KITTI 数据集验证
+
+---
+
+### [自动驾驶规划控制]
+
+**一句话描述**：实现一个自动驾驶规划控制系统，支持路径规划和轨迹跟踪
+
+**学习目标**：
+- 理解运动规划算法
+- 掌握 PID/MPC 控制
+- 学会路径搜索算法
+
+**技术栈**：
+- 主语言：Python / C++
+- 框架：无
+- 其他：matplotlib
+
+**核心循环**：
+```
+地图信息 → 路径规划 → 轨迹生成 → 控制执行 → 状态反馈
+```
+
+**参考项目**：
+- [PythonRobotics](https://github.com/AtsushiSakai/PythonRobotics)
+- [motion-planning](https://github.com/zhm-real/PathPlanning)
+- [tuplan_garage](https://github.com/autonomousvision/tuplan_garage)
+
+**优先级**：P1
+
+**预估时长**：8 小时
+
+**最小可用版本**：
+- 实现 A* 路径规划
+- 实现 PID 轨迹跟踪
+- 简单的仿真环境
+- 可视化结果
+
+---
+
+### [CARLA 模拟器集成]
+
+**一句话描述**：集成 CARLA 模拟器，实现自动驾驶强化学习训练环境
+
+**学习目标**：
+- 理解自动驾驶模拟环境
+- 掌握强化学习在自动驾驶中的应用
+- 学会模拟器与 RL 的集成
+
+**技术栈**：
+- 主语言：Python
+- 框架：CARLA、Stable-Baselines3
+- 其他：OpenAI Gym
+
+**核心循环**：
+```
+模拟环境 → 状态观测 → RL 决策 → 动作执行 → 奖励计算 → 策略更新
+```
+
+**参考项目**：
+- [carla](https://github.com/carla-simulator/carla)
+- [EasyCarla-RL](https://github.com/cjy622/EasyCarla-RL)
+- [Autonomous-Driving-in-Carla-using-DRL](https://github.com/naokishibuya/carla-rl)
+
+**优先级**：P2
+
+**预估时长**：10 小时
+
+**最小可用版本**：
+- 安装 CARLA 模拟器
+- 实现 Gym 环境接口
+- 训练 PPO 智能体
+- 简单的导航任务
+
+---
+
+### [SLAM 建图系统]
+
+**一句话描述**：实现一个简单的 SLAM 系统，支持实时定位和建图
+
+**学习目标**：
+- 理解 SLAM 原理
+- 掌握视觉里程计
+- 学会图优化
+
+**技术栈**：
+- 主语言：C++ / Python
+- 框架：OpenCV、g2o
+- 其他：PCL
+
+**核心循环**：
+```
+传感器输入 → 特征提取 → 匹配 → 位姿估计 → 地图更新 → 回环检测
+```
+
+**参考项目**：
+- [ORB_SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3)
+- [cartographer](https://github.com/cartographer-project/cartographer)
+- [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion)
+
+**优先级**：P2
+
+**预估时长**：12 小时
+
+**最小可用版本**：
+- 实现视觉里程计
+- 简单的特征匹配
+- 位姿估计
+- 点云地图生成
+
+---
+
+## ⛓️ 区块链模块
+
+### [简易区块链实现]
+
+**一句话描述**：从零实现一个简易的区块链，理解区块链核心原理
+
+**学习目标**：
+- 理解区块链数据结构
+- 掌握共识算法
+- 学会加密哈希
+
+**技术栈**：
+- 主语言：Go / Python
+- 框架：无
+- 其他：crypto 库
+
+**核心循环**：
+```
+交易发起 → 交易验证 → 打包成块 → 共识确认 → 链上存储
+```
+
+**参考项目**：
+- [go-ethereum](https://github.com/ethereum/go-ethereum)
+- [bitcoinbook](https://github.com/bitcoinbook/bitcoinbook)
+- [blockchain-tutorial](https://github.com/liuchengxu/blockchain-tutorial)
+
+**优先级**：P1
+
+**预估时长**：6 小时
+
+**最小可用版本**：
+- 实现区块结构
+- 工作量证明（PoW）
+- 简单的 P2P 网络
+- 命令行钱包
+
+---
+
+### [智能合约虚拟机]
+
+**一句话描述**：实现一个简易的智能合约虚拟机，支持基本的合约执行
+
+**学习目标**：
+- 理解 EVM 原理
+- 掌握字节码执行
+- 学会 Gas 计算
+
+**技术栈**：
+- 主语言：Rust / Go
+- 框架：无
+- 其他：无
+
+**核心循环**：
+```
+合约部署 → 字节码加载 → 指令执行 → 状态更新 → Gas 计算
+```
+
+**参考项目**：
+- [revm](https://github.com/bluealloy/revm)
+- [ethereumjs-vm](https://github.com/ethereumjs/ethereumjs-vm)
+- [Soll](https://github.com/hyperledger-labs/Soll)
+
+**优先级**：P2
+
+**预估时长**：10 小时
+
+**最小可用版本**：
+- 实现基本操作码
+- 栈和内存管理
+- 简单的合约执行
+- Gas 计算
+
+---
+
+### [ERC20 代币合约]
+
+**一句话描述**：实现一个 ERC20 代币智能合约和部署工具
+
+**学习目标**：
+- 理解 ERC20 标准
+- 掌握 Solidity 编程
+- 学会合约部署
+
+**技术栈**：
+- 主语言：Solidity / JavaScript
+- 框架：Hardhat / Foundry
+- 其他：ethers.js
+
+**核心循环**：
+```
+合约编写 → 编译 → 测试 → 部署 → 交互
+```
+
+**参考项目**：
+- [openzeppelin-contracts](https://github.com/OpenZeppelin/openzeppelin-contracts)
+- [solidity-by-example](https://github.com/solidity-by-example/solidity-by-example)
+- [WTF-Solidity](https://github.com/AmazingAng/WTF-Solidity)
+
+**优先级**：P1
+
+**预估时长**：6 小时
+
+**最小可用版本**：
+- 实现 ERC20 合约
+- 编写测试用例
+- 部署到测试网
+- 简单的前端交互
+
+---
+
+### [去中心化投票系统]
+
+**一句话描述**：实现一个基于区块链的去中心化投票系统
+
+**学习目标**：
+- 理解去中心化应用架构
+- 掌握智能合约设计
+- 学会前端与合约交互
+
+**技术栈**：
+- 主语言：Solidity / TypeScript
+- 框架：Next.js、Hardhat
+- 其他：ethers.js、The Graph
+
+**核心循环**：
+```
+创建投票 → 用户投票 → 计票统计 → 结果公示
+```
+
+**参考项目**：
+- [scaffold-eth](https://github.com/scaffold-eth/scaffold-eth)
+- [dapp-boilerplate](https://github.com/ChainShot/dapp-boilerplate)
+- [voting-dapp](https://github.com/YOUR_NAME/voting-dapp)
+
+**优先级**：P2
+
+**预估时长**：8 小时
+
+**最小可用版本**：
+- 实现投票合约
+- 简单的前端界面
+- 连接钱包
+- 投票和计票功能
+
+---
+
+## 项目统计（更新后）
+
+| 状态 | 数量 |
+|------|------|
+| ✅ 已完成 | 24 |
+| 🔄 运行中 | 0 |
+| ⏳ 等待中 | 33 |
+| **总计** | **33** |
+
+---
+
 ## English
 
 (See Chinese section above for the full list of wishes)

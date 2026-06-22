@@ -29,7 +29,7 @@ const (
 )
 
 // 数据包头大小
-const PacketHeaderSize = 8
+const PacketHeaderSize = 9 // Type(1) + Sequence(2) + Timestamp(4) + Length(2)
 
 // PacketHeader 数据包头
 type PacketHeader struct {

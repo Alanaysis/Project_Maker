@@ -107,12 +107,12 @@ void DiskManager::writePage(page_id_t page_id, const char* page_data) {
 }
 
 page_id_t DiskManager::allocatePage() {
+    std::lock_guard<std::mutex> lock(latch_);
     page_id_t new_page_id = next_page_id_.fetch_add(1);
 
-    // 扩展文件
-    std::lock_guard<std::mutex> lock(latch_);
+    // 使用 page_id * PAGE_SIZE 计算正确的偏移量
     if (is_open_) {
-        db_io_.seekp(0, std::ios::end);
+        db_io_.seekp(static_cast<size_t>(new_page_id) * PAGE_SIZE);
         char empty_page[PAGE_SIZE] = {0};
         db_io_.write(empty_page, PAGE_SIZE);
         db_io_.flush();
