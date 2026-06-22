@@ -13,11 +13,11 @@ import numpy as np
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
 import sys
-sys.path.insert(0, '/home/siok/project_copyninja/projects/svm/src')
+sys.path.insert(0, '/home/siok/project_copyninja/projects/svm')
 
-from kernel import linear_kernel, rbf_kernel, polynomial_kernel, precompute_kernel_matrix
-from smo import SMO
-from svm import SVM
+from src.kernel import linear_kernel, rbf_kernel, polynomial_kernel, precompute_kernel_matrix
+from src.smo import SMO
+from src.svm import SVM
 
 
 # =============================================================================

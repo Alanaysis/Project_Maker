@@ -79,7 +79,7 @@ func TestUnpackDomainName(t *testing.T) {
 	}{
 		{[]byte("\x03www\x07example\x03com\x00"), "www.example.com", 0},
 		{[]byte("\x07example\x03com\x00"), "example.com", 0},
-		{[]byte("\x00"), ".", 0},
+		{[]byte("\x00"), "", 0},
 	}
 
 	for _, tt := range tests {

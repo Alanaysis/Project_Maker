@@ -82,7 +82,7 @@ func (s *Server) Start() error {
 	}
 
 	log.Printf("[server] DNS server listening on %s", s.addr)
-	log.Printf("[server] Upstream DNS: %s", s.resolver)
+	log.Printf("[server] Upstream DNS: configured")
 
 	// Start cache cleanup goroutine
 	stopCleanup := s.cache.StartCleanup(60 * time.Second)

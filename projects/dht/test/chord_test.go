@@ -39,9 +39,10 @@ func TestBetween(t *testing.T) {
 	}{
 		{"normal case", 5, 1, 10, true},
 		{"normal case false", 15, 1, 10, false},
-		{"wrap around", 5, 8, 3, true},
-		{"wrap around false", 7, 8, 3, false},
-		{"equal start and end", 5, 5, 5, true},
+		{"wrap around true", 1, 8, 3, true},   // 1 is in (8, 3) wrapping around
+		{"wrap around false", 5, 8, 3, false},  // 5 is NOT in (8, 3)
+		{"wrap around edge", 9, 8, 3, true},    // 9 is in (8, 3)
+		{"equal start and end", 5, 5, 5, false}, // start==end means empty interval for open (start, end)
 		{"key equals start", 5, 5, 10, false},
 		{"key equals end", 10, 5, 10, false},
 	}

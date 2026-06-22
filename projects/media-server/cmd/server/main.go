@@ -106,5 +106,5 @@ func printUsage(rtmpPort, httpPort string) {
 	fmt.Printf("     ffmpeg -re -i input.mp4 -c copy -f flv rtmp://localhost:%s/live/test\n", rtmpPort)
 	fmt.Println("\n  2. Play stream with FFplay/VLC:")
 	fmt.Printf("     ffplay http://localhost:%s/live/test/index.m3u8\n", httpPort)
-	fmt.Println("\n========================================\n")
+	fmt.Println("\n========================================")
 }

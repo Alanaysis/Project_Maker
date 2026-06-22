@@ -298,10 +298,11 @@ func Unpack(data []byte) (*Message, error) {
 	msg := &Message{}
 	var err error
 
-	msg.Header, err = UnpackHeader(data)
+	hdr, err := UnpackHeader(data)
 	if err != nil {
 		return nil, err
 	}
+	msg.Header = *hdr
 
 	offset := HeaderSize
 
@@ -447,7 +448,6 @@ func unpackDomainName(data []byte, offset int) (string, int, error) {
 
 	var name []byte
 	jumped := false
-	startOffset := offset
 	jumpOffset := offset
 	maxJumps := 10 // Prevent infinite loops from malformed messages
 	jumps := 0

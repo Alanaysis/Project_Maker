@@ -1,24 +1,20 @@
-"""
-Mesh Processing Library
-=======================
+"""网格处理算法库
 
-A Python library for 3D mesh processing algorithms including:
-- Mesh simplification (Quadric Error Metrics)
-- Mesh subdivision (Loop Subdivision)
-- Mesh smoothing (Laplacian and Taubin smoothing)
+支持三角网格的简化、细分和平滑操作。
 """
 
 __version__ = "0.1.0"
-__author__ = "Mesh Processing Learning Project"
 
-from .mesh import TriangleMesh
+from .mesh_data import TriangleMesh, Vertex, Face
 from .simplification import MeshSimplifier
-from .subdivision import MeshSubdivider
-from .smoothing import MeshSmoother
+from .subdivision import LoopSubdivision
+from .smoothing import LaplacianSmoother
 
 __all__ = [
-    "TriangleMesh",
-    "MeshSimplifier",
-    "MeshSubdivider",
-    "MeshSmoother",
+    'TriangleMesh',
+    'Vertex',
+    'Face',
+    'MeshSimplifier',
+    'LoopSubdivision',
+    'LaplacianSmoother'
 ]

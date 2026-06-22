@@ -19,14 +19,16 @@ class TestDecisionTreeClassifier:
     @pytest.fixture
     def simple_data(self):
         """Create a simple binary classification dataset."""
-        # XOR-like problem
+        # Linearly separable problem
         X = np.array([
-            [0, 0],
-            [0, 1],
-            [1, 0],
-            [1, 1],
+            [1.0, 1.0],
+            [1.5, 1.5],
+            [2.0, 2.0],
+            [5.0, 5.0],
+            [5.5, 5.5],
+            [6.0, 6.0],
         ])
-        y = np.array([0, 1, 1, 0])
+        y = np.array([0, 0, 0, 1, 1, 1])
         return X, y
 
     @pytest.fixture

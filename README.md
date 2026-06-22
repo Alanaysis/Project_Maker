@@ -1,6 +1,6 @@
 # 🎯 Learning Project Factory / 学习型项目工厂
 
-> **33 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全等领域
+> **34 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全、多媒体等领域
 
 ---
 
@@ -18,13 +18,14 @@
 | 🔧 [异构计算](projects/HETERO_README.md) | 2 | CPU+GPU、多 GPU |
 | 🎮 [分布式 & 通讯](projects/DISTRIBUTED_README.md) | 2 | 游戏系统、聊天应用 |
 | 💰 [金融 & 应用](projects/APPS_README.md) | 5 | 量化交易、VR、文档编辑器、键盘驱动 |
+| 🎬 [多媒体](projects/MEDIA_README.md) | 2 | 编解码器、流媒体服务器 |
 
 ### 按技术栈浏览
 
 | 技术栈 | 项目 |
 |--------|------|
 | **C++** | high-concurrency-db, ha-server, simple-vm, vr-application, keyboard-driver, adas-perception |
-| **Go** | hpc-task-scheduler, container-runtime, cdn-service, simple-blockchain, social-chat-app, distributed-game-system |
+| **Go** | hpc-task-scheduler, container-runtime, cdn-service, simple-blockchain, social-chat-app, distributed-game-system, media-server |
 | **Python** | finetune-rl-framework, vit-clip-training, industrial-vision-detection, quant-trading-system, adas-planning, carla-rl, slam-mapping |
 | **Rust** | mcp-server, vpn-software, smart-contract-vm |
 | **Solidity** | erc20-token, decentralized-voting |
@@ -148,6 +149,17 @@
 
 ---
 
+### 🎬 多媒体
+
+| 项目 | 描述 | 技术栈 | 难度 |
+|------|------|--------|------|
+| [av-codec](projects/av-codec/) | 音视频编解码器 | C++, FFmpeg | ⭐⭐⭐⭐⭐⭐ |
+| [media-server](projects/media-server/) | 流媒体服务器 | Go | ⭐⭐⭐⭐⭐ |
+
+📖 [多媒体模块详细说明](projects/MEDIA_README.md)
+
+---
+
 ## 📚 学习资源
 
 ### 学习路径
@@ -172,9 +184,9 @@
 
 | 维度 | 数量 |
 |------|------|
-| **总项目数** | 33 |
+| **总项目数** | 34 |
 | **技术栈** | 6 (C++, Go, Python, Rust, Solidity, TypeScript) |
-| **领域** | 8 |
+| **领域** | 9 |
 | **总代码行数** | 100,000+ |
 | **文档数量** | 200+ |
 

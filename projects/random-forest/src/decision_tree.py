@@ -428,7 +428,10 @@ class DecisionTreeClassifier:
 
         X = np.asarray(X, dtype=np.float64)
         if X.ndim == 1:
-            X = X.reshape(1, -1)
+            if self.n_features_ == 1:
+                X = X.reshape(-1, 1)
+            else:
+                X = X.reshape(1, -1)
 
         return np.array([self._predict_single(x, self.root_) for x in X])
 

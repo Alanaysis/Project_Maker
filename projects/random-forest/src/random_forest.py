@@ -228,7 +228,10 @@ class RandomForestClassifier:
 
         X = np.asarray(X, dtype=np.float64)
         if X.ndim == 1:
-            X = X.reshape(1, -1)
+            if self.n_features_ == 1:
+                X = X.reshape(-1, 1)
+            else:
+                X = X.reshape(1, -1)
 
         n_samples = X.shape[0]
 
@@ -265,7 +268,10 @@ class RandomForestClassifier:
 
         X = np.asarray(X, dtype=np.float64)
         if X.ndim == 1:
-            X = X.reshape(1, -1)
+            if self.n_features_ == 1:
+                X = X.reshape(-1, 1)
+            else:
+                X = X.reshape(1, -1)
 
         n_samples = X.shape[0]
 
