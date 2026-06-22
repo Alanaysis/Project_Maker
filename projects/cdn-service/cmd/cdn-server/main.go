@@ -16,6 +16,7 @@ func main() {
 	addr := flag.String("addr", ":8080", "Server address")
 	originURL := flag.String("origin", "http://localhost:9090", "Origin server URL")
 	cacheTTL := flag.Duration("ttl", 1*time.Hour, "Default cache TTL")
+	adminToken := flag.String("admin-token", "", "Bearer token for admin endpoints (required)")
 	flag.Parse()
 
 	// Create server configuration
@@ -26,6 +27,7 @@ func main() {
 		MaxHeaderBytes: 1 << 20,
 		DefaultTTL:     *cacheTTL,
 		OriginURL:      *originURL,
+		AdminToken:     *adminToken,
 	}
 
 	// Create and start server

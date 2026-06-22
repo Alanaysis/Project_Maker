@@ -1,0 +1,52 @@
+# CARLA RL Default Configuration
+
+# Environment settings
+env:
+  host: "localhost"
+  port: 2000
+  town: "Town01"
+  vehicle_model: "model3"
+  target_speed: 30.0  # km/h
+  max_steps: 1000
+  use_camera: false
+  image_size: [84, 84]
+
+# Reward weights
+reward:
+  progress: 1.0
+  speed: 0.5
+  lane: 0.3
+  heading: 0.2
+  collision: -100.0
+  time: -0.01
+  comfort: 0.1
+
+# PPO hyperparameters
+ppo:
+  policy: "MlpPolicy"
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.0
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  n_envs: 1
+  device: "auto"
+
+# Training settings
+training:
+  total_timesteps: 1000000
+  eval_freq: 10000
+  n_eval_episodes: 10
+  save_freq: 50000
+  save_path: "./checkpoints/"
+  tensorboard_log: "./tb_logs/"
+
+# Logging
+logging:
+  verbose: 1
+  log_dir: "./logs/"

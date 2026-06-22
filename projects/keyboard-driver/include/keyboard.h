@@ -82,14 +82,14 @@ typedef struct {
     uint8_t col;            /* 列号 */
     uint8_t keycode;        /* 键值 */
     uint8_t state;          /* 状态 */
-    uint32_t timestamp;     /* 时间戳 */
+    int32_t timestamp;      /* 时间戳 */
 } key_event_t;
 
 /* 键盘矩阵 */
 typedef struct {
     uint8_t state[MATRIX_ROWS][MATRIX_COLS];    /* 当前状态 */
     uint8_t prev_state[MATRIX_ROWS][MATRIX_COLS]; /* 上一次状态 */
-    uint32_t debounce_time[MATRIX_ROWS][MATRIX_COLS]; /* 去抖时间 */
+    int32_t debounce_time[MATRIX_ROWS][MATRIX_COLS]; /* 去抖时间 */
 } matrix_t;
 
 /* 键盘设备 */
@@ -143,8 +143,8 @@ typedef enum {
 } debounce_type_t;
 
 /* 去抖相关函数 */
-int debounce_init(debounce_type_t type, uint32_t debounce_time);
-bool debounce_process(uint8_t row, uint8_t col, bool pressed, uint32_t current_time);
+int debounce_init(debounce_type_t type, int32_t debounce_time);
+bool debounce_process(uint8_t row, uint8_t col, bool pressed, int32_t current_time);
 key_state_t debounce_get_state(uint8_t row, uint8_t col);
 void debounce_dump_state(void);
 

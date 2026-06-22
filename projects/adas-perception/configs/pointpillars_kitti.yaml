@@ -1,0 +1,137 @@
+# PointPillars KITTI 配置文件
+
+# 数据配置
+data:
+  dataset: kitti
+  root_dir: /path/to/kitti
+  split: training
+  num_workers: 4
+  batch_size: 32
+
+# 点云配置
+point_cloud:
+  voxel_size: [0.16, 0.16, 4]
+  point_cloud_range: [-40, -40, -3, 40, 40, 1]
+  max_points_per_pillar: 32
+  max_pillars: 12000
+
+# 模型配置
+model:
+  name: pointpillars
+  num_classes: 3
+  num_anchors_per_location: 2
+
+  # Pillar 编码器
+  pillar_encoder:
+    in_channels: 9
+    out_channels: 64
+
+  # 2D 骨干网络
+  backbone:
+    name: simple
+    in_channels: 64
+    out_channels: [64, 128, 256]
+
+  # FPN
+  fpn:
+    in_channels_list: [64, 128, 256]
+    out_channels: 64
+
+  # 检测头
+  detection_head:
+    in_channels: 64
+    num_classes: 3
+    num_anchors_per_location: 2
+
+# 类别配置
+classes:
+  - Car
+  - Pedestrian
+  - Cyclist
+
+# Anchor 配置
+anchors:
+  Car:
+    size: [1.6, 3.9, 1.56]
+    rotation: [0, 1.57]
+  Pedestrian:
+    size: [0.6, 0.8, 1.73]
+    rotation: [0, 1.57]
+  Cyclist:
+    size: [0.6, 1.76, 1.73]
+    rotation: [0, 1.57]
+
+# 训练配置
+training:
+  epochs: 80
+  learning_rate: 0.001
+  weight_decay: 0.01
+  lr_scheduler: cosine
+  warmup_epochs: 1
+
+  # 优化器
+  optimizer: adam
+
+  # 损失函数
+  loss:
+    cls_loss: focal
+    reg_loss: smooth_l1
+    dir_loss: cross_entropy
+
+    # Focal Loss 参数
+    focal_alpha: 0.25
+    focal_gamma: 2.0
+
+    # Smooth L1 Loss 参数
+    smooth_l1_beta: 1.0
+
+# 数据增强
+augmentation:
+  random_flip:
+    prob: 0.5
+  random_rotation:
+    range: [-0.78, 0.78]
+  random_scaling:
+    range: [0.95, 1.05]
+  random_translation:
+    std: [0.2, 0.2, 0.2]
+  random_noise:
+    std: 0.01
+  random_dropout:
+    prob: 0.1
+
+# 后处理配置
+post_processing:
+  score_threshold: 0.5
+  nms_threshold: 0.5
+  max_num_boxes: 100
+
+# 评估配置
+evaluation:
+  iou_thresholds:
+    Car: [0.7, 0.5]
+    Pedestrian: [0.5, 0.25]
+    Cyclist: [0.5, 0.25]
+
+  difficulty_levels:
+    Easy:
+      max_occlusion: 0
+      max_truncation: 0.15
+    Moderate:
+      max_occlusion: 1
+      max_truncation: 0.30
+    Hard:
+      max_occlusion: 2
+      max_truncation: 0.50
+
+# 日志配置
+logging:
+  level: INFO
+  log_dir: logs
+  tensorboard: true
+
+# 保存配置
+save:
+  checkpoint_dir: checkpoints
+  save_freq: 10
+  keep_last: 5

@@ -391,5 +391,5 @@ func setns(fd int, nstype int) error {
 
 // mkdev 创建设备号
 func mkdev(major, minor uint32) uint32 {
-	return (major << 8) | minor
+	return (major << 20) | minor
 }

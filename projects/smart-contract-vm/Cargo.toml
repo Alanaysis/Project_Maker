@@ -1,0 +1,11 @@
+[package]
+name = "smart-contract-vm"
+version = "0.1.0"
+edition = "2021"
+description = "A simple smart contract virtual machine inspired by EVM"
+license = "MIT"
+
+[dependencies]
+thiserror = "1.0"
+
+[dev-dependencies]

@@ -181,13 +181,13 @@ func chat(token string) {
 		log.Fatalf("Invalid URL: %v", err)
 	}
 
-	q := u.Query()
-	q.Set("token", token)
-	u.RawQuery = q.Encode()
+	// 使用 Authorization header 传递 token
+	header := http.Header{}
+	header.Set("Authorization", "Bearer "+token)
 
 	fmt.Printf("Connecting to %s...\n", u.String())
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}

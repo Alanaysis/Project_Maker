@@ -4,11 +4,11 @@
 #include <time.h>
 
 /* 获取当前时间戳（毫秒） */
-static uint32_t get_timestamp_ms(void)
+static int32_t get_timestamp_ms(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    return (int32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
 }
 
 /* 初始化键盘设备 */
@@ -144,10 +144,10 @@ bool keyboard_debounce(keyboard_dev_t *dev, uint8_t row, uint8_t col)
         return false;
     }
 
-    uint32_t current_time = get_timestamp_ms();
-    uint32_t last_time = dev->matrix.debounce_time[row][col];
+    int32_t current_time = get_timestamp_ms();
+    int32_t last_time = dev->matrix.debounce_time[row][col];
 
-    /* 检查去抖时间 */
+    /* 检查去抖时间（使用有符号整数避免回绕问题） */
     if ((current_time - last_time) < DEBOUNCE_MS) {
         /* 在去抖时间内，忽略变化 */
         return false;

@@ -42,6 +42,17 @@ ids_context_t *ids_init(void) {
         return NULL;
     }
 
+    // 初始化互斥锁
+    if (pthread_mutex_init(&ctx->stats_mutex, NULL) != 0) {
+        free(ctx);
+        return NULL;
+    }
+    if (pthread_mutex_init(&ctx->alert_mutex, NULL) != 0) {
+        pthread_mutex_destroy(&ctx->stats_mutex);
+        free(ctx);
+        return NULL;
+    }
+
     // 设置默认配置
     ids_set_default_config(ctx);
 
@@ -50,6 +61,8 @@ ids_context_t *ids_init(void) {
 
     ctx->syn_stats = (rate_stat_t *)calloc(ctx->stats_capacity, sizeof(rate_stat_t));
     if (!ctx->syn_stats) {
+        pthread_mutex_destroy(&ctx->alert_mutex);
+        pthread_mutex_destroy(&ctx->stats_mutex);
         free(ctx);
         return NULL;
     }
@@ -57,6 +70,8 @@ ids_context_t *ids_init(void) {
     ctx->scan_stats = (scan_stat_t *)calloc(ctx->stats_capacity, sizeof(scan_stat_t));
     if (!ctx->scan_stats) {
         free(ctx->syn_stats);
+        pthread_mutex_destroy(&ctx->alert_mutex);
+        pthread_mutex_destroy(&ctx->stats_mutex);
         free(ctx);
         return NULL;
     }
@@ -65,6 +80,8 @@ ids_context_t *ids_init(void) {
     if (!ctx->icmp_stats) {
         free(ctx->scan_stats);
         free(ctx->syn_stats);
+        pthread_mutex_destroy(&ctx->alert_mutex);
+        pthread_mutex_destroy(&ctx->stats_mutex);
         free(ctx);
         return NULL;
     }
@@ -74,6 +91,8 @@ ids_context_t *ids_init(void) {
         free(ctx->icmp_stats);
         free(ctx->scan_stats);
         free(ctx->syn_stats);
+        pthread_mutex_destroy(&ctx->alert_mutex);
+        pthread_mutex_destroy(&ctx->stats_mutex);
         free(ctx);
         return NULL;
     }
@@ -86,6 +105,8 @@ ids_context_t *ids_init(void) {
         free(ctx->icmp_stats);
         free(ctx->scan_stats);
         free(ctx->syn_stats);
+        pthread_mutex_destroy(&ctx->alert_mutex);
+        pthread_mutex_destroy(&ctx->stats_mutex);
         free(ctx);
         return NULL;
     }
@@ -233,12 +254,15 @@ int ids_add_alert(ids_context_t *ctx, alert_type_t type, const packet_t *pkt, co
         return -1;
     }
 
+    pthread_mutex_lock(&ctx->alert_mutex);
+
     // 检查告警数组是否已满
     if (ctx->alert_count >= ctx->alert_capacity) {
         // 扩展数组
         size_t new_capacity = ctx->alert_capacity * 2;
         alert_t *new_alerts = (alert_t *)realloc(ctx->alerts, new_capacity * sizeof(alert_t));
         if (!new_alerts) {
+            pthread_mutex_unlock(&ctx->alert_mutex);
             return -1;
         }
         ctx->alerts = new_alerts;
@@ -261,6 +285,8 @@ int ids_add_alert(ids_context_t *ctx, alert_type_t type, const packet_t *pkt, co
     }
 
     ctx->alert_count++;
+
+    pthread_mutex_unlock(&ctx->alert_mutex);
 
     return 0;
 }
@@ -290,9 +316,12 @@ int ids_detect_syn_flood(ids_context_t *ctx, const packet_t *pkt) {
         return 0;
     }
 
+    pthread_mutex_lock(&ctx->stats_mutex);
+
     // 获取速率统计
     rate_stat_t *stat = get_rate_stat(ctx->syn_stats, ctx->stats_capacity, pkt->src_ip);
     if (!stat) {
+        pthread_mutex_unlock(&ctx->stats_mutex);
         return 0;
     }
 
@@ -306,12 +335,15 @@ int ids_detect_syn_flood(ids_context_t *ctx, const packet_t *pkt) {
     }
 
     stat->count++;
+    uint32_t count = stat->count;
+
+    pthread_mutex_unlock(&ctx->stats_mutex);
 
     // 检查是否超过阈值
-    if (stat->count > ctx->config.syn_flood_threshold) {
+    if (count > ctx->config.syn_flood_threshold) {
         char desc[256];
         snprintf(desc, sizeof(desc), "SYN Flood detected: %d SYN packets in 1 second",
-                stat->count);
+                count);
         ids_add_alert(ctx, ALERT_SYN_FLOOD, pkt, desc);
         return 1;
     }
@@ -342,9 +374,12 @@ int ids_detect_port_scan(ids_context_t *ctx, const packet_t *pkt) {
         return 0;
     }
 
+    pthread_mutex_lock(&ctx->stats_mutex);
+
     // 获取扫描统计
     scan_stat_t *stat = get_scan_stat(ctx->scan_stats, ctx->stats_capacity, pkt->src_ip);
     if (!stat) {
+        pthread_mutex_unlock(&ctx->stats_mutex);
         return 0;
     }
 
@@ -371,11 +406,15 @@ int ids_detect_port_scan(ids_context_t *ctx, const packet_t *pkt) {
         stat->ports[stat->port_count++] = pkt->dst_port;
     }
 
+    uint32_t port_count = stat->port_count;
+
+    pthread_mutex_unlock(&ctx->stats_mutex);
+
     // 检查是否超过阈值
-    if (stat->port_count > ctx->config.port_scan_threshold) {
+    if (port_count > ctx->config.port_scan_threshold) {
         char desc[256];
         snprintf(desc, sizeof(desc), "Port scan detected: %d ports scanned in 60 seconds",
-                stat->port_count);
+                port_count);
         ids_add_alert(ctx, ALERT_PORT_SCAN, pkt, desc);
         return 1;
     }
@@ -462,9 +501,12 @@ int ids_detect_icmp_flood(ids_context_t *ctx, const packet_t *pkt) {
         return 0;
     }
 
+    pthread_mutex_lock(&ctx->stats_mutex);
+
     // 获取速率统计
     rate_stat_t *stat = get_rate_stat(ctx->icmp_stats, ctx->stats_capacity, pkt->src_ip);
     if (!stat) {
+        pthread_mutex_unlock(&ctx->stats_mutex);
         return 0;
     }
 
@@ -477,12 +519,15 @@ int ids_detect_icmp_flood(ids_context_t *ctx, const packet_t *pkt) {
     }
 
     stat->count++;
+    uint32_t count = stat->count;
+
+    pthread_mutex_unlock(&ctx->stats_mutex);
 
     // 检查是否超过阈值
-    if (stat->count > ctx->config.icmp_flood_threshold) {
+    if (count > ctx->config.icmp_flood_threshold) {
         char desc[256];
         snprintf(desc, sizeof(desc), "ICMP Flood detected: %d ICMP packets in 1 second",
-                stat->count);
+                count);
         ids_add_alert(ctx, ALERT_ICMP_FLOOD, pkt, desc);
         return 1;
     }
@@ -507,9 +552,12 @@ int ids_detect_udp_flood(ids_context_t *ctx, const packet_t *pkt) {
         return 0;
     }
 
+    pthread_mutex_lock(&ctx->stats_mutex);
+
     // 获取速率统计
     rate_stat_t *stat = get_rate_stat(ctx->udp_stats, ctx->stats_capacity, pkt->src_ip);
     if (!stat) {
+        pthread_mutex_unlock(&ctx->stats_mutex);
         return 0;
     }
 
@@ -522,12 +570,15 @@ int ids_detect_udp_flood(ids_context_t *ctx, const packet_t *pkt) {
     }
 
     stat->count++;
+    uint32_t count = stat->count;
+
+    pthread_mutex_unlock(&ctx->stats_mutex);
 
     // 检查是否超过阈值
-    if (stat->count > ctx->config.udp_flood_threshold) {
+    if (count > ctx->config.udp_flood_threshold) {
         char desc[256];
         snprintf(desc, sizeof(desc), "UDP Flood detected: %d UDP packets in 1 second",
-                stat->count);
+                count);
         ids_add_alert(ctx, ALERT_UDP_FLOOD, pkt, desc);
         return 1;
     }
@@ -568,7 +619,13 @@ int ids_detect(ids_context_t *ctx, const packet_t *pkt) {
  * @return 告警数量
  */
 size_t ids_alert_count(const ids_context_t *ctx) {
-    return ctx ? ctx->alert_count : 0;
+    if (!ctx) return 0;
+
+    pthread_mutex_lock(&ctx->alert_mutex);
+    size_t count = ctx->alert_count;
+    pthread_mutex_unlock(&ctx->alert_mutex);
+
+    return count;
 }
 
 /**
@@ -584,8 +641,12 @@ int ids_get_alerts(ids_context_t *ctx, alert_t *alerts, size_t max_count) {
         return 0;
     }
 
+    pthread_mutex_lock(&ctx->alert_mutex);
+
     size_t count = ctx->alert_count < max_count ? ctx->alert_count : max_count;
     memcpy(alerts, ctx->alerts, count * sizeof(alert_t));
+
+    pthread_mutex_unlock(&ctx->alert_mutex);
 
     return count;
 }
@@ -615,6 +676,8 @@ const char *ids_alert_type_name(alert_type_t type) {
  */
 void ids_print_alerts(const ids_context_t *ctx) {
     if (!ctx) return;
+
+    pthread_mutex_lock(&ctx->alert_mutex);
 
     printf("\n=== Intrusion Detection Alerts ===\n");
     printf("Total alerts: %zu\n", ctx->alert_count);
@@ -648,6 +711,8 @@ void ids_print_alerts(const ids_context_t *ctx) {
     }
 
     printf("===================================\n\n");
+
+    pthread_mutex_unlock(&ctx->alert_mutex);
 }
 
 /**
@@ -663,5 +728,7 @@ void ids_cleanup(ids_context_t *ctx) {
     free(ctx->icmp_stats);
     free(ctx->udp_stats);
     free(ctx->alerts);
+    pthread_mutex_destroy(&ctx->alert_mutex);
+    pthread_mutex_destroy(&ctx->stats_mutex);
     free(ctx);
 }

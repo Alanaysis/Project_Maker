@@ -390,6 +390,7 @@ void Server::forward_request(int client_fd, const HttpRequest& request) {
         backend->host, backend->port, config_.pool_config);
 
     // 获取连接
+    bool direct_connection = false;
     int backend_fd = pool->acquire();
     if (backend_fd < 0) {
         // 连接池满或创建失败，尝试直接创建连接
@@ -413,6 +414,8 @@ void Server::forward_request(int client_fd, const HttpRequest& request) {
             stats_.failed_requests.fetch_add(1);
             return;
         }
+
+        direct_connection = true;
     }
 
     backend->increment_connections();
@@ -424,7 +427,11 @@ void Server::forward_request(int client_fd, const HttpRequest& request) {
     if (sent < 0) {
         backend->increment_failures();
         backend->decrement_connections();
-        pool->remove(backend_fd);
+        if (direct_connection) {
+            close(backend_fd);
+        } else {
+            pool->remove(backend_fd);
+        }
         send_error_response(client_fd, 502, "Failed to forward request");
         stats_.failed_requests.fetch_add(1);
         return;
@@ -437,7 +444,11 @@ void Server::forward_request(int client_fd, const HttpRequest& request) {
     if (received <= 0) {
         backend->increment_failures();
         backend->decrement_connections();
-        pool->remove(backend_fd);
+        if (direct_connection) {
+            close(backend_fd);
+        } else {
+            pool->remove(backend_fd);
+        }
         send_error_response(client_fd, 502, "Failed to read response from backend");
         stats_.failed_requests.fetch_add(1);
         return;
@@ -450,10 +461,15 @@ void Server::forward_request(int client_fd, const HttpRequest& request) {
     stats_.successful_requests.fetch_add(1);
 
     // 释放连接回池
-    if (request.keep_alive) {
+    if (direct_connection) {
+        close(backend_fd);
+    } else if (request.keep_alive) {
         pool->release(backend_fd);
     } else {
         pool->remove(backend_fd);
+    }
+
+    if (!request.keep_alive) {
         close_connection(client_fd);
     }
 }

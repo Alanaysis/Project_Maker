@@ -21,6 +21,7 @@ type ServerConfig struct {
 	MaxHeaderBytes int
 	DefaultTTL     time.Duration
 	OriginURL      string
+	AdminToken     string // Bearer token required for admin endpoints
 }
 
 // DefaultConfig returns a default server configuration.
@@ -181,8 +182,32 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 	s.writeResponse(w, item)
 }
 
+// requireAdminAuth checks the Authorization header for a valid bearer token.
+// Returns true if the request is authorized, false otherwise (response already written).
+func (s *Server) requireAdminAuth(w http.ResponseWriter, r *http.Request) bool {
+	if s.config.AdminToken == "" {
+		// No token configured — deny by default to avoid open admin endpoints
+		http.Error(w, "Admin access disabled", http.StatusForbidden)
+		return false
+	}
+
+	auth := r.Header.Get("Authorization")
+	const prefix = "Bearer "
+	if len(auth) > len(prefix) && auth[:len(prefix)] == prefix {
+		if auth[len(prefix):] == s.config.AdminToken {
+			return true
+		}
+	}
+
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	return false
+}
+
 // handleCacheStats returns cache statistics as JSON.
 func (s *Server) handleCacheStats(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdminAuth(w, r) {
+		return
+	}
 	stats := s.cache.Stats()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -198,6 +223,10 @@ func (s *Server) handleCacheStats(w http.ResponseWriter, r *http.Request) {
 
 // handleCachePurge clears the cache or purges a specific key.
 func (s *Server) handleCachePurge(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdminAuth(w, r) {
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

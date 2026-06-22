@@ -102,8 +102,10 @@ private:
 class FilterExecutor : public AbstractExecutor {
 public:
     FilterExecutor(ExecutorContext* ctx, const Expression* predicate,
-                   std::unique_ptr<AbstractExecutor> child)
-        : AbstractExecutor(ctx), predicate_(predicate), child_(std::move(child)) {}
+                   std::unique_ptr<AbstractExecutor> child,
+                   const TableDef& table_def)
+        : AbstractExecutor(ctx), predicate_(predicate), child_(std::move(child)),
+          table_def_(table_def) {}
 
     void init() override {
         child_->init();
@@ -111,7 +113,7 @@ public:
 
     bool next(Row* row) override {
         while (child_->next(row)) {
-            if (evaluatePredicate(*row)) {
+            if (evaluatePredicate(predicate_, *row)) {
                 return true;
             }
         }
@@ -119,14 +121,112 @@ public:
     }
 
 private:
-    bool evaluatePredicate(const Row& row) {
-        // 简化实现：只支持简单的比较
-        // TODO: 完整的表达式求值
-        return true;
+    // 根据列名查找列索引，未找到返回 -1
+    int findColumnIndex(const std::string& col_name) const {
+        for (size_t i = 0; i < table_def_.columns.size(); ++i) {
+            if (table_def_.columns[i].name == col_name) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    }
+
+    // 求值表达式，返回 Value
+    Value evaluateExpression(const Expression* expr, const Row& row) const {
+        switch (expr->type()) {
+            case ExpressionType::LITERAL_INT:
+                return static_cast<const LiteralInt*>(expr)->getValue();
+            case ExpressionType::LITERAL_FLOAT:
+                return static_cast<const LiteralFloat*>(expr)->getValue();
+            case ExpressionType::LITERAL_STRING:
+                return static_cast<const LiteralString*>(expr)->getValue();
+            case ExpressionType::COLUMN_REF: {
+                const auto* col_ref = static_cast<const ColumnRef*>(expr);
+                int idx = findColumnIndex(col_ref->getColumnName());
+                if (idx >= 0 && static_cast<size_t>(idx) < row.size()) {
+                    return row.getValue(static_cast<size_t>(idx));
+                }
+                // 列未找到，返回默认整数 0
+                return static_cast<int32_t>(0);
+            }
+            default:
+                return static_cast<int32_t>(0);
+        }
+    }
+
+    // 比较两个 Value
+    static int compareValues(const Value& lhs, const Value& rhs) {
+        // 两个值类型相同时直接比较
+        if (lhs.index() == rhs.index()) {
+            if (std::holds_alternative<int32_t>(lhs)) {
+                int32_t a = std::get<int32_t>(lhs), b = std::get<int32_t>(rhs);
+                return (a < b) ? -1 : (a > b) ? 1 : 0;
+            }
+            if (std::holds_alternative<float>(lhs)) {
+                float a = std::get<float>(lhs), b = std::get<float>(rhs);
+                return (a < b) ? -1 : (a > b) ? 1 : 0;
+            }
+            if (std::holds_alternative<std::string>(lhs)) {
+                return std::get<std::string>(lhs).compare(std::get<std::string>(rhs));
+            }
+        }
+        // int32_t 和 float 之间可以互相比较
+        if (std::holds_alternative<int32_t>(lhs) && std::holds_alternative<float>(rhs)) {
+            float a = static_cast<float>(std::get<int32_t>(lhs));
+            float b = std::get<float>(rhs);
+            return (a < b) ? -1 : (a > b) ? 1 : 0;
+        }
+        if (std::holds_alternative<float>(lhs) && std::holds_alternative<int32_t>(rhs)) {
+            float a = std::get<float>(lhs);
+            float b = static_cast<float>(std::get<int32_t>(rhs));
+            return (a < b) ? -1 : (a > b) ? 1 : 0;
+        }
+        // 类型不兼容，按索引排序
+        return (lhs.index() < rhs.index()) ? -1 : 1;
+    }
+
+    // 求值谓词表达式（比较 / 逻辑），返回 bool
+    bool evaluatePredicate(const Expression* expr, const Row& row) const {
+        if (!expr) return true;
+
+        switch (expr->type()) {
+            case ExpressionType::COMPARISON: {
+                const auto* cmp = static_cast<const ComparisonExpression*>(expr);
+                Value lhs = evaluateExpression(cmp->getLeft(), row);
+                Value rhs = evaluateExpression(cmp->getRight(), row);
+                int c = compareValues(lhs, rhs);
+                switch (cmp->getOp()) {
+                    case ComparisonOp::EQUAL:         return c == 0;
+                    case ComparisonOp::NOT_EQUAL:      return c != 0;
+                    case ComparisonOp::LESS:           return c < 0;
+                    case ComparisonOp::GREATER:        return c > 0;
+                    case ComparisonOp::LESS_EQUAL:     return c <= 0;
+                    case ComparisonOp::GREATER_EQUAL:  return c >= 0;
+                }
+                return false;
+            }
+            case ExpressionType::BINARY_OP: {
+                const auto* logic = static_cast<const LogicalExpression*>(expr);
+                switch (logic->getOp()) {
+                    case LogicalOp::AND:
+                        return evaluatePredicate(logic->getLeft(), row)
+                            && evaluatePredicate(logic->getRight(), row);
+                    case LogicalOp::OR:
+                        return evaluatePredicate(logic->getLeft(), row)
+                            || evaluatePredicate(logic->getRight(), row);
+                    case LogicalOp::NOT:
+                        return !evaluatePredicate(logic->getLeft(), row);
+                }
+                return false;
+            }
+            default:
+                return true;
+        }
     }
 
     const Expression* predicate_;
     std::unique_ptr<AbstractExecutor> child_;
+    TableDef table_def_;
 };
 
 /**

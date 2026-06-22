@@ -207,7 +207,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// 验证 Token
-	claims, err := s.authMiddleware.ExtractTokenFromQuery(r)
+	claims, err := s.authMiddleware.ExtractTokenFromHeader(r)
 	if err != nil {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return

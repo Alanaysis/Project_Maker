@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -51,13 +52,13 @@ func main() {
 		log.Fatal("Invalid URL:", err)
 	}
 
-	q := u.Query()
-	q.Set("token", token)
-	u.RawQuery = q.Encode()
+	// 使用 Authorization header 传递 token
+	header := http.Header{}
+	header.Set("Authorization", "Bearer "+token)
 
 	fmt.Printf("Connecting to %s...\n", u.String())
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
 		log.Fatal("Failed to connect:", err)
 	}

@@ -143,10 +143,12 @@ func TestHandleCacheStats(t *testing.T) {
 	// Create a server
 	config := DefaultConfig()
 	config.OriginURL = "http://localhost:9090"
+	config.AdminToken = "test-token"
 	srv := NewServer(config)
 
-	// Create a request
+	// Create a request with auth header
 	req := httptest.NewRequest("GET", "/admin/cache/stats", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
 	w := httptest.NewRecorder()
 
 	// Handle request
@@ -172,6 +174,7 @@ func TestHandleCachePurge(t *testing.T) {
 	// Create a server
 	config := DefaultConfig()
 	config.OriginURL = "http://localhost:9090"
+	config.AdminToken = "test-token"
 	srv := NewServer(config)
 
 	// Add an item to cache
@@ -183,6 +186,7 @@ func TestHandleCachePurge(t *testing.T) {
 
 	// Purge specific key
 	req := httptest.NewRequest("POST", "/admin/cache/purge", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
 	req.Body = io.NopCloser(fmt.Sprintf("/test"))
 	w := httptest.NewRecorder()
 
@@ -205,6 +209,7 @@ func TestHandleCachePurgeAll(t *testing.T) {
 	// Create a server
 	config := DefaultConfig()
 	config.OriginURL = "http://localhost:9090"
+	config.AdminToken = "test-token"
 	srv := NewServer(config)
 
 	// Add items to cache
@@ -213,6 +218,7 @@ func TestHandleCachePurgeAll(t *testing.T) {
 
 	// Purge all
 	req := httptest.NewRequest("POST", "/admin/cache/purge", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
 	req.Body = io.NopCloser(fmt.Sprintf(""))
 	w := httptest.NewRecorder()
 
@@ -234,10 +240,12 @@ func TestHandleCachePurgeMethodNotAllowed(t *testing.T) {
 	// Create a server
 	config := DefaultConfig()
 	config.OriginURL = "http://localhost:9090"
+	config.AdminToken = "test-token"
 	srv := NewServer(config)
 
 	// Try GET method (should fail)
 	req := httptest.NewRequest("GET", "/admin/cache/purge", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
 	w := httptest.NewRecorder()
 
 	srv.handleCachePurge(w, req)

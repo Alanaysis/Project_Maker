@@ -231,6 +231,10 @@ private:
     GLuint m_debugVAO = 0;
     GLuint m_debugVBO = 0;
 
+    // 实例化渲染缓存
+    GLuint m_instanceVBO = 0;
+    size_t m_instanceVBOCapacity = 0;
+
     // 统计信息
     RenderStats m_stats;
 

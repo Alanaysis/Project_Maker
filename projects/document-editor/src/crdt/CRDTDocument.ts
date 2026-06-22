@@ -85,6 +85,8 @@ export class CRDTDocument {
   public readonly siteId: string;
   /** Ordered list of node IDs (the sequence) */
   private sequence: string[] = [];
+  /** Map from node key to its index in the sequence (O(1) lookup) */
+  private sequenceIndex: Map<string, number> = new Map();
 
   constructor(siteId: string) {
     this.siteId = siteId;
@@ -99,6 +101,7 @@ export class CRDTDocument {
     };
     this.nodes.set(this.idToKey(rootId), rootNode);
     this.sequence.push(this.idToKey(rootId));
+    this.sequenceIndex.set(this.idToKey(rootId), 0);
   }
 
   /**
@@ -120,7 +123,8 @@ export class CRDTDocument {
    */
   private findIndex(id: CharId): number {
     const key = this.idToKey(id);
-    return this.sequence.indexOf(key);
+    const index = this.sequenceIndex.get(key);
+    return index !== undefined ? index : -1;
   }
 
   /**
@@ -176,7 +180,13 @@ export class CRDTDocument {
       }
     }
 
-    this.sequence.splice(insertIndex, 0, this.idToKey(id));
+    const newKey = this.idToKey(id);
+    this.sequence.splice(insertIndex, 0, newKey);
+    // Update sequenceIndex: shift indices for inserted element and everything after
+    this.sequenceIndex.set(newKey, insertIndex);
+    for (let i = insertIndex + 1; i < this.sequence.length; i++) {
+      this.sequenceIndex.set(this.sequence[i], i);
+    }
 
     const op: CRDTOperation = {
       type: 'insert',
@@ -249,6 +259,7 @@ export class CRDTDocument {
         const parentIndex = this.findIndex(op.char.parentId);
         if (parentIndex === -1) {
           // Parent not found yet, append at end
+          this.sequenceIndex.set(charKey, this.sequence.length);
           this.sequence.push(charKey);
           return;
         }
@@ -275,7 +286,13 @@ export class CRDTDocument {
         }
 
         this.sequence.splice(insertIndex, 0, charKey);
+        // Update sequenceIndex: shift indices for inserted element and everything after
+        this.sequenceIndex.set(charKey, insertIndex);
+        for (let i = insertIndex + 1; i < this.sequence.length; i++) {
+          this.sequenceIndex.set(this.sequence[i], i);
+        }
       } else {
+        this.sequenceIndex.set(charKey, this.sequence.length);
         this.sequence.push(charKey);
       }
     } else if (op.type === 'delete' && op.targetId) {
@@ -349,12 +366,14 @@ export class CRDTDocument {
   importState(state: { nodes: CharNode[]; clock: number; siteId: string }): void {
     this.nodes.clear();
     this.sequence = [];
+    this.sequenceIndex.clear();
     this.clock = state.clock;
 
     for (const node of state.nodes) {
       const key = this.idToKey(node.id);
       this.nodes.set(key, node);
       if (!node.deleted) {
+        this.sequenceIndex.set(key, this.sequence.length);
         this.sequence.push(key);
       }
     }

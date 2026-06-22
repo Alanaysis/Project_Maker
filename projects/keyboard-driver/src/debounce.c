@@ -5,7 +5,7 @@
 /* 去抖状态 */
 typedef struct {
     key_state_t state;          /* 当前状态 */
-    uint32_t last_time;         /* 上次变化时间 */
+    int32_t last_time;          /* 上次变化时间 */
     int counter;                /* 计数器 */
     bool stable;                /* 是否稳定 */
 } debounce_state_t;
@@ -14,7 +14,7 @@ typedef struct {
 typedef struct {
     debounce_type_t type;       /* 去抖类型 */
     debounce_state_t keys[MATRIX_ROWS][MATRIX_COLS]; /* 按键状态 */
-    uint32_t debounce_time;     /* 去抖时间 */
+    int32_t debounce_time;      /* 去抖时间 */
     int threshold;              /* 阈值 */
 } debouncer_t;
 
@@ -22,13 +22,13 @@ typedef struct {
 static debouncer_t g_debouncer;
 
 /* 初始化去抖器 */
-int debounce_init(debounce_type_t type, uint32_t debounce_time)
+int debounce_init(debounce_type_t type, int32_t debounce_time)
 {
     printf("[Debounce] Initializing debouncer\n");
     printf("[Debounce] Type: %s\n",
            type == DEBOUNCE_TYPE_TIMER ? "Timer" :
            type == DEBOUNCE_TYPE_COUNTER ? "Counter" : "State Machine");
-    printf("[Debounce] Debounce time: %u ms\n", debounce_time);
+    printf("[Debounce] Debounce time: %d ms\n", debounce_time);
 
     memset(&g_debouncer, 0, sizeof(debouncer_t));
     g_debouncer.type = type;
@@ -47,7 +47,7 @@ int debounce_init(debounce_type_t type, uint32_t debounce_time)
 }
 
 /* 定时器去抖算法 */
-static bool debounce_timer(uint8_t row, uint8_t col, bool pressed, uint32_t current_time)
+static bool debounce_timer(uint8_t row, uint8_t col, bool pressed, int32_t current_time)
 {
     debounce_state_t *key = &g_debouncer.keys[row][col];
 
@@ -101,7 +101,7 @@ static bool debounce_counter(uint8_t row, uint8_t col, bool pressed)
 }
 
 /* 状态机去抖算法 */
-static bool debounce_state_machine(uint8_t row, uint8_t col, bool pressed, uint32_t current_time)
+static bool debounce_state_machine(uint8_t row, uint8_t col, bool pressed, int32_t current_time)
 {
     debounce_state_t *key = &g_debouncer.keys[row][col];
 
@@ -147,7 +147,7 @@ static bool debounce_state_machine(uint8_t row, uint8_t col, bool pressed, uint3
 }
 
 /* 去抖处理主函数 */
-bool debounce_process(uint8_t row, uint8_t col, bool pressed, uint32_t current_time)
+bool debounce_process(uint8_t row, uint8_t col, bool pressed, int32_t current_time)
 {
     if (row >= MATRIX_ROWS || col >= MATRIX_COLS) {
         return false;
@@ -185,7 +185,7 @@ void debounce_dump_state(void)
     printf("  Type: %s\n",
            g_debouncer.type == DEBOUNCE_TYPE_TIMER ? "Timer" :
            g_debouncer.type == DEBOUNCE_TYPE_COUNTER ? "Counter" : "State Machine");
-    printf("  Debounce Time: %u ms\n", g_debouncer.debounce_time);
+    printf("  Debounce Time: %d ms\n", g_debouncer.debounce_time);
     printf("  Threshold: %d\n", g_debouncer.threshold);
 
     printf("\n  Key States:\n");

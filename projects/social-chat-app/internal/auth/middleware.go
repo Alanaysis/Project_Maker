@@ -58,13 +58,21 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
-// ExtractTokenFromQuery 从查询参数提取 Token（用于 WebSocket）
-func (m *Middleware) ExtractTokenFromQuery(r *http.Request) (*Claims, error) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
+// ExtractTokenFromHeader 从 Authorization header 提取 Token（用于 WebSocket）
+func (m *Middleware) ExtractTokenFromHeader(r *http.Request) (*Claims, error) {
+	// 从 Header 获取 Token
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
 		return nil, ErrTokenRequired
 	}
 
+	// 解析 Bearer Token
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return nil, ErrTokenRequired
+	}
+
+	token := parts[1]
 	return m.jwtManager.Verify(token)
 }
 

@@ -157,6 +157,7 @@ void Renderer::Shutdown() {
 
     if (m_debugVAO) glDeleteVertexArrays(1, &m_debugVAO);
     if (m_debugVBO) glDeleteBuffers(1, &m_debugVBO);
+    if (m_instanceVBO) glDeleteBuffers(1, &m_instanceVBO);
 
     m_isInitialized = false;
     VR_INFO("Renderer shutdown");
@@ -295,11 +296,22 @@ void Renderer::RenderInstanced(const RenderObject& object, const std::vector<Mat
     // 绑定 VAO
     glBindVertexArray(object.vao);
 
-    // 创建实例化缓冲区
-    GLuint instanceVBO;
-    glGenBuffers(1, &instanceVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, modelMatrices.size() * sizeof(Mat4), modelMatrices.data(), GL_STATIC_DRAW);
+    // 创建实例化缓冲区（缓存 VBO，只在大小变化时重新分配）
+    size_t bufferSize = modelMatrices.size() * sizeof(Mat4);
+    if (m_instanceVBO == 0) {
+        glGenBuffers(1, &m_instanceVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+        glBufferData(GL_ARRAY_BUFFER, bufferSize, modelMatrices.data(), GL_STATIC_DRAW);
+        m_instanceVBOCapacity = bufferSize;
+    } else {
+        glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+        if (bufferSize > m_instanceVBOCapacity) {
+            glBufferData(GL_ARRAY_BUFFER, bufferSize, modelMatrices.data(), GL_STATIC_DRAW);
+            m_instanceVBOCapacity = bufferSize;
+        } else {
+            glBufferSubData(GL_ARRAY_BUFFER, 0, bufferSize, modelMatrices.data());
+        }
+    }
 
     // 设置实例化矩阵属性
     for (int i = 0; i < 4; i++) {
@@ -322,7 +334,6 @@ void Renderer::RenderInstanced(const RenderObject& object, const std::vector<Mat
     for (int i = 0; i < 4; i++) {
         glDisableVertexAttribArray(3 + i);
     }
-    glDeleteBuffers(1, &instanceVBO);
 
     glBindVertexArray(0);
 

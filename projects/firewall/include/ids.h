@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <time.h>
+#include <pthread.h>
 #include "packet.h"
 
 // 告警类型
@@ -70,6 +71,10 @@ typedef struct {
     alert_t *alerts;            // 告警数组
     size_t alert_count;         // 告警数量
     size_t alert_capacity;      // 告警容量
+
+    // 线程同步
+    pthread_mutex_t stats_mutex;    // 保护统计数据的互斥锁
+    pthread_mutex_t alert_mutex;    // 保护告警数据的互斥锁
 } ids_context_t;
 
 // 默认配置
