@@ -1,6 +1,6 @@
 # 🤖 AI 全栈模块
 
-> 5 个深度学习项目，涵盖量化、微调、训练、推理、部署
+> 7 个深度学习项目，涵盖量化、微调、训练、推理、部署、强化学习
 
 ---
 
@@ -13,6 +13,8 @@
 | [vit-clip-training](vit-clip-training/) | ViT/CLIP 模型训练 | Python, PyTorch | ⭐⭐⭐⭐⭐ | ✅ |
 | [industrial-vision-detection](industrial-vision-detection/) | 工业视觉检测 | Python, PyTorch | ⭐⭐⭐⭐⭐ | ✅ |
 | [local-llm-engine](local-llm-engine/) | 本地 LLM 推理引擎 | C++ | ⭐⭐⭐⭐⭐⭐⭐ | ✅ |
+| [dqn](dqn/) | 深度 Q 网络 | Python, PyTorch, Gym | ⭐⭐⭐⭐ | ✅ |
+| [policy-gradient](policy-gradient/) | 策略梯度算法 | Python, PyTorch, Gym | ⭐⭐⭐⭐ | ✅ |
 
 ---
 
@@ -164,6 +166,46 @@ make
 cd industrial-vision-detection
 pip install -r requirements.txt
 python examples/train_demo.py
+```
+
+---
+
+### 6. dqn (深度 Q 网络)
+
+**核心功能**：
+- DQN 算法实现
+- 经验回放缓冲区
+- 目标网络
+- CartPole 环境训练
+- Double DQN 支持
+
+**代码量**：约 500 行
+
+**快速开始**：
+```bash
+cd dqn
+pip install torch gymnasium numpy
+python src/train.py
+```
+
+---
+
+### 7. policy-gradient (策略梯度)
+
+**核心功能**：
+- REINFORCE 算法实现
+- 策略网络
+- 基线减法（移动平均、价值网络）
+- CartPole 环境训练
+- 熵正则化
+
+**代码量**：约 800 行
+
+**快速开始**：
+```bash
+cd policy-gradient
+pip install -r requirements.txt
+pytest tests/
 ```
 
 ---

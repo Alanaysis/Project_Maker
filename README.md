@@ -19,14 +19,15 @@
 | 🎮 [分布式 & 通讯](projects/DISTRIBUTED_README.md) | 2 | 游戏系统、聊天应用 |
 | 💰 [金融 & 应用](projects/APPS_README.md) | 5 | 量化交易、VR、文档编辑器、键盘驱动 |
 | 🎬 [多媒体](projects/MEDIA_README.md) | 2 | 编解码器、流媒体服务器 |
+| 🤖 [NLP & 机器学习](projects/NLP_README.md) | 7 | 分词器、随机森林、SVM、DHT、DNS |
 
 ### 按技术栈浏览
 
 | 技术栈 | 项目 |
 |--------|------|
-| **C++** | high-concurrency-db, ha-server, simple-vm, vr-application, keyboard-driver, adas-perception |
-| **Go** | hpc-task-scheduler, container-runtime, cdn-service, simple-blockchain, social-chat-app, distributed-game-system, media-server |
-| **Python** | finetune-rl-framework, vit-clip-training, industrial-vision-detection, quant-trading-system, adas-planning, carla-rl, slam-mapping |
+| **C++** | high-concurrency-db, ha-server, simple-vm, vr-application, keyboard-driver, adas-perception, matching-engine |
+| **Go** | hpc-task-scheduler, container-runtime, cdn-service, simple-blockchain, social-chat-app, distributed-game-system, media-server, dht, dns-server, distributed-transaction |
+| **Python** | finetune-rl-framework, vit-clip-training, industrial-vision-detection, quant-trading-system, adas-planning, carla-rl, slam-mapping, tokenizer, random-forest, svm |
 | **Rust** | mcp-server, vpn-software, smart-contract-vm |
 | **Solidity** | erc20-token, decentralized-voting |
 | **TypeScript** | document-editor |
@@ -35,9 +36,9 @@
 
 | 难度 | 项目 |
 |------|------|
-| ⭐⭐⭐ 入门 | simple-blockchain, erc20-token, cdn-service |
-| ⭐⭐⭐⭐ 初级 | hpc-task-scheduler, container-runtime, social-chat-app, vr-application |
-| ⭐⭐⭐⭐⭐ 中级 | high-concurrency-db, ha-server, vpn-software, adas-planning |
+| ⭐⭐⭐ 入门 | simple-blockchain, erc20-token, cdn-service, tokenizer |
+| ⭐⭐⭐⭐ 初级 | hpc-task-scheduler, container-runtime, social-chat-app, vr-application, random-forest, svm, dht, dns-server |
+| ⭐⭐⭐⭐⭐ 中级 | high-concurrency-db, ha-server, vpn-software, adas-planning, distributed-transaction, matching-engine |
 | ⭐⭐⭐⭐⭐⭐ 高级 | simple-vm, simple-os, finetune-rl-framework, smart-contract-vm |
 | ⭐⭐⭐⭐⭐⭐⭐ 专家 | local-llm-engine, adas-perception, slam-mapping |
 
@@ -160,6 +161,22 @@
 
 ---
 
+### 🤖 NLP & 机器学习
+
+| 项目 | 描述 | 技术栈 | 难度 |
+|------|------|--------|------|
+| [tokenizer](projects/tokenizer/) | 中文分词器 | Python | ⭐⭐⭐ |
+| [random-forest](projects/random-forest/) | 随机森林分类器 | Python | ⭐⭐⭐⭐ |
+| [svm](projects/svm/) | 支持向量机 | Python | ⭐⭐⭐⭐ |
+| [dht](projects/dht/) | 分布式哈希表 | Go | ⭐⭐⭐⭐ |
+| [dns-server](projects/dns-server/) | DNS 服务器 | Go | ⭐⭐⭐⭐ |
+| [distributed-transaction](projects/distributed-transaction/) | 分布式事务 | Go | ⭐⭐⭐⭐⭐ |
+| [matching-engine](projects/matching-engine/) | 撮合引擎 | C++ | ⭐⭐⭐⭐⭐ |
+
+📖 [NLP & 机器学习模块详细说明](projects/NLP_README.md)
+
+---
+
 ## 📚 学习资源
 
 ### 学习路径
@@ -184,11 +201,11 @@
 
 | 维度 | 数量 |
 |------|------|
-| **总项目数** | 34 |
+| **总项目数** | 41 |
 | **技术栈** | 6 (C++, Go, Python, Rust, Solidity, TypeScript) |
-| **领域** | 9 |
-| **总代码行数** | 100,000+ |
-| **文档数量** | 200+ |
+| **领域** | 10 |
+| **总代码行数** | 115,000+ |
+| **文档数量** | 235+ |
 
 ---
 
@@ -243,9 +260,10 @@ pytest tests/
 ## 📝 更新日志
 
 ### 2026-06-22
-- ✅ 完成所有 33 个项目
+- ✅ 完成所有 41 个项目
 - ✅ 新增自动驾驶模块（4 个项目）
 - ✅ 新增区块链模块（5 个项目）
+- ✅ 新增 NLP & 机器学习模块（7 个项目）
 - ✅ 修复 Critical/High 问题
 - ✅ 添加多层导航 README
 
