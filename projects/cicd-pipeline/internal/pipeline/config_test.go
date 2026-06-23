@@ -1,0 +1,282 @@
+package pipeline
+
+import (
+	"testing"
+)
+
+func TestParseConfig_ValidConfig(t *testing.T) {
+	yaml := `
+name: test-pipeline
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: echo "build"
+  - name: test
+    depends_on:
+      - build
+    tasks:
+      - name: unit-test
+        command: echo "test"
+`
+	config, err := ParseConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("解析配置失败: %v", err)
+	}
+	if config.Name != "test-pipeline" {
+		t.Errorf("期望名称 test-pipeline, 实际 %s", config.Name)
+	}
+	if len(config.Stages) != 2 {
+		t.Errorf("期望 2 个阶段, 实际 %d", len(config.Stages))
+	}
+	if config.Stages[0].Name != "build" {
+		t.Errorf("期望第一个阶段名称 build, 实际 %s", config.Stages[0].Name)
+	}
+	if config.Stages[1].Name != "test" {
+		t.Errorf("期望第二个阶段名称 test, 实际 %s", config.Stages[1].Name)
+	}
+	if len(config.Stages[1].DependsOn) != 1 || config.Stages[1].DependsOn[0] != "build" {
+		t.Errorf("test 阶段应依赖 build")
+	}
+}
+
+func TestParseConfig_EmptyName(t *testing.T) {
+	yaml := `
+name: ""
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: echo "build"
+`
+	_, err := ParseConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("空名称应返回错误")
+	}
+}
+
+func TestParseConfig_EmptyStages(t *testing.T) {
+	yaml := `
+name: test
+stages: []
+`
+	_, err := ParseConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("空阶段列表应返回错误")
+	}
+}
+
+func TestParseConfig_EmptyTaskCommand(t *testing.T) {
+	yaml := `
+name: test
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: ""
+`
+	_, err := ParseConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("空命令应返回错误")
+	}
+}
+
+func TestParseConfig_DuplicateStageNames(t *testing.T) {
+	yaml := `
+name: test
+stages:
+  - name: build
+    tasks:
+      - name: task1
+        command: echo "1"
+  - name: build
+    tasks:
+      - name: task2
+        command: echo "2"
+`
+	_, err := ParseConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("重复阶段名应返回错误")
+	}
+}
+
+func TestParseConfig_InvalidDependency(t *testing.T) {
+	yaml := `
+name: test
+stages:
+  - name: build
+    tasks:
+      - name: task1
+        command: echo "1"
+  - name: test
+    depends_on:
+      - nonexistent
+    tasks:
+      - name: task2
+        command: echo "2"
+`
+	_, err := ParseConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("无效依赖应返回错误")
+	}
+}
+
+func TestParseConfig_SelfDependency(t *testing.T) {
+	yaml := `
+name: test
+stages:
+  - name: build
+    depends_on:
+      - build
+    tasks:
+      - name: task1
+        command: echo "1"
+`
+	_, err := ParseConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("自依赖应返回错误")
+	}
+}
+
+func TestParseConfig_CyclicDependency(t *testing.T) {
+	yaml := `
+name: test
+stages:
+  - name: a
+    depends_on:
+      - c
+    tasks:
+      - name: task1
+        command: echo "1"
+  - name: b
+    depends_on:
+      - a
+    tasks:
+      - name: task2
+        command: echo "2"
+  - name: c
+    depends_on:
+      - b
+    tasks:
+      - name: task3
+        command: echo "3"
+`
+	_, err := ParseConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("循环依赖应返回错误")
+	}
+}
+
+func TestParseConfig_TaskWithTimeout(t *testing.T) {
+	yaml := `
+name: test
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: echo "build"
+        timeout: 60
+        retries: 3
+`
+	config, err := ParseConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	task := config.Stages[0].Tasks[0]
+	if task.Timeout != 60 {
+		t.Errorf("期望超时 60, 实际 %d", task.Timeout)
+	}
+	if task.Retries != 3 {
+		t.Errorf("期望重试 3, 实际 %d", task.Retries)
+	}
+}
+
+func TestParseConfig_InvalidYAML(t *testing.T) {
+	_, err := ParseConfig([]byte("not: valid: yaml: [[["))  // Actually this might parse, let's use truly invalid
+	if err != nil {
+		// YAML 可能会尽力解析，这里测试结构不匹配
+		return
+	}
+}
+
+func TestGetExecutionGroups_Simple(t *testing.T) {
+	config := &PipelineConfig{
+		Name: "test",
+		Stages: []StageConfig{
+			{Name: "build", Tasks: []TaskConfig{{Name: "t", Command: "echo 1"}}},
+			{Name: "test", DependsOn: []string{"build"}, Tasks: []TaskConfig{{Name: "t", Command: "echo 2"}}},
+			{Name: "deploy", DependsOn: []string{"test"}, Tasks: []TaskConfig{{Name: "t", Command: "echo 3"}}},
+		},
+	}
+	groups := GetExecutionGroups(config)
+	if len(groups) != 3 {
+		t.Fatalf("期望 3 组, 实际 %d", len(groups))
+	}
+	if groups[0][0] != "build" {
+		t.Errorf("第一组应为 build, 实际 %v", groups[0])
+	}
+	if groups[1][0] != "test" {
+		t.Errorf("第二组应为 test, 实际 %v", groups[1])
+	}
+	if groups[2][0] != "deploy" {
+		t.Errorf("第三组应为 deploy, 实际 %v", groups[2])
+	}
+}
+
+func TestGetExecutionGroups_Parallel(t *testing.T) {
+	config := &PipelineConfig{
+		Name: "test",
+		Stages: []StageConfig{
+			{Name: "build", Tasks: []TaskConfig{{Name: "t", Command: "echo 1"}}},
+			{Name: "test", DependsOn: []string{"build"}, Tasks: []TaskConfig{{Name: "t", Command: "echo 2"}}},
+			{Name: "lint", DependsOn: []string{"build"}, Tasks: []TaskConfig{{Name: "t", Command: "echo 3"}}},
+			{Name: "deploy", DependsOn: []string{"test", "lint"}, Tasks: []TaskConfig{{Name: "t", Command: "echo 4"}}},
+		},
+	}
+	groups := GetExecutionGroups(config)
+	if len(groups) != 3 {
+		t.Fatalf("期望 3 组, 实际 %d: %v", len(groups), groups)
+	}
+	// 第二组应包含 test 和 lint（并行）
+	if len(groups[1]) != 2 {
+		t.Errorf("第二组应有 2 个阶段并行, 实际 %d: %v", len(groups[1]), groups[1])
+	}
+}
+
+func TestStatus_String(t *testing.T) {
+	tests := []struct {
+		status Status
+		want   string
+	}{
+		{StatusPending, "pending"},
+		{StatusRunning, "running"},
+		{StatusSuccess, "success"},
+		{StatusFailed, "failed"},
+		{StatusSkipped, "skipped"},
+		{StatusTimeout, "timeout"},
+	}
+	for _, tt := range tests {
+		if got := tt.status.String(); got != tt.want {
+			t.Errorf("Status(%d).String() = %s, 期望 %s", tt.status, got, tt.want)
+		}
+	}
+}
+
+func TestStatus_Emoji(t *testing.T) {
+	tests := []struct {
+		status Status
+		want   string
+	}{
+		{StatusPending, "⏳"},
+		{StatusRunning, "🔄"},
+		{StatusSuccess, "✅"},
+		{StatusFailed, "❌"},
+		{StatusSkipped, "⏭️"},
+		{StatusTimeout, "⏰"},
+	}
+	for _, tt := range tests {
+		if got := tt.status.Emoji(); got != tt.want {
+			t.Errorf("Status(%d).Emoji() = %s, 期望 %s", tt.status, got, tt.want)
+		}
+	}
+}

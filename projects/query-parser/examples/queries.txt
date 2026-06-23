@@ -1,0 +1,38 @@
+# Query Parser Examples
+# =====================
+
+# Simple term search
+hello
+
+# Boolean AND (explicit)
+hello AND world
+
+# Boolean AND (implicit)
+hello world
+
+# Boolean OR
+hello OR world
+
+# Boolean NOT
+NOT goodbye
+
+# Phrase query
+"hello world"
+
+# Grouping with parentheses
+(hello OR hi) AND world
+
+# Complex boolean
+(quick OR fast) AND "brown fox" NOT lazy
+
+# Nested parentheses
+((a AND b) OR (c AND d)) AND e
+
+# Mixed operators
+apple AND (banana OR cherry) NOT date
+
+# Only NOT
+NOT (spam OR junk)
+
+# Phrase with boolean
+"machine learning" AND (python OR tensorflow)

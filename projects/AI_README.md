@@ -1,6 +1,6 @@
 # 🤖 AI 全栈模块
 
-> 7 个深度学习项目，涵盖量化、微调、训练、推理、部署、强化学习
+> 9 个深度学习项目，涵盖量化、微调、训练、推理、部署、强化学习、图像分割、Actor-Critic
 
 ---
 
@@ -13,8 +13,11 @@
 | [vit-clip-training](vit-clip-training/) | ViT/CLIP 模型训练 | Python, PyTorch | ⭐⭐⭐⭐⭐ | ✅ |
 | [industrial-vision-detection](industrial-vision-detection/) | 工业视觉检测 | Python, PyTorch | ⭐⭐⭐⭐⭐ | ✅ |
 | [local-llm-engine](local-llm-engine/) | 本地 LLM 推理引擎 | C++ | ⭐⭐⭐⭐⭐⭐⭐ | ✅ |
+| [yolo-detection](yolo-detection/) | YOLO 目标检测算法 | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
 | [dqn](dqn/) | 深度 Q 网络 | Python, PyTorch, Gym | ⭐⭐⭐⭐ | ✅ |
+| [image-segmentation](image-segmentation/) | U-Net 语义分割网络 | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
 | [policy-gradient](policy-gradient/) | 策略梯度算法 | Python, PyTorch, Gym | ⭐⭐⭐⭐ | ✅ |
+| [actor-critic](actor-critic/) | Actor-Critic 算法 | Python, PyTorch, Gym | ⭐⭐⭐⭐ | ✅ |
 
 ---
 
@@ -206,6 +209,47 @@ python src/train.py
 cd policy-gradient
 pip install -r requirements.txt
 pytest tests/
+```
+
+---
+
+### 8. image-segmentation (图像分割)
+
+**核心功能**：
+- U-Net 编码器-解码器架构
+- 跳跃连接（Skip Connections）
+- 双线性插值 / 转置卷积上采样
+- Dice Loss + BCE 组合损失
+- 合成数据生成和训练循环
+
+**代码量**：约 600 行
+
+**快速开始**：
+```bash
+cd image-segmentation
+pip install torch numpy pytest
+pytest tests/ -v
+```
+
+---
+
+### 9. actor-critic (Actor-Critic 算法)
+
+**核心功能**：
+- Actor-Critic 算法实现
+- Actor 策略网络
+- Critic 价值网络
+- 优势函数计算（支持 GAE）
+- CartPole 环境训练
+
+**代码量**：约 800 行
+
+**快速开始**：
+```bash
+cd actor-critic
+pip install -e .
+python scripts/train.py
+pytest tests/ -v
 ```
 
 ---

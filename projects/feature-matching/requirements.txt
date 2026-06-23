@@ -1,0 +1,15 @@
+# 特征匹配 SIFT/ORB 依赖
+
+# OpenCV
+opencv-python>=4.5.0
+opencv-contrib-python>=4.5.0
+
+# NumPy
+numpy>=1.20.0
+
+# Matplotlib (可视化)
+matplotlib>=3.5.0
+
+# 测试
+pytest>=7.0.0
+pytest-cov>=4.0.0

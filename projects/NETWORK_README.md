@@ -1,6 +1,6 @@
 # 🌐 网络服务模块
 
-> 5 个深度学习项目，涵盖高可用、MCP、VPN、CDN、防火墙
+> 6 个深度学习项目，涵盖高可用、MCP、VPN、CDN、防火墙、渗透测试
 
 ---
 
@@ -13,17 +13,18 @@
 | [vpn-software](vpn-software/) | VPN 软件 | Rust | ⭐⭐⭐⭐⭐ | ✅ |
 | [cdn-service](cdn-service/) | CDN 服务 | Go | ⭐⭐⭐ | ✅ |
 | [firewall](firewall/) | 防火墙 | C | ⭐⭐⭐⭐⭐ | ✅ |
+| [pentest-tools](pentest-tools/) | 渗透测试工具集 | Python | ⭐⭐⭐⭐ | ✅ |
 
 ---
 
 ## 🎯 学习路径
 
 ```
-高可用服务器 → MCP 协议 → VPN 加密 → CDN 缓存 → 防火墙
-      ↓           ↓           ↓           ↓           ↓
-   负载均衡     JSON-RPC    隧道加密     缓存策略     包过滤
-   健康检查     工具注册     密钥交换     回源机制     状态检测
-   连接池       请求路由     TUN设备      调度算法     入侵检测
+高可用服务器 → MCP 协议 → VPN 加密 → CDN 缓存 → 防火墙 → 渗透测试
+      ↓           ↓           ↓           ↓           ↓           ↓
+   负载均衡     JSON-RPC    隧道加密     缓存策略     包过滤     端口扫描
+   健康检查     工具注册     密钥交换     回源机制     状态检测   漏洞检测
+   连接池       请求路由     TUN设备      调度算法     入侵检测   报告生成
 ```
 
 ### 推荐学习顺序
@@ -53,6 +54,11 @@
    - 理解状态检测
    - 掌握入侵检测
 
+6. **pentest-tools** (渗透测试)
+   - 学习端口扫描和服务识别
+   - 理解常见漏洞类型
+   - 掌握漏洞检测和报告生成
+
 ---
 
 ## 🔧 技术栈
@@ -63,6 +69,7 @@
 | **Rust** | MCP、VPN | [Rust 官方文档](https://doc.rust-lang.org/) |
 | **Go** | CDN 服务 | [Go 官方文档](https://go.dev/doc/) |
 | **C** | 防火墙 | [C 官方文档](https://en.cppreference.com/w/c) |
+| **Python** | 渗透测试 | [Python 官方文档](https://docs.python.org/3/) |
 | **OpenSSL** | 加密库 | [OpenSSL 文档](https://www.openssl.org/docs/) |
 
 ---
@@ -166,6 +173,28 @@ go build -o bin/cdn-server cmd/cdn-server/main.go
 cd firewall
 chmod +x build.sh
 ./build.sh build
+```
+
+---
+
+---
+
+### 6. pentest-tools (渗透测试)
+
+**核心功能**：
+- 端口扫描器（TCP连接扫描、多线程并发、速率限制）
+- 服务识别器（Banner抓取、指纹匹配、版本提取）
+- 漏洞扫描器（已知漏洞数据库、弱密码检测、配置检查）
+- 报告生成器（JSON、HTML、TXT格式、修复建议）
+
+**代码量**：约 20 个文件
+
+**快速开始**：
+```bash
+cd pentest-tools
+pip install -r requirements.txt
+python3 -m pytest tests/ -v
+python3 examples/scan_example.py --demo
 ```
 
 ---

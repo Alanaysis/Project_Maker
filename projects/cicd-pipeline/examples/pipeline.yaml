@@ -1,0 +1,61 @@
+# 示例 CI/CD 流水线配置
+# 演示：代码提交 → 构建 → 测试 → 部署 的完整流程
+
+name: "示例应用 CI/CD 流水线"
+
+stages:
+  # 阶段 1: 构建（无依赖，首先执行）
+  - name: build
+    tasks:
+      - name: "检查代码"
+        command: "echo '📋 代码检查中...' && echo '源文件: main.go utils.go' && echo '✅ 代码检查通过'"
+        timeout: 30
+
+      - name: "编译项目"
+        command: "echo '🔨 编译中...' && sleep 1 && echo '编译完成: dist/app' && echo '✅ 编译成功'"
+        timeout: 120
+
+      - name: "打包制品"
+        command: "echo '📦 打包中...' && echo '生成: app-v1.0.0.tar.gz' && echo '✅ 打包完成'"
+
+  # 阶段 2: 测试（依赖构建）
+  - name: test
+    depends_on:
+      - build
+    tasks:
+      - name: "单元测试"
+        command: "echo '🧪 运行单元测试...' && sleep 1 && echo '测试结果: 42 passed, 0 failed' && echo '✅ 单元测试通过'"
+        timeout: 60
+
+      - name: "集成测试"
+        command: "echo '🔗 运行集成测试...' && sleep 1 && echo 'API 测试: 15 passed' && echo '✅ 集成测试通过'"
+        timeout: 120
+
+      - name: "代码覆盖率"
+        command: "echo '📊 计算代码覆盖率...' && echo '覆盖率: 85.2%' && echo '✅ 覆盖率达标'"
+
+  # 阶段 3: 安全扫描（依赖构建，与测试并行）
+  - name: security
+    depends_on:
+      - build
+    tasks:
+      - name: "依赖漏洞扫描"
+        command: "echo '🔍 扫描依赖漏洞...' && echo '已检查 128 个依赖' && echo '✅ 无高危漏洞'"
+
+      - name: "静态代码分析"
+        command: "echo '🔍 静态分析...' && echo '发现 0 个严重问题' && echo '✅ 静态分析通过'"
+
+  # 阶段 4: 部署（依赖测试和安全扫描）
+  - name: deploy
+    depends_on:
+      - test
+      - security
+    tasks:
+      - name: "部署到预发布"
+        command: "echo '🚀 部署到预发布环境...' && echo '目标: staging.example.com' && sleep 1 && echo '✅ 预发布部署成功'"
+
+      - name: "健康检查"
+        command: "echo '💓 执行健康检查...' && echo 'HTTP 200 OK' && echo '✅ 服务健康'"
+
+      - name: "通知团队"
+        command: "echo '📧 发送通知...' && echo 'Slack/邮件通知已发送' && echo '✅ 通知完成'"

@@ -1,0 +1,20 @@
+[server]
+port = 8080
+host = "localhost"
+
+[collector]
+interval = "5s"
+enabled = true
+
+[storage]
+retention = "24h"
+cleanup_interval = "1m"
+
+[alert]
+evaluation_interval = "10s"
+max_history = 1000
+
+[notifier]
+log_enabled = true
+webhook_enabled = false
+webhook_url = "http://localhost:8080/webhook"

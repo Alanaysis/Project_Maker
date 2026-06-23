@@ -1,6 +1,6 @@
 # 🤖 NLP & 机器学习模块
 
-> **6 个深度学习项目** | 涵盖自然语言处理、机器学习算法、数据结构等领域
+> **9 个深度学习项目** | 涵盖自然语言处理、机器学习算法、数据结构、边缘计算等领域
 
 ---
 
@@ -22,6 +22,8 @@
 | [dns-server](dns-server/) | DNS 服务器 | Go | ⭐⭐⭐⭐ |
 | [distributed-transaction](distributed-transaction/) | 分布式事务 | Go | ⭐⭐⭐⭐⭐ |
 | [matching-engine](matching-engine/) | 撮合引擎 | C++ | ⭐⭐⭐⭐⭐ |
+| [query-parser](query-parser/) | 查询解析器 | Go | ⭐⭐⭐⭐ |
+| [edge-computing](edge-computing/) | 边缘计算框架 | Python | ⭐⭐⭐⭐ |
 
 ---
 
@@ -185,6 +187,57 @@ python3 -m pytest tests/ -v
 
 ---
 
+### 🔍 查询解析器 (query-parser)
+
+**项目路径**: `projects/query-parser/`
+
+**学习目标**:
+- 理解查询解析
+- 掌握布尔查询
+- 学会相关性排序
+
+**核心功能**:
+- 查询字符串解析（词法分析、语法分析）
+- 布尔查询支持（AND、OR、NOT）
+- 短语查询（精确短语匹配）
+- 相关性排序（TF-IDF 算法）
+- 倒排索引
+
+**技术栈**: Go
+
+**快速开始**:
+```bash
+cd projects/query-parser
+go run cmd/parser/main.go "hello AND world"
+```
+
+---
+
+### 🌐 边缘计算 (edge-computing)
+
+**项目路径**: `projects/edge-computing/`
+
+**学习目标**:
+- 理解边缘计算的核心概念
+- 掌握任务卸载策略
+- 学会资源调度和负载均衡
+
+**核心功能**:
+- 边缘节点管理
+- 任务分发和调度
+- 结果收集和聚合
+- 多种负载均衡算法
+
+**技术栈**: Python
+
+**快速开始**:
+```bash
+cd projects/edge-computing
+python3 -m pytest tests/ -v
+```
+
+---
+
 ## 🛤️ 学习路径
 
 ### 推荐学习顺序
@@ -201,9 +254,15 @@ python3 -m pytest tests/ -v
    - [dht](dht/) - 分布式哈希表
    - [dns-server](dns-server/) - DNS 服务器
 
-4. **高级应用** (4-5 周)
+4. **搜索引擎** (2-3 周)
+   - [query-parser](query-parser/) - 查询解析器
+
+5. **高级应用** (4-5 周)
    - [distributed-transaction](distributed-transaction/) - 分布式事务
    - [matching-engine](matching-engine/) - 撮合引擎
+
+6. **边缘计算** (2-3 周)
+   - [edge-computing](edge-computing/) - 边缘计算框架
 
 ---
 
@@ -214,7 +273,9 @@ python3 -m pytest tests/ -v
 - **NLP 基础**: 分词算法、词典管理、HMM 模型、语言模型
 - **机器学习**: 决策树、集成学习、SVM 原理
 - **分布式系统**: DHT、DNS、分布式事务
+- **搜索引擎**: 查询解析、布尔查询、相关性排序
 - **高性能计算**: 撮合引擎、订单簿管理
+- **边缘计算**: 任务卸载、资源调度、负载均衡
 
 ---
 
@@ -224,6 +285,8 @@ python3 -m pytest tests/ -v
 - [语言模型学习笔记](language-model/LEARNING_NOTES.md) - N-gram 语言模型学习笔记
 - [机器学习笔记](random-forest/LEARNING_NOTES.md) - 随机森林学习笔记
 - [SVM 学习笔记](svm/LEARNING_NOTES.md) - SVM 学习笔记
+- [查询解析器学习笔记](query-parser/LEARNING_NOTES.md) - 查询解析器学习笔记
+- [边缘计算学习笔记](edge-computing/LEARNING_NOTES.md) - 边缘计算学习笔记
 
 ---
 
@@ -231,7 +294,7 @@ python3 -m pytest tests/ -v
 
 | 维度 | 数量 |
 |------|------|
-| **总项目数** | 8 |
+| **总项目数** | 9 |
 | **技术栈** | 3 (Python, Go, C++) |
 | **总代码行数** | 15,000+ |
 | **文档数量** | 35+ |

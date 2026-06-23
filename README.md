@@ -1,6 +1,6 @@
 # 🎯 Learning Project Factory / 学习型项目工厂
 
-> **34 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全、多媒体等领域
+> **37 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全、多媒体等领域
 
 ---
 
@@ -13,20 +13,20 @@
 | 🚗 [自动驾驶](projects/ADAS_README.md) | 4 | 感知、规划、CARLA、SLAM |
 | ⛓️ [区块链](projects/BLOCKCHAIN_README.md) | 5 | 区块链、智能合约、ERC20、投票 |
 | 🤖 [AI 全栈](projects/AI_README.md) | 5 | 量化、LoRA、ViT/CLIP、视觉、LLM |
-| ⚙️ [系统基础设施](projects/SYSTEM_README.md) | 5 | 数据库、调度、容器、VM、OS |
+| ⚙️ [系统基础设施](projects/SYSTEM_README.md) | 10 | 数据库、调度、容器、VM、OS、流计算、CI/CD、日志收集 |
 | 🌐 [网络服务](projects/NETWORK_README.md) | 5 | HA、MCP、VPN、CDN、防火墙 |
 | 🔧 [异构计算](projects/HETERO_README.md) | 2 | CPU+GPU、多 GPU |
 | 🎮 [分布式 & 通讯](projects/DISTRIBUTED_README.md) | 2 | 游戏系统、聊天应用 |
 | 💰 [金融 & 应用](projects/APPS_README.md) | 5 | 量化交易、VR、文档编辑器、键盘驱动 |
 | 🎬 [多媒体](projects/MEDIA_README.md) | 2 | 编解码器、流媒体服务器 |
-| 🤖 [NLP & 机器学习](projects/NLP_README.md) | 7 | 分词器、随机森林、SVM、DHT、DNS |
+| 🤖 [NLP & 机器学习](projects/NLP_README.md) | 9 | 分词器、随机森林、SVM、DHT、DNS、查询解析器、边缘计算 |
 
 ### 按技术栈浏览
 
 | 技术栈 | 项目 |
 |--------|------|
 | **C++** | high-concurrency-db, ha-server, simple-vm, vr-application, keyboard-driver, adas-perception, matching-engine |
-| **Go** | hpc-task-scheduler, container-runtime, cdn-service, simple-blockchain, social-chat-app, distributed-game-system, media-server, dht, dns-server, distributed-transaction |
+| **Go** | hpc-task-scheduler, container-runtime, cdn-service, simple-blockchain, social-chat-app, distributed-game-system, media-server, dht, dns-server, distributed-transaction, mvcc, query-parser, stream-processing, service-discovery, cicd-pipeline, log-collector |
 | **Python** | finetune-rl-framework, vit-clip-training, industrial-vision-detection, quant-trading-system, adas-planning, carla-rl, slam-mapping, tokenizer, random-forest, svm |
 | **Rust** | mcp-server, vpn-software, smart-contract-vm |
 | **Solidity** | erc20-token, decentralized-voting |
@@ -37,7 +37,7 @@
 | 难度 | 项目 |
 |------|------|
 | ⭐⭐⭐ 入门 | simple-blockchain, erc20-token, cdn-service, tokenizer |
-| ⭐⭐⭐⭐ 初级 | hpc-task-scheduler, container-runtime, social-chat-app, vr-application, random-forest, svm, dht, dns-server |
+| ⭐⭐⭐⭐ 初级 | hpc-task-scheduler, container-runtime, social-chat-app, vr-application, random-forest, svm, dht, dns-server, stream-processing, service-discovery, cicd-pipeline, log-collector |
 | ⭐⭐⭐⭐⭐ 中级 | high-concurrency-db, ha-server, vpn-software, adas-planning, distributed-transaction, matching-engine |
 | ⭐⭐⭐⭐⭐⭐ 高级 | simple-vm, simple-os, finetune-rl-framework, smart-contract-vm |
 | ⭐⭐⭐⭐⭐⭐⭐ 专家 | local-llm-engine, adas-perception, slam-mapping |
@@ -95,6 +95,10 @@
 | [container-runtime](projects/container-runtime/) | 容器化基础设施 | Go | ⭐⭐⭐⭐ |
 | [simple-vm](projects/simple-vm/) | 简易虚拟机 | C++, KVM | ⭐⭐⭐⭐⭐⭐ |
 | [simple-os](projects/simple-os/) | 简易操作系统 | C, 汇编 | ⭐⭐⭐⭐⭐⭐ |
+| [mvcc](projects/mvcc/) | MVCC 并发控制 | Go | ⭐⭐⭐⭐ |
+| [stream-processing](projects/stream-processing/) | 流式计算框架 | Go | ⭐⭐⭐⭐ |
+| [cicd-pipeline](projects/cicd-pipeline/) | CI/CD 流水线 | Go, Docker | ⭐⭐⭐⭐ |
+| [log-collector](projects/log-collector/) | 分布式日志收集系统 | Go | ⭐⭐⭐⭐ |
 
 📖 [系统模块详细说明](projects/SYSTEM_README.md)
 
@@ -172,6 +176,8 @@
 | [dns-server](projects/dns-server/) | DNS 服务器 | Go | ⭐⭐⭐⭐ |
 | [distributed-transaction](projects/distributed-transaction/) | 分布式事务 | Go | ⭐⭐⭐⭐⭐ |
 | [matching-engine](projects/matching-engine/) | 撮合引擎 | C++ | ⭐⭐⭐⭐⭐ |
+| [query-parser](projects/query-parser/) | 查询解析器 | Go | ⭐⭐⭐⭐ |
+| [edge-computing](projects/edge-computing/) | 边缘计算框架 | Python | ⭐⭐⭐⭐ |
 
 📖 [NLP & 机器学习模块详细说明](projects/NLP_README.md)
 
@@ -201,7 +207,7 @@
 
 | 维度 | 数量 |
 |------|------|
-| **总项目数** | 41 |
+| **总项目数** | 42 |
 | **技术栈** | 6 (C++, Go, Python, Rust, Solidity, TypeScript) |
 | **领域** | 10 |
 | **总代码行数** | 115,000+ |

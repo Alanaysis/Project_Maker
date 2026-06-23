@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/simple-rpc/proto";
+
+// RPC 请求消息
+message RpcRequest {
+    string service_name = 1;    // 服务名称
+    string method_name = 2;     // 方法名称
+    bytes args = 3;             // 序列化的参数
+    string request_id = 4;      // 请求 ID
+}
+
+// RPC 响应消息
+message RpcResponse {
+    string request_id = 1;      // 请求 ID
+    bytes result = 2;           // 序列化的结果
+    string error = 3;           // 错误信息
+}
+
+// RPC 服务定义
+service RpcService {
+    rpc Call(RpcRequest) returns (RpcResponse);
+}
