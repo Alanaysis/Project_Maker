@@ -1,6 +1,6 @@
 # ⚙️ 系统基础设施模块
 
-> 13 个深度学习项目，涵盖数据库、存储引擎、并发控制、调度、容器、虚拟机、操作系统、流计算、CI/CD、日志收集、监控告警、设备管理、容器编排
+> 14 个深度学习项目，涵盖数据库、存储引擎、并发控制、调度、容器、虚拟机、操作系统、流计算、CI/CD、日志收集、监控告警、设备管理、容器编排、编译器
 
 ---
 
@@ -21,6 +21,8 @@
 | [monitoring-alert](monitoring-alert/) | 监控告警系统 | Go | ⭐⭐⭐⭐ | ✅ |
 | [device-management](device-management/) | 设备管理系统 | Go | ⭐⭐⭐⭐ | ✅ |
 | [container-orchestrator](container-orchestrator/) | 容器编排系统 | Go | ⭐⭐⭐⭐ | ✅ |
+| [physics-engine](physics-engine/) | 2D 物理引擎 | C++ | ⭐⭐⭐⭐ | ✅ |
+| [simple-compiler](simple-compiler/) | 简易编译器 | Rust | ⭐⭐⭐⭐ | ✅ |
 
 ---
 
@@ -100,6 +102,11 @@
     - 理解容器调度策略（Bin Packing、Spread、Round Robin）
     - 掌握服务发现和健康检查
     - 学会自动扩缩容机制
+
+13. **physics-engine** (2D 物理引擎)
+    - 理解刚体动力学（牛顿运动定律、数值积分）
+    - 掌握碰撞检测算法（AABB、圆形碰撞）
+    - 学会约束求解（距离约束、钉子约束）
 
 ---
 
@@ -390,6 +397,28 @@ cd container-orchestrator
 go build -o bin/orchestrator ./cmd/main.go
 ./bin/orchestrator
 go test ./...
+```
+
+---
+
+### 13. physics-engine (2D 物理引擎)
+
+**核心功能**：
+- 刚体动力学（质量、速度、力、冲量）
+- AABB 碰撞检测（轴对齐包围盒）
+- 约束求解（距离约束、钉子约束、铰链约束、焊接约束）
+- 物理模拟（重力、摩擦力、弹性碰撞、阻尼）
+
+**代码量**：约 3000 行代码 + 测试
+
+**快速开始**：
+```bash
+cd physics-engine
+mkdir build && cd build
+cmake ..
+make
+ctest --output-on-failure
+./examples/example_basic
 ```
 
 ---

@@ -1,6 +1,6 @@
 # 🎬 多媒体模块
 
-> 音视频编解码、流媒体传输、多媒体处理相关项目
+> 音视频编解码、流媒体传输、多媒体处理、图形渲染相关项目
 
 ---
 
@@ -8,8 +8,10 @@
 
 | 项目 | 描述 | 技术栈 | 难度 | 状态 |
 |------|------|--------|------|------|
+| [audio-engine](audio-engine/) | 音频处理引擎 | Python, NumPy | ⭐⭐⭐⭐ | ✅ 完成 |
 | [av-codec](av-codec/) | 音视频编解码器 | C++, FFmpeg | ⭐⭐⭐⭐⭐⭐ | ✅ 完成 |
 | [media-server](media-server/) | 流媒体服务器 | Go | ⭐⭐⭐⭐⭐ | ✅ 完成 |
+| [ray-tracer](ray-tracer/) | 光线追踪渲染器 | C++ | ⭐⭐⭐⭐ | ✅ 完成 |
 
 ---
 
@@ -30,6 +32,13 @@
    ├── 理解 RTMP/HLS 协议
    ├── 学习服务器架构
    └── 掌握推流拉流
+   │
+   ▼
+3. ray-tracer (图形渲染)
+   │
+   ├── 理解光线追踪算法
+   ├── 掌握光线-物体求交
+   └── 学会材质和光照模型
 ```
 
 ### 学习目标
@@ -43,6 +52,11 @@
 - 理解 RTMP 协议原理
 - 理解 HLS 协议原理
 - 掌握流媒体服务器架构
+
+**阶段三：图形渲染**
+- 理解光线追踪算法
+- 掌握光线-物体求交
+- 学会材质和光照模型
 
 ---
 
@@ -66,9 +80,60 @@
 | TCP | 传输层 | media-server |
 | HTTP | 分发协议 | media-server |
 
+### 图形渲染技术
+
+| 技术 | 用途 | 项目 |
+|------|------|------|
+| 光线追踪 | 渲染算法 | ray-tracer |
+| 向量运算 | 几何计算 | ray-tracer |
+| 材质模型 | 光照计算 | ray-tracer |
+| PPM | 图像输出 | ray-tracer |
+
+### 音频处理技术
+
+| 技术 | 用途 | 项目 |
+|------|------|------|
+| FFT/IFFT | 频域变换 | audio-engine |
+| 频谱减法 | 降噪 | audio-engine |
+| Schroeder 混响 | 音频特效 | audio-engine |
+| 参数均衡器 | 频率均衡 | audio-engine |
+
 ---
 
 ## 📖 项目详情
+
+### audio-engine - 音频处理引擎
+
+**核心功能**：
+- FFT/IFFT 快速傅里叶变换
+- 音频滤波（低通、高通、带通、陷波）
+- 音频特效（延迟、混响、合唱、失真、压缩）
+- 混音器
+- 频谱减法降噪
+- 参数均衡器和图示均衡器
+
+**快速开始**：
+```bash
+cd projects/audio-engine
+
+# 运行测试
+pytest tests/ -v
+
+# 运行示例
+python examples/basic_fft.py
+python examples/audio_filtering.py
+python examples/audio_effects.py
+```
+
+**学习要点**：
+- FFT 算法（Cooley-Tukey）
+- 频域滤波原理
+- 音频特效算法（Schroeder 混响等）
+- 频谱减法降噪
+
+📖 [详细文档](audio-engine/README.md)
+
+---
 
 ### av-codec - 音视频编解码器
 
@@ -130,6 +195,40 @@ ffplay http://localhost:8080/live/test/index.m3u8
 
 ---
 
+### ray-tracer - 光线追踪渲染器
+
+**核心功能**：
+- 基本的光线追踪算法
+- 球体和平面求交
+- 多种材质（漫反射、金属、电介质）
+- 多重采样抗锯齿
+- PPM 图像输出
+
+**快速开始**：
+```bash
+cd projects/ray-tracer
+mkdir build && cd build
+cmake ..
+make
+
+# 渲染默认场景
+./ray-tracer --scene default --output output.ppm
+
+# 运行测试
+ctest
+```
+
+**学习要点**：
+- 光线追踪算法原理
+- 光线-球体求交算法
+- Lambertian/Metal/Dielectric 材质模型
+- 相机系统和景深效果
+- 多重采样抗锯齿
+
+📖 [详细文档](ray-tracer/README.md)
+
+---
+
 ## 📚 学习资源
 
 ### 书籍
@@ -137,6 +236,8 @@ ffplay http://localhost:8080/live/test/index.m3u8
 - 《音视频开发进阶指南》- 雷霄骅
 - 《FFmpeg 从入门到精通》- 刘歧
 - 《流媒体技术原理与应用》
+- 《Ray Tracing in One Weekend》- Peter Shirley
+- 《Fundamentals of Computer Graphics》- Marschner & Shirley
 
 ### 在线课程
 
@@ -152,6 +253,8 @@ ffplay http://localhost:8080/live/test/index.m3u8
 | [SRS](https://github.com/ossrs/srs) | C++ | 高性能流媒体服务器 |
 | [LiveGo](https://github.com/gwuhaolin/livego) | Go | 简单的流媒体服务器 |
 | [MediaSoup](https://github.com/versatica/mediasoup) | C++ | WebRTC SFU |
+| [smallpt](http://www.kevinbeason.com/smallpt/) | C++ | 99行光线追踪器 |
+| [pbrt](https://github.com/mmp/pbrt-v3) | C++ | 物理基础渲染器 |
 
 ### 工具
 

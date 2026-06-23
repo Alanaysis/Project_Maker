@@ -1,0 +1,14 @@
+[package]
+name = "simple-compiler"
+version = "0.1.0"
+edition = "2021"
+description = "A simple compiler built for learning compiler construction principles"
+authors = ["learner"]
+
+[[bin]]
+name = "sc"
+path = "src/main.rs"
+
+[lib]
+name = "simple_compiler"
+path = "src/lib.rs"
