@@ -1,6 +1,6 @@
 # 🌐 网络服务模块
 
-> 6 个深度学习项目，涵盖高可用、MCP、VPN、CDN、防火墙、渗透测试
+> 12 个深度学习项目，涵盖高可用、MCP、VPN、CDN、防火墙、渗透测试、RPC、服务发现、熔断降级、MQTT、设备管理、边缘计算
 
 ---
 
@@ -14,6 +14,12 @@
 | [cdn-service](cdn-service/) | CDN 服务 | Go | ⭐⭐⭐ | ✅ |
 | [firewall](firewall/) | 防火墙 | C | ⭐⭐⭐⭐⭐ | ✅ |
 | [pentest-tools](pentest-tools/) | 渗透测试工具集 | Python | ⭐⭐⭐⭐ | ✅ |
+| [simple-rpc](simple-rpc/) | 简易 RPC 框架 | Go | ⭐⭐⭐⭐ | ✅ |
+| [service-discovery](service-discovery/) | 服务发现系统 | Go | ⭐⭐⭐⭐ | ✅ |
+| [circuit-breaker](circuit-breaker/) | 熔断降级 | Go | ⭐⭐⭐ | ✅ |
+| [mqtt-broker](mqtt-broker/) | MQTT 消息代理 | Go | ⭐⭐⭐⭐ | ✅ |
+| [device-management](device-management/) | 设备管理系统 | Go | ⭐⭐⭐⭐ | ✅ |
+| [edge-computing](edge-computing/) | 边缘计算框架 | Python | ⭐⭐⭐⭐ | ✅ |
 
 ---
 
@@ -58,6 +64,36 @@
    - 学习端口扫描和服务识别
    - 理解常见漏洞类型
    - 掌握漏洞检测和报告生成
+
+7. **simple-rpc** (RPC 框架)
+   - 学习 RPC 调用流程和序列化
+   - 理解服务注册与发现
+   - 掌握负载均衡和超时处理
+
+8. **service-discovery** (服务发现)
+   - 学习服务注册与 TTL 租约
+   - 理解健康检查（TCP/HTTP）
+   - 掌握服务发现与负载均衡
+
+9. **circuit-breaker** (熔断降级)
+   - 学习熔断器状态机（关闭→打开→半开）
+   - 理解故障检测和优雅降级
+   - 掌握指标统计和恢复机制
+
+10. **mqtt-broker** (MQTT 消息代理)
+    - 学习 MQTT 3.1.1 协议
+    - 理解 QoS 0/1/2 服务质量
+    - 掌握发布/订阅模式和遗嘱消息
+
+11. **device-management** (设备管理)
+    - 学习设备生命周期管理
+    - 理解设备注册和状态上报
+    - 掌握远程控制和设备分组
+
+12. **edge-computing** (边缘计算)
+    - 学习边缘计算核心概念
+    - 理解任务卸载策略
+    - 掌握资源调度和负载均衡
 
 ---
 
@@ -195,6 +231,125 @@ cd pentest-tools
 pip install -r requirements.txt
 python3 -m pytest tests/ -v
 python3 examples/scan_example.py --demo
+```
+
+---
+
+### 7. simple-rpc (RPC 框架)
+
+**核心功能**：
+- RPC 调用流程（客户端→序列化→网络传输→反序列化→服务端处理）
+- 多种序列化格式（JSON、Protocol Buffers）
+- 服务注册与发现
+- 多种负载均衡策略（随机、轮询、加权、最少连接）
+- 超时处理和熔断器
+
+**代码量**：约 15 个文件
+
+**快速开始**：
+```bash
+cd simple-rpc
+go mod tidy
+go run cmd/server/main.go -addr localhost:8080 -service Calculator
+go run cmd/client/main.go -service Calculator -balancer round_robin
+```
+
+---
+
+### 8. service-discovery (服务发现)
+
+**核心功能**：
+- 服务注册（TTL 租约机制）
+- 健康检查（TCP、HTTP 探测）
+- 服务发现（Watch 机制、本地缓存）
+- 负载均衡（Round Robin、Random、Weighted）
+
+**代码量**：约 10 个文件
+
+**快速开始**：
+```bash
+cd service-discovery
+go build -o service-discovery ./cmd/server
+./service-discovery
+curl -X POST http://localhost:8500/register -H "Content-Type: application/json" -d '{"id":"svc-1","name":"user-service","address":"10.0.0.1","port":8080}'
+```
+
+---
+
+### 9. circuit-breaker (熔断降级)
+
+**核心功能**：
+- 熔断器状态机（关闭→打开→半开）
+- 失败率统计和阈值配置
+- 优雅降级策略
+- 自动恢复机制
+
+**代码量**：约 6 个文件
+
+**快速开始**：
+```bash
+cd circuit-breaker
+go test ./tests/...
+```
+
+---
+
+### 10. mqtt-broker (MQTT 消息代理)
+
+**核心功能**：
+- MQTT 3.1.1 协议完整实现
+- QoS 0/1/2 三种服务质量
+- 发布/订阅模式
+- 遗嘱消息（Last Will and Testament）
+- 主题通配符（+、#）
+
+**代码量**：约 6 个文件
+
+**快速开始**：
+```bash
+cd mqtt-broker
+go build -o mqtt-broker ./cmd
+./mqtt-broker
+go test ./tests/ -v
+```
+
+---
+
+### 11. device-management (设备管理)
+
+**核心功能**：
+- 设备注册与认证（生成唯一设备ID、身份验证）
+- 设备状态管理（电量、信号、固件版本、IP地址）
+- 远程控制（命令下发、命令执行跟踪）
+- 设备分组管理（按类型、区域、功能分组）
+- 事件通知（设备注册、状态更新、设备删除事件）
+
+**代码量**：约 8 个文件
+
+**快速开始**：
+```bash
+cd device-management
+go mod tidy
+go run cmd/server/main.go
+go test ./... -v
+```
+
+---
+
+### 12. edge-computing (边缘计算)
+
+**核心功能**：
+- 边缘节点管理
+- 任务分发和调度
+- 结果收集和聚合
+- 多种负载均衡算法
+
+**代码量**：约 10 个文件
+
+**快速开始**：
+```bash
+cd edge-computing
+python3 -m pytest tests/ -v
 ```
 
 ---

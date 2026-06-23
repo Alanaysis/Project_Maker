@@ -1,6 +1,6 @@
 # 🎯 Learning Project Factory / 学习型项目工厂
 
-> **37 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全、多媒体等领域
+> **92 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全、多媒体、机器学习等领域
 
 ---
 
@@ -11,36 +11,39 @@
 | 领域 | 项目数 | 入口 |
 |------|--------|------|
 | 🚗 [自动驾驶](projects/ADAS_README.md) | 4 | 感知、规划、CARLA、SLAM |
-| ⛓️ [区块链](projects/BLOCKCHAIN_README.md) | 5 | 区块链、智能合约、ERC20、投票 |
-| 🤖 [AI 全栈](projects/AI_README.md) | 5 | 量化、LoRA、ViT/CLIP、视觉、LLM |
-| ⚙️ [系统基础设施](projects/SYSTEM_README.md) | 10 | 数据库、调度、容器、VM、OS、流计算、CI/CD、日志收集 |
-| 🌐 [网络服务](projects/NETWORK_README.md) | 5 | HA、MCP、VPN、CDN、防火墙 |
-| 🔧 [异构计算](projects/HETERO_README.md) | 2 | CPU+GPU、多 GPU |
-| 🎮 [分布式 & 通讯](projects/DISTRIBUTED_README.md) | 2 | 游戏系统、聊天应用 |
-| 💰 [金融 & 应用](projects/APPS_README.md) | 5 | 量化交易、VR、文档编辑器、键盘驱动 |
-| 🎬 [多媒体](projects/MEDIA_README.md) | 2 | 编解码器、流媒体服务器 |
-| 🤖 [NLP & 机器学习](projects/NLP_README.md) | 9 | 分词器、随机森林、SVM、DHT、DNS、查询解析器、边缘计算 |
+| ⛓️ [区块链](projects/BLOCKCHAIN_README.md) | 4 | 区块链、智能合约、ERC20、投票 |
+| 🤖 [AI & 机器学习](projects/AI_README.md) | 22 | 量化、LoRA、ViT/CLIP、视觉、LLM、CNN、决策树、K-Means、KNN、线性回归、逻辑回归、朴素贝叶斯、PCA、Q-Learning、文本分类、Word2Vec、NER |
+| ⚙️ [系统基础设施](projects/SYSTEM_README.md) | 18 | 数据库、调度、容器、VM、OS、流计算、CI/CD、日志收集、监控、设备管理、容器编排、WAL、消息队列、Raft、分布式锁、熔断降级 |
+| 🌐 [网络服务](projects/NETWORK_README.md) | 10 | HA、MCP、VPN、CDN、防火墙、渗透测试、HTTP/2、WebSocket、MQTT、RPC |
+| 🔧 [异构计算](projects/HETERO_README.md) | 3 | CPU+GPU、多 GPU、GPU Shaders |
+| 🎮 [分布式 & 通讯](projects/DISTRIBUTED_README.md) | 6 | 游戏系统、聊天应用、Exactly-once、服务发现、分布式事务、DHT |
+| 💰 [金融 & 应用](projects/APPS_README.md) | 5 | 量化交易、VR、文档编辑器、键盘驱动、容灾存储 |
+| 🎬 [多媒体 & 图形](projects/MEDIA_README.md) | 7 | 编解码器、流媒体服务器、动画系统、网格处理、场景图、空间划分、特征匹配 |
+| 📊 [NLP & 数据结构](projects/NLP_README.md) | 9 | 分词器、语言模型、随机森林、SVM、DNS、撮合引擎、查询解析器、边缘计算、PageRank |
+| 🔐 [安全 & 工具](projects/SECURITY_README.md) | 4 | 密码学库、沙箱隔离、解释器、倒排索引 |
 
 ### 按技术栈浏览
 
 | 技术栈 | 项目 |
 |--------|------|
-| **C++** | high-concurrency-db, ha-server, simple-vm, vr-application, keyboard-driver, adas-perception, matching-engine |
-| **Go** | hpc-task-scheduler, container-runtime, cdn-service, simple-blockchain, social-chat-app, distributed-game-system, media-server, dht, dns-server, distributed-transaction, mvcc, query-parser, stream-processing, service-discovery, cicd-pipeline, log-collector |
-| **Python** | finetune-rl-framework, vit-clip-training, industrial-vision-detection, quant-trading-system, adas-planning, carla-rl, slam-mapping, tokenizer, random-forest, svm |
+| **C++** | high-concurrency-db, ha-server, simple-vm, vr-application, keyboard-driver, adas-perception, matching-engine, disaster-recovery-storage, av-codec, gpu-shaders, mesh-processing, scene-graph, spatial-partitioning, animation-system |
+| **Go** | hpc-task-scheduler, container-runtime, cdn-service, simple-blockchain, social-chat-app, distributed-game-system, media-server, dht, dns-server, distributed-transaction, mvcc, query-parser, stream-processing, service-discovery, cicd-pipeline, log-collector, monitoring-alert, device-management, lsm-tree, container-orchestrator, wal, message-queue, raft-consensus, distributed-lock, circuit-breaker, mqtt-broker, simple-rpc, http2-server, websocket-server, inverted-index |
+| **Python** | finetune-rl-framework, vit-clip-training, industrial-vision-detection, quant-trading-system, adas-planning, carla-rl, slam-mapping, tokenizer, random-forest, svm, edge-computing, edge-quantized-model, pentest-tools, yolo-detection, dqn, image-segmentation, policy-gradient, actor-critic, cnn-classification, decision-tree, kmeans, knn, linear-regression, logistic-regression, naive-bayes, pca, q-learning, text-classification, word2vec, ner, language-model, feature-matching, multi-gpu-computing, interpreter |
 | **Rust** | mcp-server, vpn-software, smart-contract-vm |
 | **Solidity** | erc20-token, decentralized-voting |
 | **TypeScript** | document-editor |
+| **C** | firewall, simple-os, crypto-lib, sandbox |
 
 ### 按难度浏览
 
 | 难度 | 项目 |
 |------|------|
-| ⭐⭐⭐ 入门 | simple-blockchain, erc20-token, cdn-service, tokenizer |
-| ⭐⭐⭐⭐ 初级 | hpc-task-scheduler, container-runtime, social-chat-app, vr-application, random-forest, svm, dht, dns-server, stream-processing, service-discovery, cicd-pipeline, log-collector |
-| ⭐⭐⭐⭐⭐ 中级 | high-concurrency-db, ha-server, vpn-software, adas-planning, distributed-transaction, matching-engine |
-| ⭐⭐⭐⭐⭐⭐ 高级 | simple-vm, simple-os, finetune-rl-framework, smart-contract-vm |
-| ⭐⭐⭐⭐⭐⭐⭐ 专家 | local-llm-engine, adas-perception, slam-mapping |
+| ⭐⭐ 入门 | linear-regression, logistic-regression, decision-tree, kmeans, knn, naive-bayes, pca |
+| ⭐⭐⭐ 初级 | simple-blockchain, erc20-token, cdn-service, tokenizer, language-model, pagerank, word2vec, text-classification, q-learning |
+| ⭐⭐⭐⭐ 中级 | hpc-task-scheduler, container-runtime, social-chat-app, vr-application, random-forest, svm, dht, dns-server, stream-processing, service-discovery, cicd-pipeline, log-collector, monitoring-alert, device-management, lsm-tree, container-orchestrator, wal, message-queue, raft-consensus, distributed-lock, circuit-breaker, mqtt-broker, simple-rpc, http2-server, websocket-server, inverted-index, pentest-tools, edge-computing, dqn, image-segmentation, policy-gradient, actor-critic, cnn-classification, yolo-detection, ner, feature-matching, multi-gpu-computing, gpu-shaders, mesh-processing, scene-graph, spatial-partitioning, interpreter, crypto-lib, sandbox |
+| ⭐⭐⭐⭐⭐ 高级 | high-concurrency-db, ha-server, vpn-software, adas-planning, distributed-transaction, matching-engine, exactly-once, disaster-recovery-storage, animation-system |
+| ⭐⭐⭐⭐⭐⭐ 专家 | simple-vm, simple-os, finetune-rl-framework, smart-contract-vm, edge-quantized-model, av-codec, media-server, quant-trading-system, document-editor, keyboard-driver |
+| ⭐⭐⭐⭐⭐⭐⭐ 大师 | local-llm-engine, adas-perception, slam-mapping, vit-clip-training, industrial-vision-detection, distributed-game-system, adas-planning |
 
 ---
 
@@ -72,15 +75,32 @@
 
 ---
 
-### 🤖 AI 全栈
+### 🤖 AI & 机器学习模块
 
 | 项目 | 描述 | 技术栈 | 难度 |
 |------|------|--------|------|
 | [edge-quantized-model](projects/edge-quantized-model/) | 端侧极致量化模型 | Python, C++ | ⭐⭐⭐⭐⭐⭐ |
 | [finetune-rl-framework](projects/finetune-rl-framework/) | 微调/RL 后训练框架 | Python, PyTorch | ⭐⭐⭐⭐⭐⭐ |
-| [vit-clip-training](projects/vit-clip-training/) | ViT/CLIP 模型训练 | Python, PyTorch | ⭐⭐⭐⭐⭐ |
-| [industrial-vision-detection](projects/industrial-vision-detection/) | 工业视觉检测 | Python, PyTorch | ⭐⭐⭐⭐⭐ |
+| [vit-clip-training](projects/vit-clip-training/) | ViT/CLIP 模型训练 | Python, PyTorch | ⭐⭐⭐⭐⭐⭐⭐ |
+| [industrial-vision-detection](projects/industrial-vision-detection/) | 工业视觉检测 | Python, PyTorch | ⭐⭐⭐⭐⭐⭐⭐ |
 | [local-llm-engine](projects/local-llm-engine/) | 本地 LLM 推理引擎 | C++ | ⭐⭐⭐⭐⭐⭐⭐ |
+| [yolo-detection](projects/yolo-detection/) | YOLO 目标检测算法 | Python, PyTorch | ⭐⭐⭐⭐ |
+| [dqn](projects/dqn/) | 深度 Q 网络 | Python, PyTorch, Gym | ⭐⭐⭐⭐ |
+| [image-segmentation](projects/image-segmentation/) | U-Net 语义分割网络 | Python, PyTorch | ⭐⭐⭐⭐ |
+| [policy-gradient](projects/policy-gradient/) | 策略梯度算法 | Python, PyTorch, Gym | ⭐⭐⭐⭐ |
+| [actor-critic](projects/actor-critic/) | Actor-Critic 算法 | Python, PyTorch, Gym | ⭐⭐⭐⭐ |
+| [cnn-classification](projects/cnn-classification/) | CNN 图像分类 | Python, PyTorch | ⭐⭐⭐⭐ |
+| [decision-tree](projects/decision-tree/) | 决策树分类器 | Python | ⭐⭐ |
+| [kmeans](projects/kmeans/) | K-Means 聚类 | Python | ⭐⭐ |
+| [knn](projects/knn/) | KNN 分类器 | Python | ⭐⭐ |
+| [linear-regression](projects/linear-regression/) | 线性回归 | Python | ⭐⭐ |
+| [logistic-regression](projects/logistic-regression/) | 逻辑回归 | Python | ⭐⭐ |
+| [naive-bayes](projects/naive-bayes/) | 朴素贝叶斯分类器 | Python | ⭐⭐ |
+| [pca](projects/pca/) | PCA 主成分分析 | Python | ⭐⭐ |
+| [q-learning](projects/q-learning/) | Q-Learning 强化学习 | Python | ⭐⭐⭐ |
+| [text-classification](projects/text-classification/) | 文本分类系统 | Python | ⭐⭐⭐ |
+| [word2vec](projects/word2vec/) | Word2Vec 词向量训练 | Python | ⭐⭐⭐ |
+| [ner](projects/ner/) | 命名实体识别 | Python | ⭐⭐⭐⭐ |
 
 📖 [AI 模块详细说明](projects/AI_README.md)
 
@@ -91,6 +111,7 @@
 | 项目 | 描述 | 技术栈 | 难度 |
 |------|------|--------|------|
 | [high-concurrency-db](projects/high-concurrency-db/) | 高并发数据库查询 | C++ | ⭐⭐⭐⭐⭐ |
+| [lsm-tree](projects/lsm-tree/) | LSM Tree 存储引擎 | Go | ⭐⭐⭐⭐ |
 | [hpc-task-scheduler](projects/hpc-task-scheduler/) | HPC 任务调度系统 | Go | ⭐⭐⭐⭐ |
 | [container-runtime](projects/container-runtime/) | 容器化基础设施 | Go | ⭐⭐⭐⭐ |
 | [simple-vm](projects/simple-vm/) | 简易虚拟机 | C++, KVM | ⭐⭐⭐⭐⭐⭐ |
@@ -99,6 +120,14 @@
 | [stream-processing](projects/stream-processing/) | 流式计算框架 | Go | ⭐⭐⭐⭐ |
 | [cicd-pipeline](projects/cicd-pipeline/) | CI/CD 流水线 | Go, Docker | ⭐⭐⭐⭐ |
 | [log-collector](projects/log-collector/) | 分布式日志收集系统 | Go | ⭐⭐⭐⭐ |
+| [monitoring-alert](projects/monitoring-alert/) | 监控告警系统 | Go | ⭐⭐⭐⭐ |
+| [device-management](projects/device-management/) | 设备管理系统 | Go | ⭐⭐⭐⭐ |
+| [container-orchestrator](projects/container-orchestrator/) | 容器编排系统 | Go | ⭐⭐⭐⭐ |
+| [wal](projects/wal/) | WAL 预写日志 | Go | ⭐⭐⭐⭐ |
+| [message-queue](projects/message-queue/) | 分布式消息队列 | Go | ⭐⭐⭐⭐ |
+| [raft-consensus](projects/raft-consensus/) | Raft 共识算法 | Go | ⭐⭐⭐⭐ |
+| [distributed-lock](projects/distributed-lock/) | 分布式锁 | Go | ⭐⭐⭐⭐ |
+| [circuit-breaker](projects/circuit-breaker/) | 熔断降级 | Go | ⭐⭐⭐⭐ |
 
 📖 [系统模块详细说明](projects/SYSTEM_README.md)
 
@@ -113,6 +142,11 @@
 | [vpn-software](projects/vpn-software/) | VPN 软件 | Rust | ⭐⭐⭐⭐⭐ |
 | [cdn-service](projects/cdn-service/) | CDN 服务 | Go | ⭐⭐⭐ |
 | [firewall](projects/firewall/) | 防火墙 | C | ⭐⭐⭐⭐⭐ |
+| [pentest-tools](projects/pentest-tools/) | 渗透测试工具集 | Python | ⭐⭐⭐⭐ |
+| [http2-server](projects/http2-server/) | HTTP/2 服务器 | Go | ⭐⭐⭐⭐ |
+| [websocket-server](projects/websocket-server/) | WebSocket 服务器 | Go | ⭐⭐⭐⭐ |
+| [mqtt-broker](projects/mqtt-broker/) | MQTT Broker | Go | ⭐⭐⭐⭐ |
+| [simple-rpc](projects/simple-rpc/) | 简易 RPC 框架 | Go | ⭐⭐⭐⭐ |
 
 📖 [网络模块详细说明](projects/NETWORK_README.md)
 
@@ -123,7 +157,8 @@
 | 项目 | 描述 | 技术栈 | 难度 |
 |------|------|--------|------|
 | [heterogeneous-computing](projects/heterogeneous-computing/) | CPU+GPU 异构计算 | C++ | ⭐⭐⭐⭐⭐ |
-| [multi-gpu-computing](projects/multi-gpu-computing/) | 多 GPU 并行计算 | Python | ⭐⭐⭐⭐⭐ |
+| [multi-gpu-computing](projects/multi-gpu-computing/) | 多 GPU 并行计算 | Python | ⭐⭐⭐⭐ |
+| [gpu-shaders](projects/gpu-shaders/) | GPU Shader 库 | C++ | ⭐⭐⭐⭐ |
 
 📖 [异构计算模块详细说明](projects/HETERO_README.md)
 
@@ -133,8 +168,12 @@
 
 | 项目 | 描述 | 技术栈 | 难度 |
 |------|------|--------|------|
-| [distributed-game-system](projects/distributed-game-system/) | 分布式游戏系统 | Go | ⭐⭐⭐⭐ |
+| [distributed-game-system](projects/distributed-game-system/) | 分布式游戏系统 | Go | ⭐⭐⭐⭐⭐⭐⭐ |
 | [social-chat-app](projects/social-chat-app/) | 社交聊天应用 | Go | ⭐⭐⭐⭐ |
+| [exactly-once](projects/exactly-once/) | Exactly-once 语义 | Go | ⭐⭐⭐⭐⭐ |
+| [service-discovery](projects/service-discovery/) | 服务发现系统 | Go | ⭐⭐⭐⭐ |
+| [distributed-transaction](projects/distributed-transaction/) | 分布式事务 | Go | ⭐⭐⭐⭐⭐ |
+| [dht](projects/dht/) | 分布式哈希表 | Go | ⭐⭐⭐⭐ |
 
 📖 [分布式模块详细说明](projects/DISTRIBUTED_README.md)
 
@@ -144,42 +183,60 @@
 
 | 项目 | 描述 | 技术栈 | 难度 |
 |------|------|--------|------|
-| [quant-trading-system](projects/quant-trading-system/) | 量化交易系统 | Python | ⭐⭐⭐⭐⭐ |
+| [quant-trading-system](projects/quant-trading-system/) | 量化交易系统 | Python | ⭐⭐⭐⭐⭐⭐ |
 | [vr-application](projects/vr-application/) | VR 应用 | C++, OpenGL | ⭐⭐⭐⭐⭐ |
-| [document-editor](projects/document-editor/) | 文档编辑器 | TypeScript | ⭐⭐⭐⭐ |
-| [keyboard-driver](projects/keyboard-driver/) | 键盘驱动 | C | ⭐⭐⭐⭐⭐ |
+| [document-editor](projects/document-editor/) | 文档编辑器 | TypeScript | ⭐⭐⭐⭐⭐⭐ |
+| [keyboard-driver](projects/keyboard-driver/) | 键盘驱动 | C | ⭐⭐⭐⭐⭐⭐ |
 | [disaster-recovery-storage](projects/disaster-recovery-storage/) | 容灾存储 | C++ | ⭐⭐⭐⭐⭐ |
 
 📖 [应用模块详细说明](projects/APPS_README.md)
 
 ---
 
-### 🎬 多媒体
+### 🎬 多媒体 & 图形
 
 | 项目 | 描述 | 技术栈 | 难度 |
 |------|------|--------|------|
 | [av-codec](projects/av-codec/) | 音视频编解码器 | C++, FFmpeg | ⭐⭐⭐⭐⭐⭐ |
-| [media-server](projects/media-server/) | 流媒体服务器 | Go | ⭐⭐⭐⭐⭐ |
+| [media-server](projects/media-server/) | 流媒体服务器 | Go | ⭐⭐⭐⭐⭐⭐ |
+| [animation-system](projects/animation-system/) | 动画系统 | C++ | ⭐⭐⭐⭐⭐ |
+| [mesh-processing](projects/mesh-processing/) | 网格处理算法 | C++ | ⭐⭐⭐⭐ |
+| [scene-graph](projects/scene-graph/) | 场景图系统 | C++ | ⭐⭐⭐⭐ |
+| [spatial-partitioning](projects/spatial-partitioning/) | 空间划分算法 | C++ | ⭐⭐⭐⭐ |
+| [feature-matching](projects/feature-matching/) | 特征匹配 SIFT/ORB | Python | ⭐⭐⭐⭐ |
 
 📖 [多媒体模块详细说明](projects/MEDIA_README.md)
 
 ---
 
-### 🤖 NLP & 机器学习
+### 📊 NLP & 数据结构
 
 | 项目 | 描述 | 技术栈 | 难度 |
 |------|------|--------|------|
 | [tokenizer](projects/tokenizer/) | 中文分词器 | Python | ⭐⭐⭐ |
+| [language-model](projects/language-model/) | N-gram 语言模型 | Python | ⭐⭐⭐ |
 | [random-forest](projects/random-forest/) | 随机森林分类器 | Python | ⭐⭐⭐⭐ |
 | [svm](projects/svm/) | 支持向量机 | Python | ⭐⭐⭐⭐ |
-| [dht](projects/dht/) | 分布式哈希表 | Go | ⭐⭐⭐⭐ |
 | [dns-server](projects/dns-server/) | DNS 服务器 | Go | ⭐⭐⭐⭐ |
-| [distributed-transaction](projects/distributed-transaction/) | 分布式事务 | Go | ⭐⭐⭐⭐⭐ |
 | [matching-engine](projects/matching-engine/) | 撮合引擎 | C++ | ⭐⭐⭐⭐⭐ |
 | [query-parser](projects/query-parser/) | 查询解析器 | Go | ⭐⭐⭐⭐ |
 | [edge-computing](projects/edge-computing/) | 边缘计算框架 | Python | ⭐⭐⭐⭐ |
+| [pagerank](projects/pagerank/) | PageRank 算法 | Python | ⭐⭐⭐ |
 
-📖 [NLP & 机器学习模块详细说明](projects/NLP_README.md)
+📖 [NLP 模块详细说明](projects/NLP_README.md)
+
+---
+
+### 🔐 安全 & 工具
+
+| 项目 | 描述 | 技术栈 | 难度 |
+|------|------|--------|------|
+| [crypto-lib](projects/crypto-lib/) | 密码学库 | C | ⭐⭐⭐⭐ |
+| [sandbox](projects/sandbox/) | 沙箱隔离 | C | ⭐⭐⭐⭐ |
+| [interpreter](projects/interpreter/) | 解释器 | Python | ⭐⭐⭐⭐ |
+| [inverted-index](projects/inverted-index/) | 倒排索引 | Go | ⭐⭐⭐⭐ |
+
+📖 [安全模块详细说明](projects/SECURITY_README.md)
 
 ---
 
@@ -207,11 +264,11 @@
 
 | 维度 | 数量 |
 |------|------|
-| **总项目数** | 42 |
-| **技术栈** | 6 (C++, Go, Python, Rust, Solidity, TypeScript) |
-| **领域** | 10 |
-| **总代码行数** | 115,000+ |
-| **文档数量** | 235+ |
+| **总项目数** | 92 |
+| **技术栈** | 7 (C++, Go, Python, Rust, Solidity, TypeScript, C) |
+| **领域** | 11 |
+| **总代码行数** | 250,000+ |
+| **文档数量** | 500+ |
 
 ---
 
@@ -266,10 +323,18 @@ pytest tests/
 ## 📝 更新日志
 
 ### 2026-06-22
-- ✅ 完成所有 41 个项目
+- ✅ 完成所有 92 个项目
 - ✅ 新增自动驾驶模块（4 个项目）
-- ✅ 新增区块链模块（5 个项目）
-- ✅ 新增 NLP & 机器学习模块（7 个项目）
+- ✅ 新增区块链模块（4 个项目）
+- ✅ 新增 AI & 机器学习模块（22 个项目）
+- ✅ 新增系统基础设施模块（18 个项目）
+- ✅ 新增网络服务模块（10 个项目）
+- ✅ 新增异构计算模块（3 个项目）
+- ✅ 新增分布式 & 通讯模块（6 个项目）
+- ✅ 新增金融 & 应用模块（5 个项目）
+- ✅ 新增多媒体 & 图形模块（7 个项目）
+- ✅ 新增 NLP & 数据结构模块（9 个项目）
+- ✅ 新增安全 & 工具模块（4 个项目）
 - ✅ 修复 Critical/High 问题
 - ✅ 添加多层导航 README
 

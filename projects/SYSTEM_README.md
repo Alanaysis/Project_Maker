@@ -1,6 +1,6 @@
 # ⚙️ 系统基础设施模块
 
-> 12 个深度学习项目，涵盖数据库、存储引擎、并发控制、调度、容器、虚拟机、操作系统、流计算、CI/CD、日志收集、监控告警、设备管理
+> 13 个深度学习项目，涵盖数据库、存储引擎、并发控制、调度、容器、虚拟机、操作系统、流计算、CI/CD、日志收集、监控告警、设备管理、容器编排
 
 ---
 
@@ -20,6 +20,7 @@
 | [log-collector](log-collector/) | 分布式日志收集系统 | Go | ⭐⭐⭐⭐ | ✅ |
 | [monitoring-alert](monitoring-alert/) | 监控告警系统 | Go | ⭐⭐⭐⭐ | ✅ |
 | [device-management](device-management/) | 设备管理系统 | Go | ⭐⭐⭐⭐ | ✅ |
+| [container-orchestrator](container-orchestrator/) | 容器编排系统 | Go | ⭐⭐⭐⭐ | ✅ |
 
 ---
 
@@ -94,6 +95,11 @@
     - 理解设备生命周期管理
     - 掌握设备注册和状态上报
     - 学会远程控制和设备分组
+
+12. **container-orchestrator** (容器编排)
+    - 理解容器调度策略（Bin Packing、Spread、Round Robin）
+    - 掌握服务发现和健康检查
+    - 学会自动扩缩容机制
 
 ---
 
@@ -365,6 +371,26 @@ go test ./... -v
 - `POST /api/group/add-device` - 添加设备到分组
 - `DELETE /api/group/remove-device` - 从分组移除设备
 - `GET /api/group/devices` - 获取分组设备
+
+---
+
+### 12. container-orchestrator (容器编排)
+
+**核心功能**：
+- 容器调度（Bin Packing、Spread、Round Robin）
+- 服务发现（服务注册、端点管理、服务解析）
+- 健康检查（HTTP 健康检查、健康状态管理）
+- 扩缩容（自动扩缩容、手动扩缩容、冷却时间控制）
+
+**代码量**：约 7 个核心文件
+
+**快速开始**：
+```bash
+cd container-orchestrator
+go build -o bin/orchestrator ./cmd/main.go
+./bin/orchestrator
+go test ./...
+```
 
 ---
 

@@ -1,6 +1,6 @@
 # 🤖 NLP & 机器学习模块
 
-> **9 个深度学习项目** | 涵盖自然语言处理、机器学习算法、数据结构、边缘计算等领域
+> **10 个深度学习项目** | 涵盖自然语言处理、机器学习算法、数据结构、边缘计算等领域
 
 ---
 
@@ -24,6 +24,7 @@
 | [matching-engine](matching-engine/) | 撮合引擎 | C++ | ⭐⭐⭐⭐⭐ |
 | [query-parser](query-parser/) | 查询解析器 | Go | ⭐⭐⭐⭐ |
 | [edge-computing](edge-computing/) | 边缘计算框架 | Python | ⭐⭐⭐⭐ |
+| [pagerank](pagerank/) | PageRank 算法 | Python | ⭐⭐⭐ |
 
 ---
 
@@ -238,6 +239,33 @@ python3 -m pytest tests/ -v
 
 ---
 
+### 🌐 PageRank 算法 (pagerank)
+
+**项目路径**: `projects/pagerank/`
+
+**学习目标**:
+- 理解 PageRank 算法原理
+- 掌握图算法和稀疏矩阵
+- 学会网页排名计算
+
+**核心功能**:
+- PageRank 算法实现
+- 阻尼因子配置
+- 稀疏矩阵优化
+- 多种求解方法（迭代法、幂迭代法、代数法）
+- 可视化展示
+
+**技术栈**: Python, SciPy
+
+**快速开始**:
+```bash
+cd projects/pagerank
+pip install -r requirements.txt
+python examples/basic_usage.py
+```
+
+---
+
 ## 🛤️ 学习路径
 
 ### 推荐学习顺序
@@ -264,6 +292,9 @@ python3 -m pytest tests/ -v
 6. **边缘计算** (2-3 周)
    - [edge-computing](edge-computing/) - 边缘计算框架
 
+7. **图算法** (1-2 周)
+   - [pagerank](pagerank/) - PageRank 算法
+
 ---
 
 ## 📊 学习成果
@@ -276,6 +307,7 @@ python3 -m pytest tests/ -v
 - **搜索引擎**: 查询解析、布尔查询、相关性排序
 - **高性能计算**: 撮合引擎、订单簿管理
 - **边缘计算**: 任务卸载、资源调度、负载均衡
+- **图算法**: PageRank、稀疏矩阵、网页排名
 
 ---
 
@@ -287,6 +319,7 @@ python3 -m pytest tests/ -v
 - [SVM 学习笔记](svm/LEARNING_NOTES.md) - SVM 学习笔记
 - [查询解析器学习笔记](query-parser/LEARNING_NOTES.md) - 查询解析器学习笔记
 - [边缘计算学习笔记](edge-computing/LEARNING_NOTES.md) - 边缘计算学习笔记
+- [PageRank 学习笔记](pagerank/LEARNING_NOTES.md) - PageRank 算法学习笔记
 
 ---
 
@@ -294,10 +327,10 @@ python3 -m pytest tests/ -v
 
 | 维度 | 数量 |
 |------|------|
-| **总项目数** | 9 |
+| **总项目数** | 10 |
 | **技术栈** | 3 (Python, Go, C++) |
-| **总代码行数** | 15,000+ |
-| **文档数量** | 35+ |
+| **总代码行数** | 16,000+ |
+| **文档数量** | 40+ |
 
 ---
 
