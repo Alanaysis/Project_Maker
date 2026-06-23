@@ -1,6 +1,6 @@
 # 🎯 Learning Project Factory / 学习型项目工厂
 
-> **95 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全、多媒体、机器学习等领域
+> **98 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全、多媒体、机器学习等领域
 
 ---
 
@@ -13,12 +13,12 @@
 | 🚗 [自动驾驶](projects/ADAS_README.md) | 4 | 感知、规划、CARLA、SLAM |
 | ⛓️ [区块链](projects/BLOCKCHAIN_README.md) | 4 | 区块链、智能合约、ERC20、投票 |
 | 🤖 [AI & 机器学习](projects/AI_README.md) | 22 | 量化、LoRA、ViT/CLIP、视觉、LLM、CNN、决策树、K-Means、KNN、线性回归、逻辑回归、朴素贝叶斯、PCA、Q-Learning、文本分类、Word2Vec、NER |
-| ⚙️ [系统基础设施](projects/SYSTEM_README.md) | 19 | 数据库、调度、容器、VM、OS、流计算、CI/CD、日志收集、监控、设备管理、容器编排、WAL、消息队列、Raft、分布式锁、熔断降级、编译器 |
+| ⚙️ [系统基础设施](projects/SYSTEM_README.md) | 20 | 数据库、调度、容器、VM、OS、流计算、CI/CD、日志收集、监控、设备管理、容器编排、WAL、消息队列、Raft、分布式锁、熔断降级、编译器、物理引擎 |
 | 🌐 [网络服务](projects/NETWORK_README.md) | 10 | HA、MCP、VPN、CDN、防火墙、渗透测试、HTTP/2、WebSocket、MQTT、RPC |
 | 🔧 [异构计算](projects/HETERO_README.md) | 3 | CPU+GPU、多 GPU、GPU Shaders |
 | 🎮 [分布式 & 通讯](projects/DISTRIBUTED_README.md) | 6 | 游戏系统、聊天应用、Exactly-once、服务发现、分布式事务、DHT |
-| 💰 [金融 & 应用](projects/APPS_README.md) | 6 | 量化交易、风险管理、VR、文档编辑器、键盘驱动、容灾存储 |
-| 🎬 [多媒体 & 图形](projects/MEDIA_README.md) | 8 | 编解码器、流媒体服务器、动画系统、网格处理、场景图、空间划分、特征匹配、光线追踪 |
+| 💰 [金融 & 应用](projects/APPS_README.md) | 7 | 量化交易、因子挖掘、风险管理、VR、文档编辑器、键盘驱动、容灾存储 |
+| 🎬 [多媒体 & 图形](projects/MEDIA_README.md) | 9 | 音频处理引擎、编解码器、流媒体服务器、动画系统、网格处理、场景图、空间划分、特征匹配、光线追踪 |
 | 📊 [NLP & 数据结构](projects/NLP_README.md) | 9 | 分词器、语言模型、随机森林、SVM、DNS、撮合引擎、查询解析器、边缘计算、PageRank |
 | 🔐 [安全 & 工具](projects/SECURITY_README.md) | 4 | 密码学库、沙箱隔离、解释器、倒排索引 |
 
@@ -26,9 +26,9 @@
 
 | 技术栈 | 项目 |
 |--------|------|
-| **C++** | high-concurrency-db, ha-server, simple-vm, vr-application, keyboard-driver, adas-perception, matching-engine, disaster-recovery-storage, av-codec, gpu-shaders, mesh-processing, scene-graph, spatial-partitioning, animation-system, ray-tracer |
+| **C++** | high-concurrency-db, ha-server, simple-vm, vr-application, keyboard-driver, adas-perception, matching-engine, disaster-recovery-storage, av-codec, gpu-shaders, mesh-processing, scene-graph, spatial-partitioning, animation-system, ray-tracer, physics-engine |
 | **Go** | hpc-task-scheduler, container-runtime, cdn-service, simple-blockchain, social-chat-app, distributed-game-system, media-server, dht, dns-server, distributed-transaction, mvcc, query-parser, stream-processing, service-discovery, cicd-pipeline, log-collector, monitoring-alert, device-management, lsm-tree, container-orchestrator, wal, message-queue, raft-consensus, distributed-lock, circuit-breaker, mqtt-broker, simple-rpc, http2-server, websocket-server, inverted-index |
-| **Python** | finetune-rl-framework, vit-clip-training, industrial-vision-detection, quant-trading-system, risk-engine, adas-planning, carla-rl, slam-mapping, tokenizer, random-forest, svm, edge-computing, edge-quantized-model, pentest-tools, yolo-detection, dqn, image-segmentation, policy-gradient, actor-critic, cnn-classification, decision-tree, kmeans, knn, linear-regression, logistic-regression, naive-bayes, pca, q-learning, text-classification, word2vec, ner, language-model, feature-matching, multi-gpu-computing, interpreter |
+| **Python** | finetune-rl-framework, vit-clip-training, industrial-vision-detection, quant-trading-system, risk-engine, factor-mining, audio-engine, adas-planning, carla-rl, slam-mapping, tokenizer, random-forest, svm, edge-computing, edge-quantized-model, pentest-tools, yolo-detection, dqn, image-segmentation, policy-gradient, actor-critic, cnn-classification, decision-tree, kmeans, knn, linear-regression, logistic-regression, naive-bayes, pca, q-learning, text-classification, word2vec, ner, language-model, feature-matching, multi-gpu-computing, interpreter |
 | **Rust** | mcp-server, vpn-software, smart-contract-vm, simple-compiler |
 | **Solidity** | erc20-token, decentralized-voting |
 | **TypeScript** | document-editor |
@@ -40,8 +40,8 @@
 |------|------|
 | ⭐⭐ 入门 | linear-regression, logistic-regression, decision-tree, kmeans, knn, naive-bayes, pca |
 | ⭐⭐⭐ 初级 | simple-blockchain, erc20-token, cdn-service, tokenizer, language-model, pagerank, word2vec, text-classification, q-learning |
-| ⭐⭐⭐⭐ 中级 | hpc-task-scheduler, container-runtime, social-chat-app, vr-application, random-forest, svm, dht, dns-server, stream-processing, service-discovery, cicd-pipeline, log-collector, monitoring-alert, device-management, lsm-tree, container-orchestrator, wal, message-queue, raft-consensus, distributed-lock, circuit-breaker, mqtt-broker, simple-rpc, http2-server, websocket-server, inverted-index, pentest-tools, edge-computing, dqn, image-segmentation, policy-gradient, actor-critic, cnn-classification, yolo-detection, ner, feature-matching, multi-gpu-computing, gpu-shaders, mesh-processing, scene-graph, spatial-partitioning, interpreter, crypto-lib, sandbox |
-| ⭐⭐⭐⭐⭐ 高级 | high-concurrency-db, ha-server, vpn-software, adas-planning, distributed-transaction, matching-engine, exactly-once, disaster-recovery-storage, animation-system |
+| ⭐⭐⭐⭐ 中级 | hpc-task-scheduler, container-runtime, social-chat-app, vr-application, random-forest, svm, dht, dns-server, stream-processing, service-discovery, cicd-pipeline, log-collector, monitoring-alert, device-management, lsm-tree, container-orchestrator, wal, message-queue, raft-consensus, distributed-lock, circuit-breaker, mqtt-broker, simple-rpc, http2-server, websocket-server, inverted-index, pentest-tools, edge-computing, dqn, image-segmentation, policy-gradient, actor-critic, cnn-classification, yolo-detection, ner, feature-matching, multi-gpu-computing, gpu-shaders, mesh-processing, scene-graph, spatial-partitioning, interpreter, crypto-lib, sandbox, physics-engine, audio-engine, simple-compiler |
+| ⭐⭐⭐⭐⭐ 高级 | high-concurrency-db, ha-server, vpn-software, adas-planning, distributed-transaction, matching-engine, exactly-once, disaster-recovery-storage, animation-system, factor-mining |
 | ⭐⭐⭐⭐⭐⭐ 专家 | simple-vm, simple-os, finetune-rl-framework, smart-contract-vm, edge-quantized-model, av-codec, media-server, quant-trading-system, document-editor, keyboard-driver |
 | ⭐⭐⭐⭐⭐⭐⭐ 大师 | local-llm-engine, adas-perception, slam-mapping, vit-clip-training, industrial-vision-detection, distributed-game-system, adas-planning |
 
@@ -128,6 +128,7 @@
 | [raft-consensus](projects/raft-consensus/) | Raft 共识算法 | Go | ⭐⭐⭐⭐ |
 | [distributed-lock](projects/distributed-lock/) | 分布式锁 | Go | ⭐⭐⭐⭐ |
 | [circuit-breaker](projects/circuit-breaker/) | 熔断降级 | Go | ⭐⭐⭐⭐ |
+| [physics-engine](projects/physics-engine/) | 2D 物理引擎 | C++ | ⭐⭐⭐⭐ |
 | [simple-compiler](projects/simple-compiler/) | 简易编译器 | Rust | ⭐⭐⭐⭐ |
 
 📖 [系统模块详细说明](projects/SYSTEM_README.md)
@@ -185,6 +186,7 @@
 | 项目 | 描述 | 技术栈 | 难度 |
 |------|------|--------|------|
 | [quant-trading-system](projects/quant-trading-system/) | 量化交易系统 | Python | ⭐⭐⭐⭐⭐⭐ |
+| [factor-mining](projects/factor-mining/) | 因子挖掘框架 | Python | ⭐⭐⭐⭐⭐ |
 | [risk-engine](projects/risk-engine/) | 风险管理引擎 | Python, SciPy | ⭐⭐⭐⭐ |
 | [vr-application](projects/vr-application/) | VR 应用 | C++, OpenGL | ⭐⭐⭐⭐⭐ |
 | [document-editor](projects/document-editor/) | 文档编辑器 | TypeScript | ⭐⭐⭐⭐⭐⭐ |
@@ -199,6 +201,7 @@
 
 | 项目 | 描述 | 技术栈 | 难度 |
 |------|------|--------|------|
+| [audio-engine](projects/audio-engine/) | 音频处理引擎 | Python, NumPy | ⭐⭐⭐⭐ |
 | [av-codec](projects/av-codec/) | 音视频编解码器 | C++, FFmpeg | ⭐⭐⭐⭐⭐⭐ |
 | [media-server](projects/media-server/) | 流媒体服务器 | Go | ⭐⭐⭐⭐⭐⭐ |
 | [animation-system](projects/animation-system/) | 动画系统 | C++ | ⭐⭐⭐⭐⭐ |
@@ -267,7 +270,7 @@
 
 | 维度 | 数量 |
 |------|------|
-| **总项目数** | 93 |
+| **总项目数** | 98 |
 | **技术栈** | 7 (C++, Go, Python, Rust, Solidity, TypeScript, C) |
 | **领域** | 11 |
 | **总代码行数** | 250,000+ |
@@ -327,7 +330,12 @@ pytest tests/
 
 ### 2026-06-23
 - ✅ 新增光线追踪渲染器项目（ray-tracer）
-- ✅ 更新多媒体模块（8 个项目）
+- ✅ 新增物理引擎项目（physics-engine）
+- ✅ 新增因子挖掘框架项目（factor-mining）
+- ✅ 新增音频处理引擎项目（audio-engine）
+- ✅ 更新多媒体模块（9 个项目）
+- ✅ 更新系统基础设施模块（20 个项目）
+- ✅ 更新金融 & 应用模块（7 个项目）
 
 ### 2026-06-22
 - ✅ 完成所有 92 个项目

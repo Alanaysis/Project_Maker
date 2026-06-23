@@ -1,6 +1,6 @@
 # 💰 金融 & 应用模块
 
-> 6 个深度学习项目，涵盖量化交易、风险管理、VR、文档编辑器、键盘驱动、容灾存储
+> 7 个深度学习项目，涵盖量化交易、因子挖掘、风险管理、VR、文档编辑器、键盘驱动、容灾存储
 
 ---
 
@@ -9,6 +9,7 @@
 | 项目 | 描述 | 技术栈 | 难度 | 状态 |
 |------|------|--------|------|------|
 | [quant-trading-system](quant-trading-system/) | 量化交易系统 | Python | ⭐⭐⭐⭐⭐ | ✅ |
+| [factor-mining](factor-mining/) | 因子挖掘框架 | Python | ⭐⭐⭐⭐⭐ | ✅ |
 | [risk-engine](risk-engine/) | 风险管理引擎 | Python, SciPy | ⭐⭐⭐⭐ | ✅ |
 | [vr-application](vr-application/) | VR 应用 | C++, OpenGL | ⭐⭐⭐⭐⭐ | ✅ |
 | [document-editor](document-editor/) | 文档编辑器 | TypeScript | ⭐⭐⭐⭐ | ✅ |
@@ -20,11 +21,11 @@
 ## 🎯 学习路径
 
 ```
-量化交易 → 风险管理 → VR 应用 → 文档编辑器 → 键盘驱动 → 容灾存储
-    ↓          ↓          ↓          ↓           ↓           ↓
- 策略回测    VaR计算    3D渲染    CRDT算法    中断处理     纠删码
- 订单管理    压力测试   交互系统  协同编辑    去抖算法     故障检测
- 风险控制    风险报告   场景管理  版本控制    矩阵扫描     数据冗余
+量化交易 → 因子挖掘 → 风险管理 → VR 应用 → 文档编辑器 → 键盘驱动 → 容灾存储
+    ↓          ↓          ↓          ↓          ↓           ↓           ↓
+ 策略回测   因子计算   VaR计算    3D渲染    CRDT算法    中断处理     纠删码
+ 订单管理   IC分析    压力测试   交互系统  协同编辑    去抖算法     故障检测
+ 风险控制   回测框架   风险报告   场景管理  版本控制    矩阵扫描     数据冗余
 ```
 
 ### 推荐学习顺序
@@ -34,27 +35,32 @@
    - 理解回测框架设计
    - 掌握风险管理和订单管理
 
-2. **risk-engine** (风险管理)
+2. **factor-mining** (因子挖掘)
+   - 学习因子计算方法（动量、波动率、流动性等）
+   - 理解因子 IC 分析和评估
+   - 掌握多空策略和纯多头策略回测
+
+3. **risk-engine** (风险管理)
    - 学习 VaR 计算方法
    - 理解压力测试设计
    - 掌握风险报告生成
 
-3. **vr-application** (VR 应用)
+4. **vr-application** (VR 应用)
    - 学习 3D 渲染管线
    - 理解 VR 立体渲染原理
    - 掌握交互设计和性能优化
 
-4. **document-editor** (文档编辑器)
+5. **document-editor** (文档编辑器)
    - 学习 CRDT 算法
    - 理解协同编辑原理
    - 掌握版本控制
 
-5. **keyboard-driver** (键盘驱动)
+6. **keyboard-driver** (键盘驱动)
    - 学习键盘硬件原理
    - 理解中断处理和 DMA
    - 掌握按键去抖和优化
 
-6. **disaster-recovery-storage** (容灾存储)
+7. **disaster-recovery-storage** (容灾存储)
    - 学习纠删码原理
    - 理解分布式存储
    - 掌握故障检测和恢复
@@ -97,7 +103,27 @@ python examples/run_backtest.py
 
 ---
 
-### 2. risk-engine (风险管理引擎)
+### 2. factor-mining (因子挖掘框架)
+
+**核心功能**：
+- 因子计算（13 种因子：动量、波动率、流动性、技术指标等）
+- 因子评估（Rank IC、ICIR、分组收益分析）
+- 回测框架（多空策略、纯多头策略、交易成本）
+- 数据生成与加载
+
+**代码量**：约 4 个核心模块
+
+**快速开始**：
+```bash
+cd factor-mining
+pip install -r requirements.txt
+python examples/basic_usage.py
+pytest tests/ -v
+```
+
+---
+
+### 3. risk-engine (风险管理引擎)
 
 **核心功能**：
 - VaR 计算（历史模拟法、参数法、蒙特卡洛模拟法）
@@ -116,7 +142,7 @@ python examples/basic_usage.py
 
 ---
 
-### 3. vr-application (VR 应用)
+### 4. vr-application (VR 应用)
 
 **核心功能**：
 - 3D 渲染系统（OpenGL 4.5、Phong 光照、纹理映射）
@@ -137,7 +163,7 @@ make
 
 ---
 
-### 4. document-editor (文档编辑器)
+### 5. document-editor (文档编辑器)
 
 **核心功能**：
 - CRDT 文档（RGA 算法、无冲突文本存储）
@@ -157,7 +183,7 @@ npm run example:basic
 
 ---
 
-### 5. keyboard-driver (键盘驱动)
+### 6. keyboard-driver (键盘驱动)
 
 **核心功能**：
 - 矩阵扫描模块（6x14 矩阵键盘扫描）
@@ -176,7 +202,7 @@ make
 
 ---
 
-### 6. disaster-recovery-storage (容灾存储)
+### 7. disaster-recovery-storage (容灾存储)
 
 **核心功能**：
 - 纠删码编解码（Reed-Solomon、GF(2^8)）

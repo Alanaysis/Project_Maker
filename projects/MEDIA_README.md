@@ -11,6 +11,7 @@
 | [audio-engine](audio-engine/) | 音频处理引擎 | Python, NumPy | ⭐⭐⭐⭐ | ✅ 完成 |
 | [av-codec](av-codec/) | 音视频编解码器 | C++, FFmpeg | ⭐⭐⭐⭐⭐⭐ | ✅ 完成 |
 | [media-server](media-server/) | 流媒体服务器 | Go | ⭐⭐⭐⭐⭐ | ✅ 完成 |
+| [physics-engine](physics-engine/) | 2D 物理引擎 | C++ | ⭐⭐⭐⭐ | ✅ 完成 |
 | [ray-tracer](ray-tracer/) | 光线追踪渲染器 | C++ | ⭐⭐⭐⭐ | ✅ 完成 |
 
 ---
@@ -39,6 +40,13 @@
    ├── 理解光线追踪算法
    ├── 掌握光线-物体求交
    └── 学会材质和光照模型
+   │
+   ▼
+4. physics-engine (物理引擎)
+   │
+   ├── 理解刚体动力学
+   ├── 掌握碰撞检测算法
+   └── 学会约束求解
 ```
 
 ### 学习目标
@@ -57,6 +65,11 @@
 - 理解光线追踪算法
 - 掌握光线-物体求交
 - 学会材质和光照模型
+
+**阶段四：物理引擎**
+- 理解刚体动力学
+- 掌握碰撞检测算法
+- 学会约束求解
 
 ---
 
@@ -97,6 +110,15 @@
 | 频谱减法 | 降噪 | audio-engine |
 | Schroeder 混响 | 音频特效 | audio-engine |
 | 参数均衡器 | 频率均衡 | audio-engine |
+
+### 物理引擎技术
+
+| 技术 | 用途 | 项目 |
+|------|------|------|
+| 刚体动力学 | 物理模拟 | physics-engine |
+| AABB 碰撞检测 | 碰撞检测 | physics-engine |
+| 约束求解 | 物理约束 | physics-engine |
+| 数值积分 | 物理计算 | physics-engine |
 
 ---
 
@@ -229,6 +251,34 @@ ctest
 
 ---
 
+### physics-engine - 2D 物理引擎
+
+**核心功能**：
+- 刚体动力学（质量、速度、力、冲量）
+- AABB 碰撞检测（轴对齐包围盒）
+- 约束求解（距离约束、钉子约束、铰链约束、焊接约束）
+- 物理模拟（重力、摩擦力、弹性碰撞、阻尼）
+
+**快速开始**：
+```bash
+cd projects/physics-engine
+mkdir build && cd build
+cmake ..
+make
+ctest --output-on-failure
+./examples/example_basic
+```
+
+**学习要点**：
+- 刚体动力学原理（牛顿运动定律）
+- 碰撞检测算法（AABB、圆形碰撞）
+- 约束求解算法
+- 数值积分方法
+
+📖 [详细文档](physics-engine/README.md)
+
+---
+
 ## 📚 学习资源
 
 ### 书籍
@@ -238,6 +288,8 @@ ctest
 - 《流媒体技术原理与应用》
 - 《Ray Tracing in One Weekend》- Peter Shirley
 - 《Fundamentals of Computer Graphics》- Marschner & Shirley
+- 《Game Physics Engine Development》- Ian Millington
+- 《Real-Time Collision Detection》- Christer Ericson
 
 ### 在线课程
 
@@ -255,6 +307,9 @@ ctest
 | [MediaSoup](https://github.com/versatica/mediasoup) | C++ | WebRTC SFU |
 | [smallpt](http://www.kevinbeason.com/smallpt/) | C++ | 99行光线追踪器 |
 | [pbrt](https://github.com/mmp/pbrt-v3) | C++ | 物理基础渲染器 |
+| [Box2D](https://github.com/erincatto/box2d) | C++ | 2D 物理引擎 |
+| [Bullet](https://github.com/bulletphysics/bullet3) | C++ | 3D 物理引擎 |
+| [Chipmunk](https://github.com/slembcke/Chipmunk2D) | C | 轻量级 2D 物理引擎 |
 
 ### 工具
 
