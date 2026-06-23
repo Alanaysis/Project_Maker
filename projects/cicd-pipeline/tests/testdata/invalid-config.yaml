@@ -1,0 +1,6 @@
+name: ""
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: echo "build"

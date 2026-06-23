@@ -1,0 +1,64 @@
+// Logical operators demonstration
+// Run: ./interpreter run examples/logic.mini
+
+// Basic logical operators
+let a = true;
+let b = false;
+
+print "a = " + str(a);
+print "b = " + str(b);
+print "a and b = " + str(a and b);
+print "a or b = " + str(a or b);
+print "not a = " + str(not a);
+print "not b = " + str(not b);
+
+// Combining conditions
+let x = 10;
+let y = 20;
+
+print "";
+print "x = " + str(x) + ", y = " + str(y);
+print "x > 5 and y > 15 = " + str(x > 5 and y > 15);
+print "x > 15 or y > 15 = " + str(x > 15 or y > 15);
+print "not (x > 15) = " + str(not (x > 15));
+
+// Using logic in conditionals
+let age = 25;
+let hasLicense = true;
+
+if age >= 16 and hasLicense {
+    print "Can drive";
+} else {
+    print "Cannot drive";
+}
+
+let temperature = 35;
+let isRaining = false;
+
+if temperature > 30 and not isRaining {
+    print "Hot and sunny - bring sunscreen!";
+} else if temperature > 30 and isRaining {
+    print "Hot and rainy - stay inside!";
+} else if temperature <= 30 and not isRaining {
+    print "Nice weather - go outside!";
+} else {
+    print "Cool and rainy - bring an umbrella!";
+}
+
+// Truthiness
+print "";
+print "Truthy values:";
+if 1 {
+    print "  1 is truthy";
+}
+if "hello" {
+    print "  \"hello\" is truthy";
+}
+
+print "Falsy values:";
+if not 0 {
+    print "  0 is falsy";
+}
+if not "" {
+    print "  \"\" (empty string) is falsy";
+}

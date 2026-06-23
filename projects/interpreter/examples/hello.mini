@@ -1,0 +1,22 @@
+// Hello World - Getting started with Mini language
+// Run: ./interpreter run examples/hello.mini
+
+// Variables
+let greeting = "Hello";
+let name = "World";
+print greeting + ", " + name + "!";
+
+// Numbers and arithmetic
+let x = 10;
+let y = 3;
+print "x = " + str(x);
+print "y = " + str(y);
+print "x + y = " + str(x + y);
+print "x * y = " + str(x * y);
+print "x % y = " + str(x % y);
+
+// Boolean values
+let isTrue = true;
+let isFalse = false;
+print "isTrue = " + str(isTrue);
+print "isFalse = " + str(isFalse);

@@ -1,0 +1,32 @@
+name: parallel-test
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: echo "Building..."
+  - name: lint
+    depends_on:
+      - build
+    tasks:
+      - name: lint-check
+        command: echo "Linting code..."
+  - name: security-scan
+    depends_on:
+      - build
+    tasks:
+      - name: scan
+        command: echo "Scanning security..."
+  - name: test
+    depends_on:
+      - build
+    tasks:
+      - name: unit-test
+        command: echo "Running tests..."
+  - name: deploy
+    depends_on:
+      - lint
+      - security-scan
+      - test
+    tasks:
+      - name: deploy-task
+        command: echo "Deploying..."

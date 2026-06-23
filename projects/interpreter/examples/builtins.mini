@@ -1,0 +1,39 @@
+// Built-in functions demonstration
+// Run: ./interpreter run examples/builtins.mini
+
+// len() - Get string length
+let msg = "Hello, Mini!";
+print "len(\"" + msg + "\") = " + str(len(msg));
+
+// str() - Convert to string
+let num = 42;
+print "str(42) = " + str(num);
+print "Type: string concatenation -> " + "Value is " + str(num);
+
+// number() - Convert string to number
+let text = "123";
+let converted = number(text);
+print "number(\"123\") = " + str(converted);
+print "number(\"123\") + 7 = " + str(converted + 7);
+
+// abs() - Absolute value
+print "abs(-5) = " + str(abs(-5));
+print "abs(10) = " + str(abs(10));
+print "abs(-3.14) = " + str(abs(-3.14));
+
+// sqrt() - Square root
+print "sqrt(16) = " + str(sqrt(16));
+print "sqrt(2) = " + str(sqrt(2));
+print "sqrt(100) = " + str(sqrt(100));
+
+// floor() - Floor (round down)
+print "floor(3.7) = " + str(floor(3.7));
+print "floor(3.2) = " + str(floor(3.2));
+print "floor(-1.5) = " + str(floor(-1.5));
+
+// Combining built-in functions
+let radius = 5;
+let area = 3.14159 * radius * radius;
+print "Circle area (r=5): " + str(area);
+print "Circumference: " + str(2 * 3.14159 * radius);
+print "Square root of area: " + str(sqrt(area));

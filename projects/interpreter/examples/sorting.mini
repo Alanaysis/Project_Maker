@@ -1,0 +1,70 @@
+// Sorting demonstration using arrays of variables
+// Run: ./interpreter run examples/sorting.mini
+
+// Since Mini doesn't have arrays, we simulate sorting
+// using individual variables and a helper function.
+
+// Find the minimum of three numbers
+fn min3(a, b, c) {
+    let m = a;
+    if b < m {
+        m = b;
+    }
+    if c < m {
+        m = c;
+    }
+    return m;
+}
+
+// Find the maximum of three numbers
+fn max3(a, b, c) {
+    let m = a;
+    if b > m {
+        m = b;
+    }
+    if c > m {
+        m = c;
+    }
+    return m;
+}
+
+// Find the middle of three numbers
+fn mid3(a, b, c) {
+    if (a >= b and a <= c) or (a <= b and a >= c) {
+        return a;
+    }
+    if (b >= a and b <= c) or (b <= a and b >= c) {
+        return b;
+    }
+    return c;
+}
+
+// Test with unsorted values
+let x = 30;
+let y = 10;
+let z = 20;
+
+print "Before sorting:";
+print "  x = " + str(x);
+print "  y = " + str(y);
+print "  z = " + str(z);
+
+// Sort using min/mid/max
+let sorted_min = min3(x, y, z);
+let sorted_mid = mid3(x, y, z);
+let sorted_max = max3(x, y, z);
+
+print "";
+print "After sorting:";
+print "  min = " + str(sorted_min);
+print "  mid = " + str(sorted_mid);
+print "  max = " + str(sorted_max);
+
+// Demonstrate with different values
+print "";
+print "Another example:";
+let a = 99;
+let b = 1;
+let c = 50;
+print "  Input: " + str(a) + ", " + str(b) + ", " + str(c);
+print "  Sorted: " + str(min3(a, b, c)) + ", " + str(mid3(a, b, c)) + ", " + str(max3(a, b, c));

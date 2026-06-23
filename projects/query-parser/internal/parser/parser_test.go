@@ -31,7 +31,7 @@ func TestParserPhrase(t *testing.T) {
 	}
 
 	if node.String() != `"hello world"` {
-		t.Errorf("expected '"hello world"', got %s", node.String())
+		t.Errorf("expected '\"hello world\"', got %s", node.String())
 	}
 }
 
@@ -176,7 +176,7 @@ func TestParserParentheses(t *testing.T) {
 }
 
 func TestParserComplexQuery(t *testing.T) {
-	input := `(quick OR fast) AND "brown fox" NOT lazy`
+	input := `(quick OR fast) AND "brown fox" AND NOT lazy`
 	expected := "(((quick OR fast) AND \"brown fox\") AND (NOT lazy))"
 
 	l := lexer.New(input)

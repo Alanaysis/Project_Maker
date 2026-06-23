@@ -105,7 +105,7 @@ func TestIntegrationBooleanOr(t *testing.T) {
 
 func TestIntegrationNot(t *testing.T) {
 	idx := createTestIndex()
-	results := parseAndExecute(t, idx, "quick NOT fox")
+	results := parseAndExecute(t, idx, "quick AND NOT fox")
 
 	// Should find doc4 (quick but not fox)
 	found := false

@@ -49,6 +49,12 @@ dns-server/
 │   └── server/
 │       ├── server.go        # UDP server implementation
 │       └── server_test.go   # Server tests
+├── tests/
+│   └── integration_test.go  # Cross-component integration tests
+├── examples/
+│   ├── basic_server/        # Minimal server with local zone records
+│   ├── custom_resolver/     # ZoneBuilder API and custom upstream
+│   └── dns_client/          # Programmatic DNS query client
 ├── docs/                    # Documentation
 ├── go.mod                   # Go module file
 ├── README.md                # This file

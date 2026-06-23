@@ -18,11 +18,20 @@ smart-contract-vm/
 ├── README.md
 ├── LEARNING_NOTES.md
 ├── docs/
+│   ├── 01-RESEARCH.md
 │   ├── 01-evm-overview.md
 │   ├── 02-bytecode-execution.md
 │   ├── 03-stack-memory.md
 │   ├── 04-gas-calculation.md
+│   ├── 05-DEVELOPMENT.md
 │   └── 05-smart-contract-basics.md
+├── examples/
+│   ├── simple_add.rs
+│   ├── fibonacci.rs
+│   ├── storage_contract.rs
+│   ├── loop_counter.rs
+│   ├── conditional.rs
+│   └── memory_operations.rs
 ├── src/
 │   ├── lib.rs
 │   ├── vm.rs
@@ -250,12 +259,47 @@ cargo test test_simple_add
 
 ## 文档
 
-- [EVM 概述](docs/01-evm-overview.md)
-- [字节码执行](docs/02-bytecode-execution.md)
-- [栈和内存管理](docs/03-stack-memory.md)
-- [Gas 计算](docs/04-gas-calculation.md)
-- [智能合约基础](docs/05-smart-contract-basics.md)
-- [学习笔记](LEARNING_NOTES.md)
+- [市场调研](docs/01-RESEARCH.md) - 智能合约虚拟机市场调研和技术对比
+- [EVM 概述](docs/01-evm-overview.md) - EVM 核心概念和架构
+- [字节码执行](docs/02-bytecode-execution.md) - 取指-译码-执行循环
+- [栈和内存管理](docs/03-stack-memory.md) - 栈、内存和存储模型
+- [Gas 计算](docs/04-gas-calculation.md) - Gas 定价和优化策略
+- [开发手册](docs/05-DEVELOPMENT.md) - 开发环境配置和贡献指南
+- [智能合约基础](docs/05-smart-contract-basics.md) - 智能合约原理和安全
+- [学习笔记](LEARNING_NOTES.md) - 开发过程中的学习心得
+
+## 使用示例
+
+项目提供了多个示例，可以通过以下命令运行：
+
+```bash
+# 简单加法
+cargo run --example simple_add
+
+# 斐波那契数列
+cargo run --example fibonacci
+
+# 存储合约
+cargo run --example storage_contract
+
+# 循环计数器
+cargo run --example loop_counter
+
+# 条件执行
+cargo run --example conditional
+
+# 内存操作
+cargo run --example memory_operations
+```
+
+示例代码位于 `examples/` 目录，展示了虚拟机的各种功能：
+
+- **simple_add.rs**: 基本算术运算（PUSH、ADD、STOP）
+- **fibonacci.rs**: 循环和跳转（JUMP、JUMPI、JUMPDEST）
+- **storage_contract.rs**: 持久化存储（SSTORE、SLOAD）
+- **loop_counter.rs**: 计数器循环和累加
+- **conditional.rs**: 条件分支和比较运算
+- **memory_operations.rs**: 内存读写操作（MSTORE、MLOAD）
 
 ## 依赖
 

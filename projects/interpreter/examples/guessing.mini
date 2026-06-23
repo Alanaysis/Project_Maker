@@ -1,0 +1,43 @@
+// Number guessing game (simulated)
+// Run: ./interpreter run examples/guessing.mini
+// Note: This uses a fixed "secret" number since input() is interactive
+
+// Simulate a guessing game with a known secret
+let secret = 42;
+let low = 1;
+let high = 100;
+let attempts = 0;
+let found = false;
+
+print "Number Guessing Game (simulated)";
+print "I'm thinking of a number between 1 and 100";
+print "";
+
+// Binary search algorithm to find the number
+while not found and low <= high {
+    let guess = floor((low + high) / 2);
+    attempts = attempts + 1;
+
+    print "Attempt " + str(attempts) + ": Guessing " + str(guess);
+
+    if guess == secret {
+        found = true;
+        print "Found it! The number is " + str(secret);
+        print "It took " + str(attempts) + " attempts";
+    } else if guess < secret {
+        print "  Too low!";
+        low = guess + 1;
+    } else {
+        print "  Too high!";
+        high = guess - 1;
+    }
+}
+
+if not found {
+    print "Could not find the number!";
+}
+
+// Show that binary search is efficient
+print "";
+print "Binary search finds numbers in at most " + str(floor(7)) + " attempts";
+print "(log2(100) is about 6.64)";

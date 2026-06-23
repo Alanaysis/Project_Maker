@@ -1,0 +1,20 @@
+name: multi-task-test
+stages:
+  - name: build
+    tasks:
+      - name: download-deps
+        command: echo "Downloading dependencies..."
+      - name: compile
+        command: echo "Compiling..."
+      - name: package
+        command: echo "Packaging..."
+  - name: test
+    depends_on:
+      - build
+    tasks:
+      - name: lint
+        command: echo "Linting..."
+      - name: unit-test
+        command: echo "Unit testing..."
+      - name: integration-test
+        command: echo "Integration testing..."
