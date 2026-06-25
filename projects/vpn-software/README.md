@@ -1,298 +1,261 @@
 # VPN Software
 
-A VPN software implementation with tunnel encryption and traffic forwarding, built from scratch using Rust.
+A VPN software implementation with tunnel encryption and traffic forwarding, built from scratch using Python.
 
 ## Project Overview
 
-This project implements a VPN (Virtual Private Network) software that supports:
-- Tunnel establishment and management
-- Encryption using modern cryptographic algorithms
-- Traffic forwarding through TUN devices
-- WireGuard-inspired protocol design
-
-### Learning Objectives
-
-- Understand VPN protocols (OpenVPN, WireGuard)
-- Master tunnel technology and encryption
-- Learn network address translation (NAT)
-- Implement secure key exchange
-- Handle network packet processing
+This project implements a VPN (Virtual Private Network) that supports:
+- TUN device-based packet capture and injection
+- AES-256-GCM authenticated encryption
+- ECDH key exchange (P-256 curve)
+- UDP and TCP transport
+- Username/password and certificate authentication
+- Remote access and site-to-site topologies
 
 ### Core Loop
 
 ```
-Data Packet Capture → Encryption → Tunnel Encapsulation →
-Transport → Decapsulation → Decryption → Forwarding
+Data Packet Capture -> Encryption -> Tunnel Encapsulation ->
+Transport -> Decapsulation -> Decryption -> Forwarding
 ```
 
 ## Tech Stack
 
-- **Language**: Rust
-- **Encryption**: ChaCha20-Poly1305, X25519, BLAKE2s
-- **Networking**: TUN/TAP devices, UDP sockets
-- **Async Runtime**: Tokio
-- **Dependencies**: ring, x25519-dalek, chacha20poly1305
+- **Language**: Python 3.10+
+- **Encryption**: AES-256-GCM (via `cryptography` library)
+- **Key Exchange**: ECDH (SECP256R1 / P-256)
+- **Key Derivation**: HKDF-SHA256
+- **Authentication**: PBKDF2-SHA256 (passwords), X.509 certificates
+- **Networking**: TUN devices, asyncio UDP/TCP sockets
+- **CLI**: Click
 
 ## Project Structure
 
 ```
 vpn-software/
-├── src/
-│   ├── lib.rs          # Library root
-│   ├── main.rs         # CLI entry point
-│   ├── cli.rs          # Command line interface
-│   ├── config.rs       # Configuration management
-│   ├── crypto.rs       # Cryptographic operations
-│   ├── error.rs        # Error types
-│   ├── packet.rs       # Packet parsing
-│   ├── peer.rs         # Peer management
-│   ├── protocol.rs     # VPN protocol implementation
-│   ├── tunnel.rs       # VPN tunnel implementation
-│   └── tun_device.rs   # TUN device management
-├── tests/
-│   └── integration_test.rs
-├── examples/
-│   ├── simple_vpn.rs   # Simple VPN demo
-│   └── tun_demo.rs     # TUN device demo
-├── docs/
-│   ├── 01-RESEARCH.md  # Market research
-│   ├── 02-REQUIREMENTS.md
-│   ├── 03-DESIGN.md    # Technical design
-│   ├── 04-PRODUCT.md   # Product thinking
-│   └── 05-DEVELOPMENT.md
-└── Cargo.toml
+├── vpn/                        # Main package
+│   ├── __init__.py            # Public API
+│   ├── error.py               # Error types
+│   ├── crypto.py              # Crypto engine (AES-GCM, ECDH, certificates)
+│   ├── packet.py              # Packet parsing/construction
+│   ├── tun_device.py          # TUN device management
+│   ├── peer.py                # Peer management
+│   ├── auth.py                # Password and certificate authentication
+│   ├── protocol.py            # Session lifecycle
+│   ├── config.py              # YAML configuration
+│   ├── tunnel.py              # Tunnel manager (main orchestrator)
+│   └── cli.py                 # CLI entry point
+├── tests/                     # Test suite
+├── examples/                  # Example applications
+├── docs/                      # Design documentation
+├── pyproject.toml             # Build config
+└── requirements.txt           # Dependencies
 ```
-
-## Core Modules
-
-### 1. Crypto Module (`src/crypto.rs`)
-
-Implements cryptographic operations:
-- Key exchange using X25519 (Curve25519 Diffie-Hellman)
-- Symmetric encryption using ChaCha20-Poly1305
-- Key derivation using HKDF-SHA256
-- Nonce management for replay protection
-
-### 2. Packet Module (`src/packet.rs`)
-
-Handles packet parsing and construction:
-- IPv4 header parsing
-- VPN packet types (Handshake, Data, Cookie)
-- Packet serialization/deserialization
-
-### 3. Protocol Module (`src/protocol.rs`)
-
-Implements WireGuard-inspired protocol:
-- Handshake initiation and response
-- Transport data messages
-- Cookie-based DoS protection
-- Message type handling
-
-### 4. Tunnel Module (`src/tunnel.rs`)
-
-Manages VPN tunnel lifecycle:
-- Handshake initiation and processing
-- Data encryption and decryption
-- Packet routing between TUN and UDP
-- Connection state management
-
-### 5. TUN Device Module (`src/tun_device.rs`)
-
-Handles TUN virtual network interfaces:
-- Device creation and configuration
-- Packet reading and writing
-- Route management
-
-### 6. Peer Module (`src/peer.rs`)
-
-Manages VPN peer connections:
-- Peer state tracking
-- Allowed IP management
-- Statistics collection
 
 ## Getting Started
 
 ### Prerequisites
 
-- Rust 1.70+ (with cargo)
+- Python 3.10+
+- Linux (TUN device support required)
 - Root privileges (for TUN device creation)
-- Linux/macOS (TUN support required)
 
-### Building
+### Installation
 
 ```bash
-# Clone the repository
 cd projects/vpn-software
 
-# Build the project
-cargo build
+# Install dependencies
+pip install -r requirements.txt
 
-# Run tests
-cargo test
-
-# Run examples
-cargo run --example simple_vpn
-sudo cargo run --example tun_demo
+# Install in development mode
+pip install -e ".[dev]"
 ```
 
-### Usage
+### Quick Start
 
-#### Generate Keys
+#### 1. Generate Keys and Certificates
 
 ```bash
-cargo run -- generate-keys
+# Generate CA
+python3 -m vpn.cli genca --output-dir ca
+
+# Issue server certificate
+python3 -m vpn.cli gencert --cn server --ca-dir ca --output-dir certs
+
+# Issue client certificate
+python3 -m vpn.cli gencert --cn client1 --ca-dir ca --output-dir certs
+
+# Add password-authenticated user
+python3 -m vpn.cli adduser --username alice
 ```
 
-#### Run as Server
+#### 2. Run as Server
 
 ```bash
-sudo cargo run -- server --port 51820 --tun-name tun0 --tun-addr 10.0.0.1
+sudo python3 -m vpn.cli server --port 51820
 ```
 
-#### Run as Client
+#### 3. Run as Client
 
 ```bash
-sudo cargo run -- client --server 192.168.1.100 --port 51820 --tun-name tun0 --tun-addr 10.0.0.2
+sudo python3 -m vpn.cli client --server 192.168.1.100 --port 51820
 ```
 
 ## Configuration
 
-Create a `config.toml` file:
+Create a `config.yaml` file:
 
-```toml
-[server]
-port = 51820
-max_clients = 100
-keepalive_interval = 25
+```yaml
+server:
+  listen_address: "0.0.0.0"
+  port: 51820
+  transport: "udp"
+  max_clients: 100
+  keepalive_interval: 25.0
 
-[client]
-server = "192.168.1.100"
-port = 51820
-connection_timeout = 30
+client:
+  server_address: "192.168.1.100"
+  server_port: 51820
+  transport: "udp"
 
-[tun]
-name = "tun0"
-address = "10.0.0.1"
-netmask = "255.255.255.0"
-mtu = 1500
+tun:
+  name: "tun0"
+  address: "10.0.0.1"
+  netmask: "255.255.255.0"
+  mtu: 1500
 
-[security]
-encryption = "chacha20poly1305"
-key_exchange = "x25519"
-handshake_timeout = 10
+security:
+  encryption: "aes-256-gcm"
+  key_exchange: "ecdh-p256"
+  auth_method: "password"   # or "certificate"
+  handshake_timeout: 10.0
 
-[logging]
-level = "info"
+logging:
+  level: "info"
 ```
 
-## Key Concepts
+## Core Modules
 
-### 1. Key Exchange (X25519)
+### 1. Crypto Engine (`vpn/crypto.py`)
 
-X25519 is an elliptic curve Diffie-Hellman key exchange using Curve25519. It provides:
-- 128-bit security level
-- Fast computation
-- Resistance to timing attacks
+Implements all cryptographic operations:
+- **KeyPair**: ECDH key pair generation, PEM serialization
+- **CryptoEngine**: Key exchange, AES-256-GCM encrypt/decrypt
+- **Password utilities**: PBKDF2 hashing and verification
+- **Certificate utilities**: CA generation, certificate issuance and verification
 
-### 2. Encryption (ChaCha20-Poly1305)
+### 2. Packet Module (`vpn/packet.py`)
 
-ChaCha20-Poly1305 is an authenticated encryption algorithm:
-- ChaCha20 stream cipher for encryption
-- Poly1305 MAC for authentication
-- 256-bit key, 96-bit nonce
-- AEAD (Authenticated Encryption with Associated Data)
+Handles packet parsing and construction:
+- IPv4 header parsing
+- VPN protocol messages (handshake, transport, auth, keepalive)
+- Binary serialization with struct packing
 
-### 3. TUN Devices
+### 3. TUN Device (`vpn/tun_device.py`)
 
-TUN (network TUNnel) devices are virtual network interfaces:
-- Operate at Layer 3 (IP packets)
-- Used for routing traffic through VPN
-- Created via `/dev/net/tun` on Linux
+Manages TUN virtual network interfaces:
+- Device creation via `/dev/net/tun`
+- IP address and route configuration via `ip` commands
+- Packet read/write operations
 
-### 4. WireGuard Protocol
+### 4. Peer Manager (`vpn/peer.py`)
 
-WireGuard protocol features:
-- Noise Protocol Framework for key exchange
-- Cryptokey routing (public key → allowed IPs)
-- Silent peer handling (NAT traversal)
-- Roaming support (endpoint changes)
+Tracks VPN peer connections:
+- Peer state machine (disconnected -> handshaking -> connected)
+- Allowed IP management (cryptokey routing)
+- Traffic statistics
+
+### 5. Authentication (`vpn/auth.py`)
+
+Two authentication methods:
+- **Password**: PBKDF2-hashed credentials stored in JSON
+- **Certificate**: X.509 certificates signed by a CA
+
+### 6. Tunnel Manager (`vpn/tunnel.py`)
+
+Main orchestrator that ties everything together:
+- Server mode: accepts incoming connections
+- Client mode: connects to server
+- Async packet forwarding between TUN and transport
+- Handshake, auth, and keepalive management
+
+## Usage Examples
+
+### Remote Access VPN
+
+```bash
+# Server setup
+vpn adduser --username alice
+sudo python3 -m vpn.cli server --port 51820
+
+# Client connection
+sudo python3 -m vpn.cli client --server vpn.example.com --username alice
+```
+
+### Site-to-Site VPN
+
+```bash
+# Site A (server)
+sudo python3 examples/site_to_site.py server
+
+# Site B (client)
+sudo python3 examples/site_to_site.py client
+```
 
 ## Architecture Decisions
 
-### Why Rust?
+### Why Python?
 
-1. **Memory Safety**: No buffer overflows, no data races
-2. **Performance**: Zero-cost abstractions, minimal overhead
-3. **Concurrency**: Built-in async/await support
-4. **Ecosystem**: Excellent crypto libraries (ring, dalek)
+1. **Readability**: Every line is understandable
+2. **Rapid development**: Full implementation in ~2000 lines
+3. **Rich ecosystem**: `cryptography` library for production-grade crypto
+4. **asyncio**: Non-blocking I/O for concurrent connections
+5. **Learning**: Ideal for understanding VPN internals
 
-### Why ChaCha20-Poly1305?
+### Why AES-256-GCM?
 
-1. **Performance**: Fast on CPUs without AES-NI
-2. **Security**: Resistant to timing attacks
-3. **Simplicity**: Easy to implement correctly
-4. **Standard**: Used by WireGuard, TLS 1.3
+1. **Hardware acceleration**: AES-NI on modern CPUs
+2. **Authenticated encryption**: Built-in integrity check
+3. **Industry standard**: Used by TLS 1.3, IPSec
+4. **Well-analyzed**: Decades of cryptographic research
 
-### Why X25519?
+### Why ECDH P-256?
 
-1. **Security**: 128-bit security level
-2. **Speed**: Fast key exchange
-3. **Simplicity**: Easy to implement
-4. **Standard**: Used by Signal, WireGuard
+1. **Security**: 128-bit equivalent security level
+2. **Performance**: Fast key exchange
+3. **Standard**: NIST-approved, widely supported
+4. **Library support**: Excellent support in `cryptography`
 
 ## Testing
 
-### Unit Tests
-
 ```bash
-cargo test
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=vpn --cov-report=html
+
+# Run specific tests
+pytest tests/test_crypto.py -v
 ```
-
-### Integration Tests
-
-```bash
-cargo test --test integration_test
-```
-
-### Benchmarks
-
-```bash
-cargo bench
-```
-
-## Performance Considerations
-
-1. **Zero-copy**: Minimize packet copying
-2. **Async I/O**: Use Tokio for non-blocking operations
-3. **Batch processing**: Process multiple packets together
-4. **Memory pooling**: Reuse buffers for packets
 
 ## Security Considerations
 
-1. **Key Management**: Secure key storage and rotation
-2. **Replay Protection**: Nonce-based anti-replay
-3. **DoS Protection**: Cookie-based handshake protection
-4. **Forward Secrecy**: Ephemeral keys for each session
-
-## Future Improvements
-
-1. **Full WireGuard Protocol**: Complete Noise Protocol implementation
-2. **NAT Traversal**: STUN/TURN support
-3. **Multi-peer**: Support multiple simultaneous peers
-4. **IPv6 Support**: Handle IPv6 packets
-5. **Performance Optimization**: SIMD, kernel bypass
+1. **Key Management**: Private keys stored with 0600 permissions
+2. **Password Storage**: PBKDF2 with 600,000 iterations
+3. **Replay Protection**: Nonce-based counter prevents replay attacks
+4. **Forward Secrecy**: Ephemeral ECDH keys per session
+5. **AEAD**: AES-GCM provides both confidentiality and integrity
 
 ## References
 
 - [WireGuard Protocol](https://www.wireguard.com/protocol/)
-- [Noise Protocol Framework](https://noiseprotocol.org/)
-- [ChaCha20-Poly1305](https://datatracker.ietf.org/doc/html/rfc7539)
-- [X25519](https://datatracker.ietf.org/doc/html/rfc7748)
+- [RFC 7539 - ChaCha20-Poly1305](https://datatracker.ietf.org/doc/html/rfc7539)
+- [RFC 7748 - Elliptic Curves for Security](https://datatracker.ietf.org/doc/html/rfc7748)
+- [RFC 5869 - HKDF](https://datatracker.ietf.org/doc/html/rfc5869)
+- [Python cryptography library](https://cryptography.io/)
 
 ## License
 
-MIT License - See LICENSE file for details
-
-## Contributing
-
-Contributions are welcome! Please read the contributing guidelines first.
+MIT License

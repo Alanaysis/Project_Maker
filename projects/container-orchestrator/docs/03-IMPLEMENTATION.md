@@ -94,9 +94,12 @@ func (n *Node) CanSchedule(container *Container) bool {
 type SchedulerStrategy string
 
 const (
-    StrategyBinPacking   SchedulerStrategy = "bin_packing"
-    StrategySpread       SchedulerStrategy = "spread"
-    StrategyRoundRobin   SchedulerStrategy = "round_robin"
+    StrategyBinPacking    SchedulerStrategy = "bin_packing"
+    StrategySpread        SchedulerStrategy = "spread"
+    StrategyRoundRobin    SchedulerStrategy = "round_robin"
+    StrategyRandom        SchedulerStrategy = "random"
+    StrategyResourceAware SchedulerStrategy = "resource_aware"
+    StrategyAffinity      SchedulerStrategy = "affinity"
 )
 ```
 
@@ -120,6 +123,67 @@ func (s *Scheduler) spread(nodes []*container.Node, c *container.Container) *con
         return len(nodes[i].Containers) < len(nodes[j].Containers)
     })
     return nodes[0]
+}
+```
+
+#### Random 实现
+```go
+func (s *Scheduler) randomSelect(nodes []*container.Node) *container.Node {
+    if len(nodes) == 0 {
+        return nil
+    }
+    return nodes[rand.Intn(len(nodes))]
+}
+```
+
+#### Resource Aware 实现
+```go
+func (s *Scheduler) resourceAware(nodes []*container.Node, c *container.Container) *container.Node {
+    // Score each node based on resource fit
+    type nodeScore struct {
+        node  *container.Node
+        score float64
+    }
+    scores := make([]nodeScore, 0, len(nodes))
+    for _, node := range nodes {
+        avail := node.AvailableResources()
+        cpuRatio := avail.CPU / (c.Resources.CPU + 0.001)
+        memRatio := float64(avail.Memory) / float64(c.Resources.Memory+1)
+        score := (cpuRatio + memRatio) / 2.0
+        scores = append(scores, nodeScore{node: node, score: score})
+    }
+    sort.Slice(scores, func(i, j int) bool {
+        return scores[i].score > scores[j].score
+    })
+    return scores[0].node
+}
+```
+
+#### Affinity 实现
+```go
+func (s *Scheduler) affinity(nodes []*container.Node, c *container.Container) *container.Node {
+    // Score nodes based on label matching with container labels
+    type nodeScore struct {
+        node  *container.Node
+        score int
+    }
+    scores := make([]nodeScore, 0, len(nodes))
+    for _, node := range nodes {
+        score := 0
+        for k, v := range c.Labels {
+            if nodeVal, ok := node.Labels[k]; ok && nodeVal == v {
+                score++
+            }
+        }
+        scores = append(scores, nodeScore{node: node, score: score})
+    }
+    sort.Slice(scores, func(i, j int) bool {
+        return scores[i].score > scores[j].score
+    })
+    if scores[0].score == 0 {
+        return s.spread(nodes, c)
+    }
+    return scores[0].node
 }
 ```
 
@@ -177,10 +241,34 @@ func (d *Discovery) Resolve(serviceName string) (*Endpoint, error) {
 
 ### 4. 健康检查（health/health.go）
 
+#### 探针类型
+```go
+type ProbeType string
+
+const (
+    ProbeLiveness  ProbeType = "liveness"  // 存活探针
+    ProbeReadiness ProbeType = "readiness" // 就绪探针
+)
+```
+
 #### 健康检查器接口
 ```go
 type HealthChecker interface {
     Check(ctx context.Context, container *container.Container) (*HealthResult, error)
+}
+```
+
+#### 获取探针状态
+```go
+// 获取存活探针状态
+result, err := monitor.GetLiveness(containerID)
+
+// 获取就绪探针状态
+result, err := monitor.GetReadiness(containerID)
+
+// 检查容器是否就绪
+if monitor.IsReady(containerID) {
+    // 容器可以接收流量
 }
 ```
 
@@ -209,19 +297,58 @@ func (h *HTTPHealthChecker) Check(ctx context.Context, c *container.Container) (
 }
 ```
 
-### 5. 扩缩容（scaler/scaler.go）
+### 5. 容器生命周期管理（container/types.go）
+
+#### 容器操作
+```go
+// 启动容器
+err := container.Start()
+
+// 停止容器
+err := container.Stop()
+
+// 重启容器
+err := container.Restart()
+
+// 检查是否运行中
+if container.IsRunning() {
+    // 容器正在运行
+}
+```
+
+### 6. 扩缩容（scaler/scaler.go）
 
 #### 扩缩容策略
 ```go
 type ScalingPolicy struct {
-    MinReplicas     int
-    MaxReplicas     int
-    ScaleUpCPU      float64
-    ScaleDownCPU    float64
-    ScaleUpMemory   float64
-    ScaleDownMemory float64
-    Cooldown        time.Duration
+    MinReplicas          int
+    MaxReplicas          int
+    ScaleUpCPU           float64
+    ScaleDownCPU         float64
+    ScaleUpMemory        float64
+    ScaleDownMemory      float64
+    Cooldown             time.Duration
+    CustomMetricRules    []CustomMetricRule
 }
+
+type CustomMetricRule struct {
+    MetricName         string  `json:"metric_name"`
+    ScaleUpThreshold   float64 `json:"scale_up_threshold"`
+    ScaleDownThreshold float64 `json:"scale_down_threshold"`
+}
+```
+
+#### 自定义指标
+```go
+// 更新指标（包含自定义指标）
+scaler.UpdateMetrics(serviceID, &scaler.ServiceMetrics{
+    CPUUsage:    0.5,
+    MemoryUsage: 0.6,
+    CustomMetrics: map[string]float64{
+        "requests_per_second": 1500,
+        "queue_length":        500,
+    },
+})
 ```
 
 #### 扩缩容评估

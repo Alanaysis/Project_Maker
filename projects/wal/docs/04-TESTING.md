@@ -409,6 +409,166 @@ func TestCheckpointLogCleanup(t *testing.T) {
 }
 ```
 
+### 3. 保留策略测试
+
+```go
+func TestRetentionPolicyDefaults(t *testing.T) {
+    policy := DefaultRetentionPolicy()
+    
+    assert.Equal(t, int64(1024*1024*1024), policy.MaxSize)
+    assert.Equal(t, 7*24*time.Hour, policy.MaxAge)
+    assert.Equal(t, 10, policy.MaxFiles)
+    assert.Equal(t, 2, policy.MinFiles)
+}
+
+func TestLogCleanerFileCount(t *testing.T) {
+    tmpDir := t.TempDir()
+    
+    // 创建多个 WAL 文件
+    for i := 0; i < 5; i++ {
+        walPath := filepath.Join(tmpDir, fmt.Sprintf("wal.%d.wal", i))
+        writer, _ := NewWALWriter(walPath, SyncImmediate)
+        writer.Write(&LogEntry{TxID: uint64(i), OpType: OpPut, Key: "key", Value: []byte("value")})
+        writer.Close()
+    }
+    
+    // 创建清理器（最大 3 个文件）
+    policy := &RetentionPolicy{MaxFiles: 3, MinFiles: 1}
+    cleaner := NewLogCleaner(tmpDir, policy, time.Hour)
+    
+    // 执行清理
+    err := cleaner.Cleanup()
+    assert.NoError(t, err)
+    
+    // 验证文件数量
+    count, _ := cleaner.GetFileCount()
+    assert.True(t, count <= 3)
+}
+
+func TestLogCleanerMinFiles(t *testing.T) {
+    tmpDir := t.TempDir()
+    
+    // 创建多个 WAL 文件
+    for i := 0; i < 5; i++ {
+        walPath := filepath.Join(tmpDir, fmt.Sprintf("wal.%d.wal", i))
+        writer, _ := NewWALWriter(walPath, SyncImmediate)
+        writer.Write(&LogEntry{TxID: uint64(i), OpType: OpPut, Key: "key", Value: []byte("value")})
+        writer.Close()
+    }
+    
+    // 创建清理器（最大 2 个文件，最小 3 个文件）
+    policy := &RetentionPolicy{MaxFiles: 2, MinFiles: 3}
+    cleaner := NewLogCleaner(tmpDir, policy, time.Hour)
+    
+    // 执行清理
+    err := cleaner.Cleanup()
+    assert.NoError(t, err)
+    
+    // 验证文件数量（最小文件数量）
+    count, _ := cleaner.GetFileCount()
+    assert.True(t, count >= 3)
+}
+```
+
+### 4. WAL 截断测试
+
+```go
+func TestTruncateWAL(t *testing.T) {
+    tmpDir := t.TempDir()
+    walPath := filepath.Join(tmpDir, "test.wal")
+    
+    // 创建 WAL 文件
+    writer, _ := NewWALWriter(walPath, SyncImmediate)
+    for i := 0; i < 10; i++ {
+        writer.Write(&LogEntry{
+            TxID:   uint64(i),
+            OpType: OpPut,
+            Key:    fmt.Sprintf("key%d", i),
+            Value:  []byte(fmt.Sprintf("value%d", i)),
+        })
+    }
+    writer.Close()
+    
+    // 截断到 LSN 5
+    err := TruncateWAL(walPath, 5)
+    assert.NoError(t, err)
+    
+    // 验证剩余条目
+    reader, _ := NewWALReader(walPath)
+    entries, _ := reader.ReadAll()
+    assert.Equal(t, 5, len(entries))
+    
+    // 验证所有条目 LSN <= 5
+    for _, entry := range entries {
+        assert.True(t, entry.LSN <= 5)
+    }
+}
+
+func TestTruncateWALAfterTime(t *testing.T) {
+    tmpDir := t.TempDir()
+    walPath := filepath.Join(tmpDir, "test.wal")
+    
+    // 创建 WAL 文件
+    writer, _ := NewWALWriter(walPath, SyncImmediate)
+    baseTime := time.Now()
+    for i := 0; i < 10; i++ {
+        writer.Write(&LogEntry{
+            TxID:      uint64(i),
+            OpType:    OpPut,
+            Key:       fmt.Sprintf("key%d", i),
+            Value:     []byte(fmt.Sprintf("value%d", i)),
+            Timestamp: baseTime.Add(time.Duration(i) * time.Minute).UnixNano(),
+        })
+    }
+    writer.Close()
+    
+    // 截断到 5 分钟后
+    truncateTime := baseTime.Add(5 * time.Minute)
+    err := TruncateWALAfterTime(walPath, truncateTime)
+    assert.NoError(t, err)
+    
+    // 验证剩余条目
+    reader, _ := NewWALReader(walPath)
+    entries, _ := reader.ReadAll()
+    
+    // 验证所有条目时间戳 <= 截断时间
+    for _, entry := range entries {
+        entryTime := time.Unix(0, entry.Timestamp)
+        assert.True(t, entryTime.Before(truncateTime) || entryTime.Equal(truncateTime))
+    }
+}
+```
+
+### 5. WAL 统计测试
+
+```go
+func TestGetWALStats(t *testing.T) {
+    tmpDir := t.TempDir()
+    walPath := filepath.Join(tmpDir, "test.wal")
+    
+    // 创建 WAL 文件
+    writer, _ := NewWALWriter(walPath, SyncImmediate)
+    writer.Write(&LogEntry{TxID: 1, OpType: OpPut, Key: "key1", Value: []byte("value1")})
+    writer.Write(&LogEntry{TxID: 2, OpType: OpPut, Key: "key2", Value: []byte("value2")})
+    writer.Write(&LogEntry{TxID: 3, OpType: OpDelete, Key: "key1"})
+    writer.Write(&LogEntry{TxID: 1, OpType: OpCommit})
+    writer.Write(&LogEntry{TxID: 2, OpType: OpCommit})
+    writer.Write(&LogEntry{TxID: 3, OpType: OpCommit})
+    writer.Close()
+    
+    // 获取统计信息
+    stats, err := GetWALStats(walPath)
+    assert.NoError(t, err)
+    
+    assert.Equal(t, 6, stats.TotalEntries)
+    assert.Equal(t, 2, stats.PutOperations)
+    assert.Equal(t, 1, stats.DeleteOperations)
+    assert.Equal(t, 3, stats.Commits)
+    assert.Equal(t, uint64(6), stats.MaxLSN)
+    assert.True(t, stats.FileSize > 0)
+}
+```
+
 ## 压力测试
 
 ### 1. 高并发写入测试

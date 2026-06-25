@@ -38,15 +38,19 @@ wal/
 │   │   ├── wal.go           # WAL 核心实现
 │   │   ├── entry.go         # 日志记录定义
 │   │   ├── recovery.go      # 崩溃恢复
-│   │   └── checkpoint.go    # 检查点管理
+│   │   ├── checkpoint.go    # 检查点管理
+│   │   └── retention.go     # 日志清理和保留策略
 │   └── storage/
 │       └── storage.go       # 存储层实现
 ├── test/
 │   ├── wal_test.go          # WAL 单元测试
 │   ├── recovery_test.go     # 恢复测试
-│   └── checkpoint_test.go   # 检查点测试
+│   ├── checkpoint_test.go   # 检查点测试
+│   └── retention_test.go    # 日志清理测试
 └── examples/
-    └── usage.go             # 使用示例
+    ├── usage.go             # 基础使用示例
+    ├── event_sourcing.go    # 事件溯源示例
+    └── audit_log.go         # 审计日志示例
 ```
 
 ## 开发流程

@@ -368,6 +368,123 @@ func (cm *CheckpointManager) CreateCheckpoint() error {
 }
 ```
 
+### 7. 日志清理实现
+
+```go
+type LogCleaner struct {
+    mu       sync.Mutex
+    walDir   string
+    policy   *RetentionPolicy
+    interval time.Duration
+}
+
+func (lc *LogCleaner) Cleanup() error {
+    lc.mu.Lock()
+    defer lc.mu.Unlock()
+    
+    files, err := lc.getWALFiles()
+    if err != nil {
+        return err
+    }
+    
+    // 按修改时间排序
+    sort.Slice(files, func(i, j int) bool {
+        return files[i].ModTime.Before(files[j].ModTime)
+    })
+    
+    var toDelete []walFileInfo
+    
+    // 应用年龄清理
+    if lc.policy.MaxAge > 0 {
+        cutoff := time.Now().Add(-lc.policy.MaxAge)
+        for _, f := range files {
+            if f.ModTime.Before(cutoff) {
+                toDelete = append(toDelete, f)
+            }
+        }
+    }
+    
+    // 应用数量清理
+    if lc.policy.MaxFiles > 0 && len(files) > lc.policy.MaxFiles {
+        excess := len(files) - lc.policy.MaxFiles
+        for i := 0; i < excess; i++ {
+            toDelete = append(toDelete, files[i])
+        }
+    }
+    
+    // 应用大小清理
+    if lc.policy.MaxSize > 0 {
+        totalSize := lc.totalSize(files)
+        for _, f := range files {
+            if totalSize <= lc.policy.MaxSize {
+                break
+            }
+            toDelete = append(toDelete, f)
+            totalSize -= f.Size
+        }
+    }
+    
+    // 确保最小文件数量
+    if lc.policy.MinFiles > 0 {
+        keepCount := len(files) - len(toDelete)
+        if keepCount < lc.policy.MinFiles {
+            // 从删除列表中移除最新的文件
+            toDelete = toDelete[:len(toDelete)-(lc.policy.MinFiles-keepCount)]
+        }
+    }
+    
+    // 删除标记的文件
+    for _, f := range toDelete {
+        os.Remove(f.Path)
+    }
+    
+    return nil
+}
+```
+
+### 8. WAL 截断实现
+
+```go
+func TruncateWAL(walPath string, truncateLSN uint64) error {
+    // 读取所有条目
+    reader, err := NewWALReader(walPath)
+    if err != nil {
+        return err
+    }
+    defer reader.Close()
+    
+    var keepEntries []*LogEntry
+    for {
+        entry, err := reader.ReadNext()
+        if err == io.EOF {
+            break
+        }
+        if err != nil {
+            continue
+        }
+        if entry.LSN <= truncateLSN {
+            keepEntries = append(keepEntries, entry)
+        }
+    }
+    
+    // 创建临时文件
+    tmpPath := walPath + ".tmp"
+    writer, err := NewWALWriter(tmpPath, SyncImmediate)
+    if err != nil {
+        return err
+    }
+    
+    // 写入保留的条目
+    for _, entry := range keepEntries {
+        writer.Write(entry)
+    }
+    writer.Close()
+    
+    // 替换原文件
+    return os.Rename(tmpPath, walPath)
+}
+```
+
 ## 关键技术实现
 
 ### 1. 校验和计算

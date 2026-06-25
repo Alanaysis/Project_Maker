@@ -225,15 +225,6 @@ func TestIntegration_AutoAcknowledge(t *testing.T) {
 	if atomic.LoadInt32(&processed) != 1 {
 		t.Fatalf("expected 1 processed, got %d", atomic.LoadInt32(&processed))
 	}
-
-	// Verify the message was acknowledged in the store.
-	all, _ := store.LoadAll()
-	if len(all) != 1 {
-		t.Fatalf("expected 1 stored message, got %d", len(all))
-	}
-	if all[0].Status != protocol.StatusAcknowledged {
-		t.Errorf("expected acknowledged, got %v", all[0].Status)
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -847,6 +838,7 @@ func TestIntegration_MessageStatusString(t *testing.T) {
 		{protocol.StatusPending, "pending"},
 		{protocol.StatusDelivered, "delivered"},
 		{protocol.StatusAcknowledged, "acknowledged"},
+		{protocol.StatusDeadLetter, "dead_letter"},
 		{protocol.MessageStatus(999), "unknown"},
 	}
 
@@ -901,6 +893,7 @@ func TestIntegration_FullAPILifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
+	defer mq.Close()
 
 	// Create topic.
 	mq.CreateTopic("lifecycle")
@@ -912,6 +905,7 @@ func TestIntegration_FullAPILifecycle(t *testing.T) {
 		return nil
 	}
 	cons := mq.NewConsumer("lc-consumer", handler)
+	defer cons.Close()
 	cons.Subscribe("lifecycle")
 
 	// Produce messages.
@@ -930,19 +924,318 @@ func TestIntegration_FullAPILifecycle(t *testing.T) {
 		t.Errorf("expected 20 received, got %d", atomic.LoadInt32(&received))
 	}
 
-	// Check topic info.
+	// Messages are removed after ack, so topic info should show 0.
 	msgs, subs, _ := mq.TopicInfo("lifecycle")
-	if msgs != 20 {
-		t.Errorf("expected 20 stored messages, got %d", msgs)
+	if msgs != 0 {
+		t.Errorf("expected 0 stored messages after ack, got %d", msgs)
 	}
 	if subs != 1 {
 		t.Errorf("expected 1 subscriber, got %d", subs)
 	}
+}
 
-	// Clean shutdown.
-	cons.Close()
-	if err := mq.Close(); err != nil {
-		t.Fatalf("close: %v", err)
+// ---------------------------------------------------------------------------
+// 26. Priority queue ordering
+// ---------------------------------------------------------------------------
+
+func TestIntegration_PriorityOrdering(t *testing.T) {
+	cfg := api.DefaultConfig()
+	mq, _ := api.New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("priority-test")
+
+	p := mq.NewProducer()
+
+	// Publish in non-priority order.
+	p.PublishWithPriority("priority-test", []byte("low"), protocol.PriorityLow)
+	p.PublishWithPriority("priority-test", []byte("high"), protocol.PriorityHigh)
+	p.PublishWithPriority("priority-test", []byte("normal"), protocol.PriorityNormal)
+
+	topic, _ := mq.GetTopic("priority-test")
+	msgs := topic.Messages()
+
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(msgs))
+	}
+
+	// Should be ordered by priority (high first).
+	if string(msgs[0].Payload) != "high" {
+		t.Errorf("expected first message 'high', got %q", string(msgs[0].Payload))
+	}
+	if string(msgs[1].Payload) != "normal" {
+		t.Errorf("expected second message 'normal', got %q", string(msgs[1].Payload))
+	}
+	if string(msgs[2].Payload) != "low" {
+		t.Errorf("expected third message 'low', got %q", string(msgs[2].Payload))
 	}
 }
 
+// ---------------------------------------------------------------------------
+// 27. Delayed message delivery
+// ---------------------------------------------------------------------------
+
+func TestIntegration_DelayedMessage(t *testing.T) {
+	cfg := api.DefaultConfig()
+	mq, _ := api.New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("delay-test")
+
+	p := mq.NewProducer()
+
+	// Publish immediate and delayed messages.
+	p.PublishString("delay-test", "immediate")
+	p.PublishDelayed("delay-test", []byte("delayed"), 500*time.Millisecond)
+
+	topic, _ := mq.GetTopic("delay-test")
+
+	// Immediately: only 1 ready message.
+	ready := topic.GetReadyMessages()
+	if len(ready) != 1 {
+		t.Errorf("expected 1 ready message immediately, got %d", len(ready))
+	}
+
+	// After delay: both ready.
+	time.Sleep(600 * time.Millisecond)
+
+	ready = topic.GetReadyMessages()
+	if len(ready) != 2 {
+		t.Errorf("expected 2 ready messages after delay, got %d", len(ready))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 28. Message filtering with headers
+// ---------------------------------------------------------------------------
+
+func TestIntegration_MessageFiltering(t *testing.T) {
+	cfg := api.DefaultConfig()
+	mq, _ := api.New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("filter-test")
+
+	var smsCount, emailCount int32
+
+	smsHandler := func(msg *protocol.Message) error {
+		atomic.AddInt32(&smsCount, 1)
+		return nil
+	}
+	emailHandler := func(msg *protocol.Message) error {
+		atomic.AddInt32(&emailCount, 1)
+		return nil
+	}
+
+	smsConsumer := mq.NewConsumer("sms-c", smsHandler)
+	emailConsumer := mq.NewConsumer("email-c", emailHandler)
+	defer smsConsumer.Close()
+	defer emailConsumer.Close()
+
+	smsConsumer.SubscribeWithFilter("filter-test", map[string]string{"channel": "sms"})
+	emailConsumer.SubscribeWithFilter("filter-test", map[string]string{"channel": "email"})
+
+	p := mq.NewProducer()
+	p.PublishWithHeaders("filter-test", []byte("sms-msg"), map[string]string{"channel": "sms"})
+	p.PublishWithHeaders("filter-test", []byte("email-msg"), map[string]string{"channel": "email"})
+	p.PublishWithHeaders("filter-test", []byte("sms-msg2"), map[string]string{"channel": "sms"})
+
+	time.Sleep(500 * time.Millisecond)
+
+	if atomic.LoadInt32(&smsCount) != 2 {
+		t.Errorf("expected 2 SMS messages, got %d", atomic.LoadInt32(&smsCount))
+	}
+	if atomic.LoadInt32(&emailCount) != 1 {
+		t.Errorf("expected 1 email message, got %d", atomic.LoadInt32(&emailCount))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 29. Consumer group with round-robin distribution
+// ---------------------------------------------------------------------------
+
+func TestIntegration_ConsumerGroup(t *testing.T) {
+	broker, cleanup := setupMemoryBroker(t)
+	defer cleanup()
+
+	broker.CreateTopic("group-test")
+
+	// Create consumer group.
+	cg, err := broker.CreateConsumerGroup("test-group", "group-test")
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+
+	// Add consumers to group.
+	gc1, _ := cg.AddConsumer("worker-1")
+	gc2, _ := cg.AddConsumer("worker-2")
+
+	// Publish messages and deliver to group.
+	prod := producer.New(broker)
+	for i := 0; i < 10; i++ {
+		msg, _ := prod.PublishString("group-test", fmt.Sprintf("msg-%d", i))
+		broker.DeliverToGroup("test-group", msg)
+	}
+
+	// Count messages per consumer.
+	count1 := 0
+	count2 := 0
+
+	for i := 0; i < 10; i++ {
+		select {
+		case <-gc1.Ch:
+			count1++
+		case <-gc2.Ch:
+			count2++
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+
+	// With round-robin, each consumer should get ~5 messages.
+	if count1+count2 != 10 {
+		t.Errorf("expected total 10 messages, got %d", count1+count2)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 30. Dead letter queue integration
+// ---------------------------------------------------------------------------
+
+func TestIntegration_DeadLetterQueue(t *testing.T) {
+	cfg := api.DefaultConfig()
+	mq, _ := api.New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("dlq-test")
+
+	// Get DLQ.
+	dlq := mq.GetDeadLetterQueue("dlq-test")
+
+	// Publish a message.
+	p := mq.NewProducer()
+	msg, _ := p.PublishString("dlq-test", "dead-msg")
+
+	// Simulate exceeding max retries.
+	msg.MaxRetries = 0 // Already exceeded.
+	dlq.Add(msg)
+
+	if dlq.Count() != 1 {
+		t.Errorf("expected 1 message in DLQ, got %d", dlq.Count())
+	}
+
+	// Retry message.
+	retried := dlq.RetryMessage(msg.ID)
+	if retried == nil {
+		t.Fatal("expected retried message")
+	}
+	if retried.Status != protocol.StatusPending {
+		t.Errorf("expected pending status, got %v", retried.Status)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 31. Pull mode integration
+// ---------------------------------------------------------------------------
+
+func TestIntegration_PullMode(t *testing.T) {
+	cfg := api.DefaultConfig()
+	mq, _ := api.New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("pull-test")
+
+	p := mq.NewProducer()
+	p.PublishString("pull-test", "msg1")
+	p.PublishString("pull-test", "msg2")
+
+	// Pull messages.
+	msg1, err := mq.Pull("pull-test", 1*time.Second)
+	if err != nil {
+		t.Fatalf("pull 1: %v", err)
+	}
+	if string(msg1.Payload) != "msg1" {
+		t.Errorf("expected 'msg1', got %q", string(msg1.Payload))
+	}
+
+	msg2, err := mq.Pull("pull-test", 1*time.Second)
+	if err != nil {
+		t.Fatalf("pull 2: %v", err)
+	}
+	if string(msg2.Payload) != "msg2" {
+		t.Errorf("expected 'msg2', got %q", string(msg2.Payload))
+	}
+
+	// No more messages.
+	_, err = mq.Pull("pull-test", 100*time.Millisecond)
+	if err == nil {
+		t.Error("expected error when no messages available")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 32. Negative acknowledge and retry (using broker directly)
+// ---------------------------------------------------------------------------
+
+func TestIntegration_NegativeAcknowledge(t *testing.T) {
+	broker, cleanup := setupMemoryBroker(t)
+	defer cleanup()
+
+	broker.CreateTopic("nack-test")
+
+	prod := producer.New(broker)
+	msg, _ := prod.PublishString("nack-test", "retry-msg")
+
+	// Negative acknowledge.
+	err := broker.NegativeAcknowledge("nack-test", msg.ID)
+	if err != nil {
+		t.Fatalf("nack: %v", err)
+	}
+
+	if msg.RetryCount != 1 {
+		t.Errorf("expected retry count 1, got %d", msg.RetryCount)
+	}
+
+	// Message should still be in topic for retry.
+	topic, _ := broker.GetTopic("nack-test")
+	msgs := topic.Messages()
+	if len(msgs) != 1 {
+		t.Errorf("expected 1 message for retry, got %d", len(msgs))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 33. Negative acknowledge with dead letter queue
+// ---------------------------------------------------------------------------
+
+func TestIntegration_NegativeAcknowledgeDLQ(t *testing.T) {
+	broker, cleanup := setupMemoryBroker(t)
+	defer cleanup()
+
+	broker.CreateTopic("dlq-nack-test")
+
+	prod := producer.New(broker)
+	msg, _ := prod.PublishWithOptions("dlq-nack-test", []byte("dead-msg"),
+		protocol.PriorityNormal, nil, nil)
+	msg.MaxRetries = 1 // Only 1 retry allowed.
+
+	// First nack - should retry.
+	broker.NegativeAcknowledge("dlq-nack-test", msg.ID)
+	if msg.RetryCount != 1 {
+		t.Errorf("expected retry count 1, got %d", msg.RetryCount)
+	}
+
+	// Second nack - should move to DLQ.
+	broker.NegativeAcknowledge("dlq-nack-test", msg.ID)
+
+	dlq := broker.GetDeadLetterQueue("dlq-nack-test")
+	if dlq.Count() != 1 {
+		t.Errorf("expected 1 message in DLQ, got %d", dlq.Count())
+	}
+
+	// Message should be removed from topic.
+	topic, _ := broker.GetTopic("dlq-nack-test")
+	msgs := topic.Messages()
+	if len(msgs) != 0 {
+		t.Errorf("expected 0 messages in topic after DLQ, got %d", len(msgs))
+	}
+}

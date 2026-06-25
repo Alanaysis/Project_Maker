@@ -34,6 +34,13 @@ exactly-once/
 ├── cmd/
 │   └── demo/
 │       └── main.go              # Demo program
+├── examples/
+│   ├── payment/
+│   │   └── main.go              # Payment system example
+│   ├── order/
+│   │   └── main.go              # Order system example
+│   └── mq/
+│       └── main.go              # Message queue example
 ├── internal/
 │   ├── message/
 │   │   ├── message.go           # Core message types
@@ -47,9 +54,20 @@ exactly-once/
 │   ├── transaction/
 │   │   ├── transaction.go       # Two-phase commit
 │   │   └── transaction_test.go
+│   ├── consume/
+│   │   ├── consume.go           # Consumption acknowledgment
+│   │   ├── batch.go             # Batch acknowledgment
+│   │   ├── consume_test.go
+│   │   └── batch_test.go
+│   ├── outbox/
+│   │   ├── outbox.go            # Transactional outbox
+│   │   └── outbox_test.go
 │   └── tracker/
 │       ├── tracker.go           # State tracking
 │       └── tracker_test.go
+├── tests/
+│   ├── semantics_test.go        # Exactly-once semantics tests
+│   └── pipeline_test.go         # Full pipeline integration tests
 ├── docs/                        # Documentation
 ├── go.mod                       # Go module file
 ├── README.md                    # This file
@@ -65,6 +83,8 @@ Edit the relevant files:
 - `internal/dedup/`: Deduplication logic
 - `internal/processor/`: Processing pipeline
 - `internal/transaction/`: Transaction management
+- `internal/consume/`: Consumption acknowledgment
+- `internal/outbox/`: Transactional outbox
 - `internal/tracker/`: State tracking
 
 ### 2. Run Tests
@@ -75,9 +95,14 @@ go test ./...
 
 # Specific package
 go test ./internal/dedup -v
+go test ./internal/consume -v
+go test ./internal/outbox -v
 
 # With race detection
 go test ./... -race
+
+# With coverage
+go test ./... -cover
 ```
 
 ### 3. Build and Test
@@ -86,8 +111,13 @@ go test ./... -race
 # Build
 go build -o demo ./cmd/demo
 
-# Run
+# Run demo
 ./demo
+
+# Run examples
+go run ./examples/payment
+go run ./examples/order
+go run ./examples/mq
 ```
 
 ### 4. Commit Changes
@@ -198,6 +228,41 @@ type Storage interface {
 
 4. Add tests with mock storage
 
+### Adding a New Consumer Type
+
+1. Create new file in `internal/consume/`:
+
+```go
+type CustomConsumer struct {
+    // ...
+}
+```
+
+2. Implement the `Handler` interface
+
+3. Add configuration options
+
+4. Add tests
+
+### Adding a New Outbox Publisher
+
+1. Implement the `Publisher` function type:
+
+```go
+func KafkaPublisher(brokers []string) outbox.Publisher {
+    return func(topic string, msg *message.Message) error {
+        // Publish to Kafka
+        return nil
+    }
+}
+```
+
+2. Use with outbox:
+
+```go
+ob := outbox.New(outbox.WithPublisher(KafkaPublisher(brokers)))
+```
+
 ## Debugging
 
 ### Enable Verbose Logging
@@ -282,6 +347,20 @@ If messages are processed more than once:
 - Check dedup TTL is long enough
 - Ensure MarkCompleted is called after processing
 
+### Failed Acknowledgments
+
+If messages are not being acknowledged:
+- Check that handler returns nil on success
+- Verify retry policy configuration
+- Check for dead letter queue routing
+
+### Outbox Not Publishing
+
+If outbox entries are not being published:
+- Verify publisher function is configured
+- Check that Publish() or PublishPending() is called
+- Look for failed entries in outbox.GetFailed()
+
 ## Contributing
 
 1. Fork the repository
@@ -297,3 +376,4 @@ If messages are processed more than once:
 - [Effective Go](https://go.dev/doc/effective_go)
 - [Kafka Exactly-Once Semantics](https://kafka.apache.org/documentation/#semantics)
 - [Two Generals Problem](https://en.wikipedia.org/wiki/Two_Generals%27_Problem)
+- [Transactional Outbox Pattern](https://microservices.io/patterns/data/transactional-outbox.html)

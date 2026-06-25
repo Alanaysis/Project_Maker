@@ -1,163 +1,198 @@
-# 开发指南
+# 因子挖掘框架 - 开发手册
 
-## 项目结构
+## 1. 环境配置
 
-```
-factor-mining/
-├── src/
-│   ├── __init__.py          # 包初始化
-│   ├── data.py              # 数据生成与加载
-│   ├── factors.py           # 因子计算
-│   ├── evaluation.py        # 因子评估
-│   └── backtest.py          # 回测框架
-├── tests/
-│   ├── __init__.py
-│   ├── test_factors.py      # 因子计算测试
-│   ├── test_evaluation.py   # 评估模块测试
-│   └── test_backtest.py     # 回测模块测试
-├── examples/
-│   ├── basic_factor_analysis.py  # 基础因子分析
-│   └── backtest_example.py       # 回测示例
-├── docs/
-│   ├── 01-RESEARCH.md       # 研究背景
-│   ├── 02-DESIGN.md         # 系统设计
-│   ├── 03-IMPLEMENTATION.md # 实现细节
-│   ├── 04-TESTING.md        # 测试文档
-│   └── 05-DEVELOPMENT.md    # 开发指南
-├── README.md
-├── LEARNING_NOTES.md
-└── requirements.txt
+### 1.1 Python 环境
+
+```bash
+# 推荐使用 Python 3.8+
+python --version
+
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 或
+venv\Scripts\activate  # Windows
 ```
 
-## 环境配置
+### 1.2 安装依赖
 
-### 依赖
-```
-numpy>=1.20
-pandas>=1.3
-scipy>=1.7
-pytest>=6.0
-```
-
-### 安装
 ```bash
 cd projects/factor-mining
 pip install -r requirements.txt
 ```
 
-## 开发流程
+### 1.3 依赖说明
 
-### 添加新因子
+| 包 | 用途 | 必需 |
+|---|------|------|
+| numpy | 数值计算 | 是 |
+| pandas | 数据处理 | 是 |
+| scipy | 统计分析 | 是 |
+| scikit-learn | 机器学习 | 是 |
+| matplotlib | 可视化 | 否 |
+| seaborn | 统计图表 | 否 |
+| statsmodels | 统计建模 | 否 |
+| tqdm | 进度条 | 否 |
+| pyarrow | 数据存储 | 否 |
 
-1. 在 `src/factors.py` 的 `FactorCalculator` 类中添加方法:
+## 2. 编译说明
+
+本项目为纯 Python 项目，无需编译。
+
+### 2.1 开发模式安装
+
+```bash
+# 如果需要以开发模式安装
+pip install -e .
+```
+
+### 2.2 代码检查
+
+```bash
+# 使用 flake8 检查代码风格
+pip install flake8
+flake8 src/ --max-line-length=100
+
+# 使用 mypy 检查类型
+pip install mypy
+mypy src/
+```
+
+## 3. 运行方式
+
+### 3.1 运行示例
+
+```bash
+# 基础示例
+python examples/basic_usage.py
+
+# 高级示例
+python examples/advanced_usage.py
+```
+
+### 3.2 运行测试
+
+```bash
+# 运行所有测试
+pytest tests/ -v
+
+# 运行特定测试
+pytest tests/test_technical.py -v
+
+# 运行并显示覆盖率
+pip install pytest-cov
+pytest tests/ --cov=src --cov-report=html
+```
+
+### 3.3 作为库使用
 
 ```python
-def my_new_factor(self, param: int = 20) -> pd.DataFrame:
-    """因子描述
+# 导入因子计算模块
+from src.factors.technical import TechnicalFactors
+from src.factors.fundamental import FundamentalFactors
 
-    数学公式: ...
+# 导入评估模块
+from src.evaluation.ic_analysis import ICAnalysis
+from src.evaluation.group_backtest import GroupBacktest
+
+# 导入优化模块
+from src.optimization.standardizer import FactorStandardizer
+from src.optimization.neutralizer import FactorNeutralizer
+
+# 导入组合模块
+from src.combination.equal_weight import EqualWeightCombination
+
+# 导入回测模块
+from src.backtest.portfolio_backtest import PortfolioBacktest
+from src.backtest.performance import PerformanceAnalyzer
+```
+
+## 4. 开发指南
+
+### 4.1 添加新因子
+
+1. 在 `src/factors/` 目录下创建或编辑因子文件
+2. 实现因子计算函数，遵循统一接口
+3. 在 `__init__.py` 中导出新因子
+4. 编写测试用例
+5. 更新文档
+
+示例:
+```python
+# src/factors/technical.py
+@staticmethod
+def my_new_factor(close: pd.Series, window: int = 20) -> pd.Series:
     """
-    # 实现
-    return result_df
+    我的新因子
+
+    原理: ...
+    计算: ...
+
+    参数:
+        close: 收盘价序列
+        window: 回看窗口
+
+    返回:
+        因子值序列
+    """
+    # 实现因子计算逻辑
+    return result
 ```
 
-2. 在 `tests/test_factors.py` 中添加测试:
+### 4.2 添加新评估方法
 
-```python
-def test_my_new_factor(self, calculator):
-    result = calculator.my_new_factor(param=20)
-    assert result.shape == calculator.price.shape
-    # 其他验证
+1. 在 `src/evaluation/` 目录下创建或编辑文件
+2. 实现评估函数
+3. 在 `FactorBacktest` 中集成新方法
+4. 编写测试用例
+
+### 4.3 代码规范
+
+- 遵循 PEP 8 代码风格
+- 每个函数都要有 docstring
+- 类型注解: 使用 typing 模块
+- 命名规范:
+  - 类名: PascalCase
+  - 函数名: snake_case
+  - 常量: UPPER_SNAKE_CASE
+
+### 4.4 测试规范
+
+- 每个模块都要有对应的测试文件
+- 测试函数命名: `test_功能名`
+- 使用 pytest fixtures 提供测试数据
+- 测试覆盖率目标: > 80%
+
+## 5. 常见问题
+
+### 5.1 导入错误
+
+如果遇到 `ModuleNotFoundError`，确保:
+1. 在项目根目录下运行
+2. 或者将 `src` 目录添加到 Python 路径
+
+```bash
+# 方法 1: 在项目根目录运行
+cd projects/factor-mining
+python examples/basic_usage.py
+
+# 方法 2: 设置 PYTHON_PATH
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+python examples/basic_usage.py
 ```
 
-3. 在示例中使用:
+### 5.2 数据格式问题
 
-```python
-factors['MY_FACTOR'] = calc.my_new_factor(param=20)
-```
+确保输入数据:
+1. 使用 pd.DatetimeIndex 作为日期索引
+2. 股票代码使用字符串格式
+3. 数值列使用 float 类型
 
-### 添加新评估指标
+### 5.3 性能优化
 
-1. 在 `src/evaluation.py` 的 `FactorEvaluator` 类中添加方法:
-
-```python
-def my_metric(self) -> float:
-    """指标描述"""
-    # 实现
-    return value
-```
-
-2. 添加对应测试
-
-### 修改回测逻辑
-
-回测引擎的核心流程:
-```
-AllocateWeights(date) -> CalculateReturn(date) -> ApplyCost -> UpdateNAV
-```
-
-可修改点:
-- `_allocate_weights()`: 改变权重分配策略
-- `run()`: 改变收益计算方式
-- `BacktestConfig`: 添加新配置项
-
-## 代码规范
-
-### 命名
-- 变量/函数: snake_case
-- 类: PascalCase
-- 常量: UPPER_SNAKE_CASE
-
-### 文档
-- 每个公共方法必须有 docstring
-- 包含数学公式和参数说明
-- 复杂逻辑添加行内注释
-
-### 类型提示
-- 使用 Python type hints
-- DataFrame 用 pd.DataFrame
-- Optional 用于可选参数
-
-## 调试技巧
-
-### 查看因子分布
-```python
-factor = calc.momentum(20)
-print(factor.describe())          # 统计摘要
-print(factor.iloc[-1].hist())     # 最新截面分布
-```
-
-### 检查 IC 时序
-```python
-evaluator = FactorEvaluator(factor, returns)
-ic = evaluator.rank_ic()
-print(ic.plot())                  # IC 时序图
-print(ic.rolling(20).mean())      # IC 移动平均
-```
-
-### 验证回测
-```python
-result = engine.run()
-df = result.to_dataframe()
-print(df.head(20))               # 查看前20天
-print(df['drawdown'].min())      # 最大回撤
-```
-
-## 常见问题
-
-### Q: 因子 IC 很低怎么办?
-- 检查因子是否有预测能力
-- 尝试不同窗口参数
-- 考虑因子组合
-- 检查数据质量
-
-### Q: 回测收益为负?
-- 因子方向可能反了 (尝试取负)
-- 交易成本可能过高
-- 样本量不足
-- 因子已失效
-
-### Q: 内存不足?
-- 减少股票数量或时间范围
-- 使用 float32 替代 float64
-- 分批计算因子
+对于大规模数据:
+1. 使用向量化操作代替循环
+2. 使用 `apply` 代替逐行处理
+3. 考虑使用 multiprocessing 并行计算
+4. 使用 pyarrow 进行高效数据存储

@@ -6,13 +6,15 @@
 
 Each package has dedicated unit tests:
 
-| Package    | Test File                | Focus                         |
-|------------|--------------------------|-------------------------------|
-| core       | event_test.go, stream_test.go | Event creation, stream lifecycle |
-| window     | window_test.go           | Window assignment, boundaries    |
-| operator   | operator_test.go         | All operator types               |
-| state      | state_test.go            | StateStore, WindowState          |
-| pipeline   | pipeline_test.go         | Pipeline chaining, parallelism   |
+| Package    | Test Files                   | Focus                              |
+|------------|------------------------------|------------------------------------|
+| core       | event_test.go, stream_test.go| Event creation, stream lifecycle   |
+| window     | window_test.go, session_test.go | Window assignment, session windows |
+| operator   | operator_test.go             | All operator types                 |
+| source     | source_test.go               | File, socket, Kafka sources        |
+| state      | state_test.go, keyed_state_test.go | StateStore, KeyedState, checkpoints |
+| watermark  | watermark_test.go            | Watermark tracking, policies       |
+| pipeline   | pipeline_test.go             | Pipeline chaining, parallelism     |
 
 ### Test Categories
 
@@ -33,24 +35,15 @@ go test -v ./...
 # Run specific package tests
 go test ./internal/operator/
 go test ./internal/state/
+go test ./internal/window/
+go test ./internal/source/
+go test ./internal/watermark/
 
 # Run with race detector
 go test -race ./...
 
 # Run benchmarks
 go test -bench=. ./...
-```
-
-## Test Helpers
-
-### Stream Helpers
-
-```go
-// Drain all events from a stream into a slice
-func drainStream(s *core.Stream) []core.Event
-
-// Create a pre-filled stream that closes after emitting
-func streamFrom(events ...core.Event) *core.Stream
 ```
 
 ## Key Test Cases
@@ -66,7 +59,9 @@ func streamFrom(events ...core.Event) *core.Stream
 
 - `TestTumblingWindowAssign`: Events map to correct windows
 - `TestSlidingWindowAssign`: Events map to multiple windows
-- `TestSlidingWindowSizeAndSlide`: Accessor methods
+- `TestSessionWindow`: Gap-based window creation and closing
+- `TestSessionWindowMultipleKeys`: Per-key session isolation
+- `TestSessionWindowOperator`: Session-based aggregation
 
 ### Operator Tests
 
@@ -77,14 +72,35 @@ func streamFrom(events ...core.Event) *core.Stream
 - `TestFuncOperator`: Generic function operator
 - `TestWindowedReduceOperatorTumbling`: Window-scoped aggregation
 
+### Source Tests
+
+- `TestFileSourceBasicRead`: Read all lines from file
+- `TestFileSourceWithKeyFunc`: Custom key extraction
+- `TestFileSourceWithValueFunc`: Custom value transformation
+- `TestFileSourceStop`: Graceful stop behavior
+- `TestFileSourceFileNotFound`: Error handling
+- `TestSocketSource`: Naming and configuration
+- `TestKafkaSourceMockConsumer`: Mock consumer integration
+- `TestParseCSVLine`: CSV parsing
+- `TestParseKeyValueLine`: Key-value parsing
+
 ### State Tests
 
 - `TestStateStoreBasicOperations`: CRUD operations
-- `TestStateStoreGetOrDefault`: Default value handling
 - `TestStateStoreUpdate`: Atomic read-modify-write
-- `TestStateStoreConcurrency`: Thread safety with 100 concurrent goroutines
-- `TestWindowState`: Window-scoped state creation and access
-- `TestWindowStateExpire`: Automatic cleanup of old windows
+- `TestKeyedState`: Per-key state isolation
+- `TestKeyedStateExpire`: Automatic key expiration
+- `TestKeyedStateSnapshot`: Snapshot and restore
+- `TestCheckpointManager`: Manual and auto checkpointing
+- `TestCheckpointRetention`: Retention policy enforcement
+
+### Watermark Tests
+
+- `TestWatermarkBasicUpdate`: Watermark advancement
+- `TestWatermarkForwardOnly`: Never moves backward
+- `TestWatermarkIsLate`: Late event detection
+- `TestBoundedOutOfOrdernessPolicy`: Policy computation
+- `TestPeriodicWatermarkGenerator`: Periodic emission
 
 ### Pipeline Tests
 
@@ -107,6 +123,8 @@ Key areas tested:
 - StateStore concurrent read/write
 - WindowedReduceOperator buffer access
 - Pipeline parallel worker execution
+- KeyedState concurrent access
+- Watermark updates
 
 ## Coverage
 
@@ -133,3 +151,11 @@ Expected output:
 4. Windowed aggregation (5-second tumbling windows)
 5. FlatMap word splitting
 6. Parallel pipeline execution
+
+Run examples for real-world scenarios:
+
+```bash
+go run examples/realtime_stats.go
+go run examples/anomaly_detection.go
+go run examples/etl_pipeline.go
+```

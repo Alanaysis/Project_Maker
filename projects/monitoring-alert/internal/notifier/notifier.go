@@ -8,6 +8,14 @@ import (
 	"github.com/monitoring-alert/internal/model"
 )
 
+// Notifier 通知器接口
+type Notifier interface {
+	// Name 返回通知器名称
+	Name() string
+	// Notify 发送通知
+	Notify(alert *model.Alert) error
+}
+
 // LogNotifier 日志通知器
 type LogNotifier struct {
 	mu      sync.RWMutex

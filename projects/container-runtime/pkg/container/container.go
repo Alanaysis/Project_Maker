@@ -47,53 +47,53 @@ func (s ContainerStatus) String() string {
 // ContainerConfig 容器配置
 type ContainerConfig struct {
 	// 容器名称
-	Name string
+	Name string `json:"name"`
 	// 容器 ID（自动生成）
-	ID string
+	ID string `json:"id"`
 	// 要执行的命令
-	Command []string
+	Command []string `json:"command"`
 	// 镜像名称
-	Image string
+	Image string `json:"image"`
 	// 根文件系统路径
-	RootFS string
+	RootFS string `json:"rootfs"`
 	// Namespace 配置
-	Namespaces []string
+	Namespaces []string `json:"namespaces"`
 	// 资源限制
-	Resources *ResourceLimit
+	Resources *ResourceLimit `json:"resources"`
 	// 环境变量
-	Env []string
+	Env []string `json:"env"`
 	// 工作目录
-	WorkDir string
+	WorkDir string `json:"workdir"`
 	// 主机名
-	Hostname string
+	Hostname string `json:"hostname"`
 	// 是否以特权模式运行
-	Privileged bool
+	Privileged bool `json:"privileged"`
 	// 挂载点
-	Mounts []Mount
+	Mounts []Mount `json:"mounts"`
 }
 
 // ResourceLimit 资源限制配置
 type ResourceLimit struct {
 	// 内存限制（字节）
-	MemoryLimit int64
+	MemoryLimit int64 `json:"memory_limit"`
 	// CPU 配额（百分比，0-100）
-	CPUPercent int
+	CPUPercent int `json:"cpu_percent"`
 	// CPU shares（相对权重）
-	CPUShares int
+	CPUShares int `json:"cpu_shares"`
 	// 进程数限制
-	PidsLimit int
+	PidsLimit int `json:"pids_limit"`
 	// I/O 读取限制（字节/秒）
-	IOReadBps int64
+	IOReadBps int64 `json:"io_read_bps"`
 	// I/O 写入限制（字节/秒）
-	IOWriteBps int64
+	IOWriteBps int64 `json:"io_write_bps"`
 }
 
 // Mount 挂载点配置
 type Mount struct {
-	Source      string
-	Destination string
-	Type        string
-	Options     []string
+	Source      string   `json:"source"`
+	Destination string   `json:"destination"`
+	Type        string   `json:"type"`
+	Options     []string `json:"options"`
 }
 
 // Container 容器实例
@@ -141,10 +141,51 @@ func NewContainerManager(rootDir string) (*ContainerManager, error) {
 		return nil, fmt.Errorf("failed to create root directory: %w", err)
 	}
 
-	return &ContainerManager{
+	mgr := &ContainerManager{
 		RootDir:    rootDir,
 		containers: make(map[string]*Container),
-	}, nil
+	}
+
+	// 从磁盘恢复容器状态
+	mgr.loadContainers()
+
+	return mgr, nil
+}
+
+// loadContainers 从磁盘加载容器配置
+func (m *ContainerManager) loadContainers() {
+	entries, err := os.ReadDir(m.RootDir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		containerDir := filepath.Join(m.RootDir, entry.Name())
+		configPath := filepath.Join(containerDir, "config.json")
+
+		var config ContainerConfig
+		if err := readJSON(configPath, &config); err != nil {
+			continue
+		}
+
+		container := &Container{
+			Config:  &config,
+			Status:  StatusStopped, // 从磁盘加载的容器默认为已停止
+			RootDir: containerDir,
+			done:    make(chan struct{}),
+		}
+
+		// 检查容器进程是否仍在运行
+		if config.ID != "" {
+			container.Status = StatusStopped
+		}
+
+		m.containers[config.ID] = container
+	}
 }
 
 // Create 创建新容器
@@ -168,7 +209,11 @@ func (m *ContainerManager) Create(config *ContainerConfig) (*Container, error) {
 
 	// 设置默认值
 	if config.Hostname == "" {
-		config.Hostname = config.ID[:12]
+		if len(config.ID) >= 12 {
+			config.Hostname = config.ID[:12]
+		} else {
+			config.Hostname = config.ID
+		}
 	}
 	if config.Namespaces == nil {
 		config.Namespaces = []string{"pid", "mount", "uts", "ipc", "net"}
@@ -194,6 +239,7 @@ func (m *ContainerManager) Create(config *ContainerConfig) (*Container, error) {
 		Status:    StatusCreated,
 		CreatedAt: time.Now(),
 		RootDir:   containerDir,
+		done:      make(chan struct{}),
 	}
 
 	// 保存容器配置
@@ -207,6 +253,13 @@ func (m *ContainerManager) Create(config *ContainerConfig) (*Container, error) {
 }
 
 // Start 启动容器
+//
+// ⭐ 重点：容器启动的核心流程
+// 1. 创建 cgroup 并设置资源限制
+// 2. 使用 clone() 创建新进程，同时创建新的 namespace
+// 3. 子进程进入 "child" 命令分支，设置文件系统隔离
+// 4. 父进程将子进程 PID 加入 cgroup
+// 5. 父进程异步等待子进程退出
 func (m *ContainerManager) Start(id string) error {
 	m.mu.RLock()
 	container, exists := m.containers[id]
@@ -223,15 +276,17 @@ func (m *ContainerManager) Start(id string) error {
 		return fmt.Errorf("container %s is already running", id)
 	}
 
-	// 创建 cgroup
+	// 创建 cgroup 并设置资源限制
 	if err := setupCgroup(container.Config.ID, container.Config.Resources); err != nil {
 		return fmt.Errorf("failed to setup cgroup: %w", err)
 	}
 
 	// 准备 namespace 配置
-	nsFlags := getNamespaceFlags(container.Config.Namespaces)
+	nsFlags := GetNamespaceFlags(container.Config.Namespaces)
 
-	// 构建启动命令
+	// ⭐ 构建启动命令
+	// 使用 /proc/self/exe 重新执行自己，进入 "child" 子命令
+	// 这样新进程会在新的 namespace 中执行
 	args := []string{"child", "--id", container.Config.ID}
 	args = append(args, container.Config.Command...)
 
@@ -265,7 +320,14 @@ func (m *ContainerManager) Start(id string) error {
 	container.Status = StatusRunning
 	container.StartedAt = time.Now()
 
-	// 异步等待容器退出（通过 sync.Once 确保只执行一次）
+	// ⭐ 将容器进程加入 cgroup（关键步骤！）
+	cgroupMgr := NewCgroupManager(container.Config.ID)
+	if err := cgroupMgr.AddProcess(container.PID); err != nil {
+		// 非致命错误，记录警告
+		fmt.Printf("Warning: failed to add process to cgroup: %v\n", err)
+	}
+
+	// 异步等待容器退出
 	go func() {
 		container.waitOnce.Do(func() {
 			err := cmd.Wait()
@@ -315,15 +377,13 @@ func (m *ContainerManager) Stop(id string) error {
 		}
 	}
 
-	// 等待容器退出（最多 10 秒），使用 Start() 中创建的 done channel
-	// 而不是再次调用 cmd.Wait()，避免 panic
+	// 等待容器退出（最多 10 秒）
 	select {
 	case <-container.done:
-		// 容器已退出（Start() 中的 goroutine 已处理状态更新和 cgroup 清理）
+		// 容器已退出
 	case <-time.After(10 * time.Second):
 		// 超时，强制杀死
 		container.cmd.Process.Signal(syscall.SIGKILL)
-		// 再次等待，确保进程退出
 		<-container.done
 	}
 
@@ -362,12 +422,19 @@ func (m *ContainerManager) Get(id string) (*Container, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	container, exists := m.containers[id]
-	if !exists {
-		return nil, fmt.Errorf("container %s not found", id)
+	// 先按 ID 查找
+	if container, exists := m.containers[id]; exists {
+		return container, nil
 	}
 
-	return container, nil
+	// 按名称查找
+	for _, container := range m.containers {
+		if container.Config.Name == id {
+			return container, nil
+		}
+	}
+
+	return nil, fmt.Errorf("container %s not found", id)
 }
 
 // List 列出所有容器
@@ -391,6 +458,5 @@ func (c *Container) saveConfig() error {
 
 // generateID 生成唯一容器 ID
 func generateID() string {
-	// 简单实现：使用时间戳 + 随机数
 	return fmt.Sprintf("%x", time.Now().UnixNano())
 }

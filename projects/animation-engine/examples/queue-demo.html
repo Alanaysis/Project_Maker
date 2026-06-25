@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animation Engine - Animation Queue Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f23;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 { color: #e94560; margin-bottom: 10px; }
+    .subtitle { color: #888; margin-bottom: 30px; }
+    .stage {
+      width: 700px;
+      height: 300px;
+      background: #1a1a2e;
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 20px;
+      border: 2px solid #16213e;
+    }
+    .ball {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      position: absolute;
+      left: 25px;
+    }
+    .ball-1 { background: #e94560; top: 50px; }
+    .ball-2 { background: #0f3460; top: 125px; }
+    .ball-3 { background: #533483; top: 200px; }
+    .label {
+      position: absolute;
+      left: 90px;
+      font-size: 13px;
+      color: #888;
+      font-family: monospace;
+    }
+    .label-1 { top: 65px; }
+    .label-2 { top: 140px; }
+    .label-3 { top: 215px; }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      background: #e94560;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { background: #c73e54; }
+    .log {
+      width: 700px;
+      background: #1a1a2e;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: monospace;
+      font-size: 13px;
+      line-height: 1.8;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #16213e;
+    }
+    .log-entry { color: #888; }
+    .log-entry.active { color: #e94560; }
+    .log-entry.complete { color: #4caf50; }
+  </style>
+</head>
+<body>
+  <h1>Animation Queue Demo</h1>
+  <p class="subtitle">Sequential animation execution with delays and chaining</p>
+
+  <div class="stage">
+    <div class="ball ball-1" id="ball1"></div>
+    <div class="label label-1" id="label1">Sequential</div>
+
+    <div class="ball ball-2" id="ball2"></div>
+    <div class="label label-2" id="label2">With Delay</div>
+
+    <div class="ball ball-3" id="ball3"></div>
+    <div class="label label-3" id="label3">Reverse</div>
+  </div>
+
+  <div class="controls">
+    <button id="btnStart">Start Queue</button>
+    <button id="btnReset">Reset</button>
+  </div>
+
+  <div class="log" id="log">
+    <div class="log-entry">Queue ready. Click "Start Queue" to begin.</div>
+  </div>
+
+  <script>
+    // ============================================================
+    // Easing
+    // ============================================================
+    const easeOutCubic = t => (--t)*t*t+1;
+    const easeOutBounce = t => {
+      const n1=7.5625,d1=2.75;
+      if(t<1/d1) return n1*t*t;
+      if(t<2/d1) return n1*(t-=1.5/d1)*t+0.75;
+      if(t<2.5/d1) return n1*(t-=2.25/d1)*t+0.9375;
+      return n1*(t-=2.625/d1)*t+0.984375;
+    };
+    const easeOutElastic = t => {
+      if(t===0||t===1) return t;
+      return Math.pow(2,-10*t)*Math.sin((t-0.075)*2*Math.PI/0.3)+1;
+    };
+
+    // ============================================================
+    // Simple Animation Queue
+    // ============================================================
+    class AnimationQueue {
+      constructor() {
+        this.queue = [];
+        this.running = false;
+      }
+
+      animate(element, from, to, duration, easing = easeOutCubic) {
+        return new Promise(resolve => {
+          this.queue.push({ element, from, to, duration, easing, resolve });
+          if (!this.running) this.processNext();
+        });
+      }
+
+      wait(ms) {
+        return new Promise(resolve => {
+          this.queue.push({ type: 'delay', ms, resolve });
+          if (!this.running) this.processNext();
+        });
+      }
+
+      processNext() {
+        if (this.queue.length === 0) {
+          this.running = false;
+          return;
+        }
+
+        this.running = true;
+        const task = this.queue.shift();
+
+        if (task.type === 'delay') {
+          setTimeout(() => {
+            task.resolve();
+            this.processNext();
+          }, task.ms);
+          return;
+        }
+
+        const { element, from, to, duration, easing, resolve } = task;
+        const startTime = performance.now();
+
+        const loop = () => {
+          const elapsed = performance.now() - startTime;
+          const raw = Math.min(elapsed / duration, 1);
+          const eased = easing(raw);
+
+          // Apply transform
+          const x = from.x + (to.x - from.x) * eased;
+          const scale = from.scale + (to.scale - from.scale) * eased;
+          const opacity = from.opacity + (to.opacity - from.opacity) * eased;
+
+          element.style.transform = `translateX(${x}px) scale(${scale})`;
+          element.style.opacity = opacity;
+
+          if (raw < 1) {
+            requestAnimationFrame(loop);
+          } else {
+            resolve();
+            this.processNext();
+          }
+        };
+
+        requestAnimationFrame(loop);
+      }
+    }
+
+    // ============================================================
+    // Demo
+    // ============================================================
+    const ball1 = document.getElementById('ball1');
+    const ball2 = document.getElementById('ball2');
+    const ball3 = document.getElementById('ball3');
+    const label1 = document.getElementById('label1');
+    const label2 = document.getElementById('label2');
+    const label3 = document.getElementById('label3');
+    const log = document.getElementById('log');
+
+    function addLog(text, className = '') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${className}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function resetBalls() {
+      [ball1, ball2, ball3].forEach(b => {
+        b.style.transform = '';
+        b.style.opacity = '1';
+      });
+      label1.textContent = 'Sequential';
+      label2.textContent = 'With Delay';
+      label3.textContent = 'Reverse';
+    }
+
+    document.getElementById('btnStart').addEventListener('click', async () => {
+      resetBalls();
+      log.innerHTML = '';
+      const queue = new AnimationQueue();
+
+      addLog('Starting animation queue...', 'active');
+
+      // Ball 1: Move right
+      addLog('Ball 1: Moving right with bounce easing');
+      label1.textContent = 'Moving...';
+      await queue.animate(ball1,
+        { x: 0, scale: 1, opacity: 1 },
+        { x: 550, scale: 1.3, opacity: 0.8 },
+        1500, easeOutBounce
+      );
+      label1.textContent = 'Complete!';
+      addLog('Ball 1: Complete', 'complete');
+
+      // Wait
+      addLog('Queue: Waiting 500ms...');
+      await queue.wait(500);
+
+      // Ball 2: Move right with elastic
+      addLog('Ball 2: Moving with elastic easing');
+      label2.textContent = 'Moving...';
+      await queue.animate(ball2,
+        { x: 0, scale: 1, opacity: 1 },
+        { x: 550, scale: 0.8, opacity: 0.6 },
+        1200, easeOutElastic
+      );
+      label2.textContent = 'Complete!';
+      addLog('Ball 2: Complete', 'complete');
+
+      // Wait
+      addLog('Queue: Waiting 300ms...');
+      await queue.wait(300);
+
+      // Ball 3: Move right and back
+      addLog('Ball 3: Moving right...');
+      label3.textContent = 'Moving right...';
+      await queue.animate(ball3,
+        { x: 0, scale: 1, opacity: 1 },
+        { x: 550, scale: 1.2, opacity: 0.7 },
+        800, easeOutCubic
+      );
+
+      addLog('Ball 3: Moving back...');
+      label3.textContent = 'Moving back...';
+      await queue.animate(ball3,
+        { x: 550, scale: 1.2, opacity: 0.7 },
+        { x: 0, scale: 1, opacity: 1 },
+        800, easeOutCubic
+      );
+      label3.textContent = 'Complete!';
+      addLog('Ball 3: Complete', 'complete');
+
+      addLog('All animations complete!', 'complete');
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      resetBalls();
+      log.innerHTML = '<div class="log-entry">Queue reset. Click "Start Queue" to begin.</div>';
+    });
+  </script>
+</body>
+</html>

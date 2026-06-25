@@ -25,10 +25,20 @@ run: build
 	@echo "Running WAL server..."
 	./bin/wal-server
 
-# Run the example
+# Run the basic example
 example:
-	@echo "Running example..."
+	@echo "Running basic example..."
 	go run examples/usage.go
+
+# Run the event sourcing example
+example-event-sourcing:
+	@echo "Running event sourcing example..."
+	go run examples/event_sourcing.go
+
+# Run the audit log example
+example-audit-log:
+	@echo "Running audit log example..."
+	go run examples/audit_log.go
 
 # Clean build artifacts
 clean:
@@ -55,13 +65,15 @@ vet:
 # Show help
 help:
 	@echo "Available targets:"
-	@echo "  build       - Build the WAL server"
-	@echo "  test        - Run tests"
-	@echo "  test-cover  - Run tests with coverage"
-	@echo "  run         - Build and run the WAL server"
-	@echo "  example     - Run the example"
-	@echo "  clean       - Clean build artifacts"
-	@echo "  fmt         - Format code"
-	@echo "  lint        - Lint code"
-	@echo "  vet         - Vet code"
-	@echo "  help        - Show this help"
+	@echo "  build                 - Build the WAL server"
+	@echo "  test                  - Run tests"
+	@echo "  test-cover            - Run tests with coverage"
+	@echo "  run                   - Build and run the WAL server"
+	@echo "  example               - Run the basic example"
+	@echo "  example-event-sourcing - Run the event sourcing example"
+	@echo "  example-audit-log     - Run the audit log example"
+	@echo "  clean                 - Clean build artifacts"
+	@echo "  fmt                   - Format code"
+	@echo "  lint                  - Lint code"
+	@echo "  vet                   - Vet code"
+	@echo "  help                  - Show this help"

@@ -23,6 +23,15 @@ impl Default for VmConfig {
     }
 }
 
+/// 日志事件
+#[derive(Debug, Clone)]
+pub struct LogEntry {
+    /// 日志主题列表
+    pub topics: Vec<u64>,
+    /// 日志数据
+    pub data: Vec<u8>,
+}
+
 /// 虚拟机执行上下文
 pub struct ExecutionContext {
     /// 合约代码
@@ -55,6 +64,8 @@ pub struct Vm {
     stopped: bool,
     /// 输出数据
     output: Vec<u8>,
+    /// 日志事件
+    logs: Vec<LogEntry>,
 }
 
 impl Vm {
@@ -69,6 +80,7 @@ impl Vm {
             context,
             stopped: false,
             output: Vec::new(),
+            logs: Vec::new(),
         }
     }
 
@@ -146,6 +158,14 @@ impl Vm {
             Opcode::Shl => { self.op_shl()?; true }
             Opcode::Shr => { self.op_shr()?; true }
 
+            // 环境操作
+            Opcode::Address => { self.op_address()?; true }
+            Opcode::Caller => { self.op_caller()?; true }
+            Opcode::CallValue => { self.op_callvalue()?; true }
+            Opcode::CallDataLoad => { self.op_calldataload()?; true }
+            Opcode::CallDataSize => { self.op_calldatasize()?; true }
+            Opcode::CallDataCopy => { self.op_calldatacopy()?; true }
+
             // 栈操作
             Opcode::Pop => { self.stack.pop()?; true }
             Opcode::Dup1 => { self.stack.dup(1)?; true }
@@ -180,6 +200,13 @@ impl Vm {
             Opcode::Push8 => { self.op_push(8)?; true }
             Opcode::Push16 => { self.op_push(16)?; true }
             Opcode::Push32 => { self.op_push(32)?; true }
+
+            // 日志操作
+            Opcode::Log0 => { self.op_log(0)?; true }
+            Opcode::Log1 => { self.op_log(1)?; true }
+            Opcode::Log2 => { self.op_log(2)?; true }
+            Opcode::Log3 => { self.op_log(3)?; true }
+            Opcode::Log4 => { self.op_log(4)?; true }
 
             // Return
             Opcode::Return => { self.op_return()?; true }
@@ -339,6 +366,61 @@ impl Vm {
         Ok(())
     }
 
+    // ===== 环境操作 =====
+
+    fn op_address(&mut self) -> Result<(), VmError> {
+        self.stack.push(self.context.address)?;
+        Ok(())
+    }
+
+    fn op_caller(&mut self) -> Result<(), VmError> {
+        self.stack.push(self.context.caller)?;
+        Ok(())
+    }
+
+    fn op_callvalue(&mut self) -> Result<(), VmError> {
+        self.stack.push(self.context.value)?;
+        Ok(())
+    }
+
+    fn op_calldataload(&mut self) -> Result<(), VmError> {
+        let offset = self.stack.pop()? as usize;
+        let mut value: u64 = 0;
+        for i in 0..8 {
+            let pos = offset + 24 + i;
+            if pos < self.context.calldata.len() {
+                value = (value << 8) | self.context.calldata[pos] as u64;
+            } else {
+                value <<= 8;
+            }
+        }
+        self.stack.push(value)?;
+        Ok(())
+    }
+
+    fn op_calldatasize(&mut self) -> Result<(), VmError> {
+        self.stack.push(self.context.calldata.len() as u64)?;
+        Ok(())
+    }
+
+    fn op_calldatacopy(&mut self) -> Result<(), VmError> {
+        let dest_offset = self.stack.pop()? as usize;
+        let data_offset = self.stack.pop()? as usize;
+        let size = self.stack.pop()? as usize;
+
+        self.memory.expand(dest_offset + size)?;
+        for i in 0..size {
+            let src_pos = data_offset + i;
+            let value = if src_pos < self.context.calldata.len() {
+                self.context.calldata[src_pos]
+            } else {
+                0
+            };
+            self.memory.write_byte(dest_offset + i, value)?;
+        }
+        Ok(())
+    }
+
     // ===== 内存操作 =====
 
     fn op_mload(&mut self) -> Result<(), VmError> {
@@ -428,6 +510,29 @@ impl Vm {
         Ok(())
     }
 
+    // ===== 日志操作 =====
+
+    fn op_log(&mut self, num_topics: usize) -> Result<(), VmError> {
+        let offset = self.stack.pop()? as usize;
+        let size = self.stack.pop()? as usize;
+
+        // 读取日志数据
+        let data = if size > 0 {
+            self.memory.read_range(offset, size)?
+        } else {
+            Vec::new()
+        };
+
+        // 读取主题
+        let mut topics = Vec::with_capacity(num_topics);
+        for _ in 0..num_topics {
+            topics.push(self.stack.pop()?);
+        }
+
+        self.logs.push(LogEntry { topics, data });
+        Ok(())
+    }
+
     // ===== 返回操作 =====
 
     fn op_return(&mut self) -> Result<(), VmError> {
@@ -479,6 +584,11 @@ impl Vm {
     /// 获取输出数据
     pub fn output(&self) -> &[u8] {
         &self.output
+    }
+
+    /// 获取日志事件
+    pub fn logs(&self) -> &[LogEntry] {
+        &self.logs
     }
 }
 
@@ -542,16 +652,6 @@ mod tests {
 
     #[test]
     fn test_jump() {
-        // Byte layout:
-        //   0: PUSH1 (0x60)
-        //   1: 0x05  (jump target = position 5)
-        //   2: JUMP (0x56)
-        //   3: PUSH1 (0x60)  -- should be skipped
-        //   4: 99
-        //   5: JUMPDEST (0x5b)
-        //   6: PUSH1 (0x60)
-        //   7: 42
-        //   8: STOP (0x00)
         let code = vec![
             Opcode::Push1 as u8, 0x05,
             Opcode::Jump as u8,
@@ -567,23 +667,6 @@ mod tests {
 
     #[test]
     fn test_conditional_jump() {
-        // Byte layout (each PUSH1 = 2 bytes):
-        //   0: PUSH1 (0x60)
-        //   1: 0x01 (condition = true)
-        //   2: PUSH1 (0x60)
-        //   3: 0x0c (jump target = position 12)
-        //   4: JUMPI (0x57)
-        //   5: PUSH1 (0x60) -- should be skipped
-        //   6: 99
-        //   7: STOP (0x00)
-        //   8: PUSH1 (0x60) -- padding
-        //   9: 0
-        //  10: PUSH1 (0x60) -- padding
-        //  11: 0
-        //  12: JUMPDEST (0x5b)
-        //  13: PUSH1 (0x60)
-        //  14: 42
-        //  15: STOP (0x00)
         let code = vec![
             Opcode::Push1 as u8, 0x01,  // condition = 1 (true)
             Opcode::Push1 as u8, 0x0c,  // jump target = position 12
@@ -598,14 +681,6 @@ mod tests {
             Opcode::Stop as u8,
         ];
 
-        // Debug: verify bytecode layout
-        assert_eq!(code[0], Opcode::Push1 as u8);
-        assert_eq!(code[1], 0x01);
-        assert_eq!(code[2], Opcode::Push1 as u8);
-        assert_eq!(code[3], 0x0c);
-        assert_eq!(code[4], Opcode::JumpI as u8);
-        assert_eq!(code[12], Opcode::JumpDest as u8);
-
         let mut vm = create_vm(code, 1000);
         let result = vm.execute();
         assert!(matches!(result, VmResult::Success(_)), "Expected success but got {:?}", result);
@@ -614,7 +689,6 @@ mod tests {
 
     #[test]
     fn test_memory_operations() {
-        // PUSH1 42 PUSH1 0 MSTORE PUSH1 0 MLOAD
         let code = vec![
             Opcode::Push1 as u8, 42,
             Opcode::Push1 as u8, 0,
@@ -630,7 +704,6 @@ mod tests {
 
     #[test]
     fn test_storage_operations() {
-        // PUSH1 100 PUSH1 1 SSTORE PUSH1 1 SLOAD
         let code = vec![
             Opcode::Push1 as u8, 100,
             Opcode::Push1 as u8, 1,
@@ -646,7 +719,6 @@ mod tests {
 
     #[test]
     fn test_dup_operations() {
-        // PUSH1 5 DUP1 ADD (5 + 5 = 10)
         let code = vec![
             Opcode::Push1 as u8, 5,
             Opcode::Dup1 as u8,
@@ -660,7 +732,6 @@ mod tests {
 
     #[test]
     fn test_swap_operations() {
-        // PUSH1 1 PUSH1 2 SWAP1 SUB (1 - 2 = -1)
         let code = vec![
             Opcode::Push1 as u8, 1,
             Opcode::Push1 as u8, 2,
@@ -671,5 +742,80 @@ mod tests {
         let mut vm = create_vm(code, 1000);
         vm.execute();
         assert_eq!(vm.stack_size(), 1);
+    }
+
+    #[test]
+    fn test_calldatasize() {
+        let context = ExecutionContext {
+            code: vec![
+                Opcode::CallDataSize as u8,
+                Opcode::Stop as u8,
+            ],
+            calldata: vec![0x01, 0x02, 0x03, 0x04],
+            caller: 0,
+            address: 0,
+            value: 0,
+        };
+        let mut vm = Vm::new(context, 1000);
+        vm.execute();
+        assert_eq!(vm.stack_size(), 1);
+    }
+
+    #[test]
+    fn test_calldataload() {
+        let context = ExecutionContext {
+            code: vec![
+                Opcode::Push1 as u8, 0,  // offset = 0
+                Opcode::CallDataLoad as u8,
+                Opcode::Stop as u8,
+            ],
+            calldata: vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a],
+            caller: 0,
+            address: 0,
+            value: 0,
+        };
+        let mut vm = Vm::new(context, 1000);
+        vm.execute();
+        assert_eq!(vm.stack_size(), 1);
+    }
+
+    #[test]
+    fn test_address_and_caller() {
+        let context = ExecutionContext {
+            code: vec![
+                Opcode::Address as u8,
+                Opcode::Caller as u8,
+                Opcode::Stop as u8,
+            ],
+            calldata: Vec::new(),
+            caller: 1000,
+            address: 2000,
+            value: 0,
+        };
+        let mut vm = Vm::new(context, 1000);
+        vm.execute();
+        assert_eq!(vm.stack_size(), 2);
+    }
+
+    #[test]
+    fn test_log_operations() {
+        let code = vec![
+            Opcode::Push1 as u8, 0x42,  // data value
+            Opcode::Push1 as u8, 0,     // memory offset
+            Opcode::Mstore as u8,
+            Opcode::Push1 as u8, 0xAA,  // topic
+            Opcode::Push1 as u8, 32,    // size
+            Opcode::Push1 as u8, 0,     // offset
+            Opcode::Log1 as u8,
+            Opcode::Stop as u8,
+        ];
+        let mut vm = create_vm(code, 10000);
+        vm.execute();
+        assert_eq!(vm.logs().len(), 1);
+        assert_eq!(vm.logs()[0].topics.len(), 1);
+        assert_eq!(vm.logs()[0].topics[0], 0xAA);
     }
 }

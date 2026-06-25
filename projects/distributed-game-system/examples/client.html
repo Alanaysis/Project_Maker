@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributed Game System - Client</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { text-align: center; color: #e94560; margin-bottom: 20px; }
+        .panel { background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .panel h2 { color: #e94560; margin-bottom: 15px; }
+        input, button, select { padding: 10px; margin: 5px; border-radius: 4px; border: none; }
+        input, select { background: #0f3460; color: #fff; width: 200px; }
+        button { background: #e94560; color: #fff; cursor: pointer; }
+        button:hover { background: #c81d4e; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        #log { background: #0a0a1a; padding: 15px; border-radius: 4px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        .log-entry { margin: 3px 0; }
+        .log-info { color: #4ecdc4; }
+        .log-error { color: #e94560; }
+        .log-success { color: #a8e6cf; }
+        .status { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; }
+        .status-connected { background: #a8e6cf; color: #1a1a2e; }
+        .status-disconnected { background: #e94560; color: #fff; }
+        .room-list { max-height: 200px; overflow-y: auto; }
+        .room-item { background: #0f3460; padding: 10px; margin: 5px 0; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        #gameCanvas { width: 100%; height: 300px; background: #0a0a1a; border-radius: 4px; display: none; }
+        .flex-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Distributed Game System</h1>
+
+        <div class="panel">
+            <h2>Connection</h2>
+            <div class="flex-row">
+                <input type="text" id="playerName" placeholder="Player Name" value="">
+                <input type="text" id="serverAddr" placeholder="Server Address" value="ws://localhost:8080/ws">
+                <button onclick="connect()" id="connectBtn">Connect</button>
+                <button onclick="disconnect()" id="disconnectBtn" disabled>Disconnect</button>
+                <span class="status status-disconnected" id="status">Disconnected</span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Matchmaking</h2>
+            <div class="flex-row">
+                <select id="matchMode">
+                    <option value="random">Random Match</option>
+                    <option value="elo">ELO Match</option>
+                </select>
+                <input type="text" id="gameType" placeholder="Game Type" value="ranked">
+                <button onclick="requestMatch()" id="matchBtn" disabled>Find Match</button>
+                <button onclick="cancelMatch()" id="cancelMatchBtn" disabled>Cancel</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Rooms</h2>
+            <div class="flex-row">
+                <input type="text" id="roomName" placeholder="Room Name">
+                <input type="number" id="maxPlayers" placeholder="Max Players" value="4" min="2" max="10">
+                <button onclick="createRoom()" id="createRoomBtn" disabled>Create Room</button>
+                <button onclick="refreshRooms()" id="refreshBtn" disabled>Refresh</button>
+            </div>
+            <div class="room-list" id="roomList"></div>
+        </div>
+
+        <div class="panel">
+            <h2>Game</h2>
+            <canvas id="gameCanvas"></canvas>
+            <div id="gameControls" style="display:none;">
+                <p>Use WASD or Arrow Keys to move. Press R for ready.</p>
+                <div class="flex-row">
+                    <button onclick="sendReady()">Ready</button>
+                    <button onclick="leaveRoom()">Leave Room</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Log</h2>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let playerId = null;
+        let currentRoom = null;
+        let gameState = null;
+        let playerPos = { x: 150, y: 150 };
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function generateId() {
+            return 'player-' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function connect() {
+            const name = document.getElementById('playerName').value || 'Player';
+            const addr = document.getElementById('serverAddr').value;
+            playerId = generateId();
+
+            const url = `${addr}?player_id=${playerId}`;
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                log('Connected to server', 'success');
+                updateStatus(true);
+
+                // Send connect message
+                send({
+                    type: 'connect',
+                    id: Date.now().toString(),
+                    timestamp: new Date().toISOString(),
+                    player_id: playerId,
+                    payload: { player_name: name }
+                });
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    handleMessage(msg);
+                } catch (e) {
+                    log(`Error parsing message: ${e.message}`, 'error');
+                }
+            };
+
+            ws.onclose = () => {
+                log('Disconnected from server', 'error');
+                updateStatus(false);
+            };
+
+            ws.onerror = (error) => {
+                log(`WebSocket error: ${error}`, 'error');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function send(msg) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(msg));
+            }
+        }
+
+        function handleMessage(msg) {
+            switch (msg.type) {
+                case 'connect':
+                    log(`Connected as ${msg.player_id}`, 'success');
+                    break;
+                case 'room_info':
+                    log(`Room info: ${JSON.stringify(msg.payload)}`, 'info');
+                    if (msg.payload && msg.payload.room_id) {
+                        currentRoom = msg.payload.room_id;
+                        showGame();
+                    }
+                    break;
+                case 'room_list':
+                    displayRooms(msg.payload);
+                    break;
+                case 'player_join':
+                    log(`Player joined: ${msg.player_id}`, 'success');
+                    break;
+                case 'player_leave':
+                    log(`Player left: ${msg.player_id}`, 'info');
+                    break;
+                case 'game_start':
+                    log('Game started!', 'success');
+                    startGame();
+                    break;
+                case 'game_state':
+                case 'frame_sync':
+                    updateGameState(msg.payload);
+                    break;
+                case 'player_move':
+                    if (msg.player_id !== playerId) {
+                        log(`Player ${msg.player_id} moved to (${msg.payload.x}, ${msg.payload.y})`, 'info');
+                    }
+                    break;
+                case 'match_request':
+                    log(`Match requested: ${JSON.stringify(msg.payload)}`, 'info');
+                    break;
+                case 'match_result':
+                    log(`Match found! Room: ${msg.payload.room_id}`, 'success');
+                    if (msg.payload.room_id) {
+                        joinRoom(msg.payload.room_id);
+                    }
+                    break;
+                case 'match_cancel':
+                    log('Match cancelled', 'info');
+                    break;
+                case 'error':
+                    log(`Error: ${msg.payload.message}`, 'error');
+                    break;
+                case 'heartbeat':
+                    // Heartbeat response
+                    break;
+                default:
+                    log(`Unknown message: ${msg.type}`, 'info');
+            }
+        }
+
+        function updateStatus(connected) {
+            const status = document.getElementById('status');
+            status.textContent = connected ? 'Connected' : 'Disconnected';
+            status.className = `status ${connected ? 'status-connected' : 'status-disconnected'}`;
+
+            document.getElementById('connectBtn').disabled = connected;
+            document.getElementById('disconnectBtn').disabled = !connected;
+            document.getElementById('matchBtn').disabled = !connected;
+            document.getElementById('createRoomBtn').disabled = !connected;
+            document.getElementById('refreshBtn').disabled = !connected;
+        }
+
+        function requestMatch() {
+            const mode = document.getElementById('matchMode').value;
+            const gameType = document.getElementById('gameType').value;
+
+            send({
+                type: 'match_request',
+                id: Date.now().toString(),
+                timestamp: new Date().toISOString(),
+                player_id: playerId,
+                payload: { mode, game_type: gameType }
+            });
+
+            document.getElementById('cancelMatchBtn').disabled = false;
+            log(`Requesting ${mode} match for ${gameType}...`, 'info');
+        }
+
+        function cancelMatch() {
+            send({
+                type: 'match_cancel',
+                id: Date.now().toString(),
+                timestamp: new Date().toISOString(),
+                player_id: playerId
+            });
+            document.getElementById('cancelMatchBtn').disabled = true;
+        }
+
+        function createRoom() {
+            const name = document.getElementById('roomName').value || 'Game Room';
+            const maxPlayers = parseInt(document.getElementById('maxPlayers').value) || 4;
+            const roomId = 'room-' + Date.now();
+
+            send({
+                type: 'create_room',
+                id: Date.now().toString(),
+                timestamp: new Date().toISOString(),
+                player_id: playerId,
+                payload: {
+                    room_id: roomId,
+                    room_name: name,
+                    max_players: maxPlayers
+                }
+            });
+        }
+
+        function joinRoom(roomId) {
+            send({
+                type: 'join_room',
+                id: Date.now().toString(),
+                timestamp: new Date().toISOString(),
+                player_id: playerId,
+                payload: { room_id: roomId }
+            });
+        }
+
+        function leaveRoom() {
+            if (currentRoom) {
+                send({
+                    type: 'leave_room',
+                    id: Date.now().toString(),
+                    timestamp: new Date().toISOString(),
+                    player_id: playerId,
+                    room_id: currentRoom
+                });
+                currentRoom = null;
+                hideGame();
+            }
+        }
+
+        function refreshRooms() {
+            send({
+                type: 'room_list',
+                id: Date.now().toString(),
+                timestamp: new Date().toISOString(),
+                player_id: playerId
+            });
+        }
+
+        function displayRooms(rooms) {
+            const roomList = document.getElementById('roomList');
+            roomList.innerHTML = '';
+
+            if (!rooms || rooms.length === 0) {
+                roomList.innerHTML = '<p>No rooms available</p>';
+                return;
+            }
+
+            rooms.forEach(room => {
+                const item = document.createElement('div');
+                item.className = 'room-item';
+                item.innerHTML = `
+                    <span>${room.room_name} (${room.players ? room.players.length : 0}/${room.max_players})</span>
+                    <button onclick="joinRoom('${room.room_id}')">Join</button>
+                `;
+                roomList.appendChild(item);
+            });
+        }
+
+        function sendReady() {
+            send({
+                type: 'player_ready',
+                id: Date.now().toString(),
+                timestamp: new Date().toISOString(),
+                player_id: playerId,
+                room_id: currentRoom
+            });
+            log('Sent ready signal', 'info');
+        }
+
+        function showGame() {
+            document.getElementById('gameCanvas').style.display = 'block';
+            document.getElementById('gameControls').style.display = 'block';
+            initCanvas();
+        }
+
+        function hideGame() {
+            document.getElementById('gameCanvas').style.display = 'none';
+            document.getElementById('gameControls').style.display = 'none';
+        }
+
+        function initCanvas() {
+            const canvas = document.getElementById('gameCanvas');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = 300;
+            drawGame();
+        }
+
+        function drawGame() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#0a0a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid
+            ctx.strokeStyle = '#16213e';
+            for (let x = 0; x < canvas.width; x += 20) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 20) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Draw player
+            ctx.fillStyle = '#e94560';
+            ctx.beginPath();
+            ctx.arc(playerPos.x, playerPos.y, 10, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw other players if game state exists
+            if (gameState && gameState.players) {
+                Object.entries(gameState.players).forEach(([id, state]) => {
+                    if (id !== playerId) {
+                        ctx.fillStyle = '#4ecdc4';
+                        ctx.beginPath();
+                        ctx.arc(state.x || 150, state.y || 150, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+            }
+        }
+
+        function startGame() {
+            playerPos = { x: 150, y: 150 };
+            drawGame();
+
+            // Setup keyboard controls
+            document.addEventListener('keydown', handleKeyDown);
+        }
+
+        function handleKeyDown(e) {
+            const speed = 5;
+            switch (e.key) {
+                case 'w':
+                case 'ArrowUp':
+                    playerPos.y = Math.max(10, playerPos.y - speed);
+                    break;
+                case 's':
+                case 'ArrowDown':
+                    playerPos.y = Math.min(290, playerPos.y + speed);
+                    break;
+                case 'a':
+                case 'ArrowLeft':
+                    playerPos.x = Math.max(10, playerPos.x - speed);
+                    break;
+                case 'd':
+                case 'ArrowRight':
+                    playerPos.x = Math.min(790, playerPos.x + speed);
+                    break;
+                case 'r':
+                    sendReady();
+                    return;
+                default:
+                    return;
+            }
+
+            // Send movement
+            send({
+                type: 'player_move',
+                id: Date.now().toString(),
+                timestamp: new Date().toISOString(),
+                player_id: playerId,
+                room_id: currentRoom,
+                payload: { x: playerPos.x, y: playerPos.y, z: 0 }
+            });
+
+            drawGame();
+        }
+
+        function updateGameState(state) {
+            gameState = state;
+            if (state && state.players && state.players[playerId]) {
+                // Update own position from server (for reconciliation)
+                // playerPos.x = state.players[playerId].x;
+                // playerPos.y = state.players[playerId].y;
+            }
+            drawGame();
+        }
+
+        // Heartbeat
+        setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                send({
+                    type: 'heartbeat',
+                    id: Date.now().toString(),
+                    timestamp: new Date().toISOString(),
+                    player_id: playerId
+                });
+            }
+        }, 30000);
+
+        // Auto-generate player name
+        document.getElementById('playerName').value = 'Player-' + Math.random().toString(36).substr(2, 4);
+    </script>
+</body>
+</html>

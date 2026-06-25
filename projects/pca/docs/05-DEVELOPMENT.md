@@ -94,6 +94,31 @@
 - LEARNING_NOTES.md：学习笔记
 - docs/：详细文档
 
+### 阶段六：核 PCA 与增量 PCA
+
+**目标**：实现 PCA 的高级变体。
+
+**活动**：
+1. 实现核 PCA（Kernel PCA）
+2. 实现增量 PCA（Incremental PCA）
+3. 编写测试用例
+4. 编写应用示例
+
+**产出**：
+- src/kernel_pca.py：核 PCA 实现
+- src/incremental_pca.py：增量 PCA 实现
+- tests/test_kernel_pca.py：核 PCA 测试
+- tests/test_incremental_pca.py：增量 PCA 测试
+- examples/kernel_pca_demo.py：核 PCA 演示
+- examples/incremental_pca_demo.py：增量 PCA 演示
+- examples/denoising_demo.py：去噪演示
+- examples/face_recognition_demo.py：人脸识别演示
+
+**技术要点**：
+- 核技巧实现非线性降维
+- 增量 SVD 更新算法
+- 批量处理大数据集
+
 ## 技术挑战与解决方案
 
 ### 挑战1：特征值分解的数值稳定性
@@ -146,17 +171,21 @@ A = (A + A.T) / 2.0
 | src/covariance.py | ~80 | 协方差矩阵计算 |
 | src/eigen.py | ~180 | 特征值分解 |
 | src/pca.py | ~200 | PCA 核心类 |
+| src/kernel_pca.py | ~150 | 核 PCA |
+| src/incremental_pca.py | ~150 | 增量 PCA |
 | src/visualization.py | ~250 | 可视化工具 |
 | tests/test_covariance.py | ~80 | 协方差矩阵测试 |
 | tests/test_eigen.py | ~120 | 特征值分解测试 |
 | tests/test_pca.py | ~200 | PCA 主类测试 |
-| examples/*.py | ~300 | 示例代码 |
-| 总计 | ~1410 | |
+| tests/test_kernel_pca.py | ~100 | 核 PCA 测试 |
+| tests/test_incremental_pca.py | ~100 | 增量 PCA 测试 |
+| examples/*.py | ~500 | 示例代码 |
+| 总计 | ~2110 | |
 
 ### 测试覆盖
 
-- 测试用例：35 个
-- 测试类：12 个
+- 测试用例：60 个
+- 测试类：15 个
 - 覆盖所有主要功能
 
 ## 学习收获
@@ -183,9 +212,9 @@ A = (A + A.T) / 2.0
 
 ### 功能扩展
 
-1. **核 PCA**：支持非线性降维
-2. **增量 PCA**：支持大规模数据
-3. **标准化**：支持数据标准化
+1. **标准化**：支持数据标准化
+2. **稀疏 PCA**：支持稀疏约束
+3. **随机 PCA**：支持随机化算法
 
 ### 性能优化
 
@@ -201,11 +230,20 @@ A = (A + A.T) / 2.0
 
 ## 总结
 
-本项目成功实现了 PCA 主成分分析算法，从零开始构建了完整的降维系统。通过这个项目：
+本项目成功实现了 PCA 主成分分析算法及其变体，从零开始构建了完整的降维系统。通过这个项目：
 
 1. 深入理解了 PCA 的数学原理
 2. 掌握了协方差矩阵和特征值分解
 3. 学会了从零实现机器学习算法
-4. 提高了代码质量和测试能力
+4. 实现了核 PCA 进行非线性降维
+5. 实现了增量 PCA 处理大数据集
+6. 提高了代码质量和测试能力
 
 项目代码结构清晰，文档完整，测试覆盖全面，是一个高质量的学习项目。
+
+### 功能特性
+
+- **标准 PCA**：支持特征值分解和 SVD 分解
+- **核 PCA**：支持 RBF、多项式、sigmoid 等核函数
+- **增量 PCA**：支持分批处理大数据集
+- **应用示例**：数据降维、去噪、人脸识别

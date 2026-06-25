@@ -202,13 +202,23 @@ go build -o bin/cdn-server cmd/cdn-server/main.go
 - 状态管理（TCP 连接状态跟踪、超时管理）
 - 入侵检测（SYN Flood、端口扫描、异常包检测）
 
-**代码量**：约 37 个文件
+**代码量**：约 37 个文件（C 实现）+ 约 20 个文件（Python 实现）
 
 **快速开始**：
+
+C 语言实现：
 ```bash
 cd firewall
 chmod +x build.sh
 ./build.sh build
+```
+
+Python 实现：
+```bash
+cd firewall/python
+pip install -r requirements.txt
+pytest tests/ -v
+python examples/basic_firewall.py
 ```
 
 ---

@@ -1,6 +1,6 @@
 # K-Means 聚类
 
-从零实现 K-Means 聚类算法，深入理解聚类原理、距离度量和肘部法则。
+从零实现 K-Means 聚类算法，深入理解聚类原理、距离度量和肘部法则。包括标准 K-Means 和 Mini-Batch K-Means 两种算法实现。
 
 ## 项目概述
 
@@ -12,12 +12,13 @@
 - 掌握距离度量
 - 学会肘部法则
 - 实现 K-Means 聚类算法
+- 掌握评估指标（轮廓系数、Calinski-Harabasz）
 
 ### 技术栈
 
 - **主语言**：Python
 - **框架**：无
-- **其他**：NumPy
+- **其他**：NumPy, Matplotlib
 
 ### 核心循环
 
@@ -38,10 +39,14 @@ kmeans/
 │   └── 05-DEVELOPMENT.md  # 开发记录
 ├── src/                   # 源代码
 │   ├── __init__.py
-│   ├── kmeans.py          # 核心算法
+│   ├── kmeans.py          # 核心算法（KMeans, MiniBatchKMeans）
 │   ├── distance.py        # 距离度量
 │   ├── visualization.py   # 可视化工具
-│   └── utils.py           # 工具函数
+│   └── utils.py           # 工具函数和评估指标
+├── examples/              # 实际应用示例
+│   ├── image_color_compression.py  # 图像颜色压缩
+│   ├── customer_segmentation.py    # 客户分群
+│   └── clustering_visualization.py # 聚类可视化
 ├── tests/                 # 测试代码
 │   ├── __init__.py
 │   ├── test_kmeans.py     # 核心算法测试
@@ -55,9 +60,12 @@ kmeans/
 ### 核心功能
 
 - **K-Means 聚类算法**：完整的算法实现
+- **Mini-Batch K-Means**：适用于大规模数据集的高效变体
 - **多种距离度量**：欧氏距离、曼哈顿距离、余弦距离
 - **K-Means++ 初始化**：更智能的初始化方法
 - **肘部法则**：自动选择最优 K 值
+- **轮廓系数**：评估聚类质量
+- **Calinski-Harabasz 指数**：方差比准则评估
 - **可视化工具**：聚类结果可视化
 
 ### 算法特性
@@ -66,6 +74,7 @@ kmeans/
 - 可配置的收敛条件
 - 多种初始化方法
 - 完整的错误处理
+- 增量更新（Mini-Batch）
 
 ## 安装与使用
 
@@ -129,6 +138,69 @@ kmeans_cosine = KMeans(n_clusters=4, distance='cosine')
 ```python
 kmeans_pp = KMeans(n_clusters=4, init='kmeans++', random_state=42)
 kmeans_pp.fit(X)
+```
+
+### 使用 Mini-Batch K-Means
+
+```python
+from src import MiniBatchKMeans
+
+# 创建 Mini-Batch K-Means 模型
+minibatch = MiniBatchKMeans(
+    n_clusters=4,
+    batch_size=100,  # 每批次样本数
+    random_state=42
+)
+
+# 训练模型
+minibatch.fit(X)
+
+# 获取结果
+labels = minibatch.labels_
+centers = minibatch.cluster_centers_
+```
+
+### 评估聚类质量
+
+```python
+from src.utils import (
+    compute_silhouette_score_fast,
+    compute_calinski_harabasz,
+    evaluate_clustering
+)
+
+# 计算轮廓系数
+sil_score = compute_silhouette_score_fast(X, labels)
+print(f"轮廓系数: {sil_score:.4f}")
+
+# 计算 Calinski-Harabasz 指数
+ch_score = compute_calinski_harabasz(X, labels)
+print(f"Calinski-Harabasz: {ch_score:.4f}")
+
+# 综合评估
+metrics = evaluate_clustering(X, labels)
+print(f"评估结果: {metrics}")
+```
+
+### 图像颜色压缩
+
+```python
+from examples.image_color_compression import compress_image
+
+# 压缩图像颜色
+compressed, labels, centers = compress_image(image, n_colors=8)
+```
+
+### 客户分群
+
+```python
+from examples.customer_segmentation import perform_segmentation, analyze_segments
+
+# 执行分群
+labels, centers, metrics = perform_segmentation(X, n_clusters=4)
+
+# 分析分群结果
+segment_analysis = analyze_segments(X, labels, centers, feature_names)
 ```
 
 ## 测试

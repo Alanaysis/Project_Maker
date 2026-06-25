@@ -377,7 +377,6 @@ func extractLayer(reader io.Reader, destPath string) error {
 func parseImageName(name string) (registry, repo, tag string) {
 	// 默认值
 	registry = "docker.io"
-	repo = name
 	tag = "latest"
 
 	// 解析标签
@@ -396,6 +395,8 @@ func parseImageName(name string) (registry, repo, tag string) {
 		} else {
 			repo = name
 		}
+	} else {
+		repo = name
 	}
 
 	return registry, repo, tag

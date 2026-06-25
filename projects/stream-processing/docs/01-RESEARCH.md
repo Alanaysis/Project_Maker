@@ -152,6 +152,45 @@ On new event:
     running_sum -= expired.value
 ```
 
+## Data Sources
+
+Stream processing systems need to read from various sources:
+
+### File Source
+- Read from local or distributed filesystems
+- Line-by-line processing
+- Configurable parsing (CSV, JSON, log formats)
+
+### Socket Source
+- TCP/UDP connections
+- Real-time data ingestion
+- Common for log aggregation
+
+### Message Queue Source (Kafka)
+- Distributed, fault-tolerant messaging
+- Consumer groups for parallel processing
+- Offset tracking for exactly-once semantics
+
+## State Management Patterns
+
+### Keyed State
+Per-key state for partitioned processing:
+```
+state[key] = { sub_key: value, ... }
+```
+
+### Window State
+State scoped to time windows:
+```
+state[window][key] = value
+```
+
+### Checkpointing
+Periodic state snapshots for fault tolerance:
+- Synchronous: Simple but higher latency
+- Asynchronous: Lower latency but more complex
+- Incremental: Only save changes since last checkpoint
+
 ## References
 
 - [Apache Beam Programming Model](https://beam.apache.org/documentation/programming-guide/)

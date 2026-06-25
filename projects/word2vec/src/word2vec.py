@@ -1,14 +1,18 @@
 """
 Word2Vec 主模块
 
-提供 Word2Vec 的高层接口，包括训练、查询、保存/加载功能
+提供 Word2Vec 的高层接口，包括训练、查询、保存/加载功能。
+支持 Skip-gram 和 CBOW 两种模型架构，以及负采样和层次 Softmax 两种优化方式。
 """
 
 import numpy as np
 from typing import List, Tuple, Optional, Dict
 from .vocabulary import Vocabulary
 from .skipgram import SkipGramModel
+from .cbow import CBOWModel
 from .negative_sampling import NegativeSampler
+from .hierarchical_softmax import HierarchicalSoftmax
+from .subsampling import SubSampler
 from .trainer import Trainer
 
 
@@ -21,32 +25,44 @@ class Word2Vec:
         vector_size: 向量维度
         window: 上下文窗口大小
         min_count: 最小词频
-        negative: 负样本数量
+        negative: 负样本数量（负采样模式）
         learning_rate: 学习率
+        model_type: 模型类型 ('skipgram' 或 'cbow')
+        use_hs: 是否使用层次 Softmax
+        subsample_threshold: 降采样阈值
         vocab: 词汇表
-        model: Skip-gram 模型
+        model: 模型实例
     """
 
     def __init__(self, vector_size: int = 100, window: int = 5,
                  min_count: int = 5, negative: int = 5,
-                 learning_rate: float = 0.025):
+                 learning_rate: float = 0.025,
+                 model_type: str = 'skipgram',
+                 use_hs: bool = False,
+                 subsample_threshold: float = 1e-3):
         """初始化 Word2Vec
 
         Args:
             vector_size: 向量维度
             window: 上下文窗口大小
             min_count: 最小词频阈值
-            negative: 负样本数量
+            negative: 负样本数量（仅在 use_hs=False 时使用）
             learning_rate: 学习率
+            model_type: 模型类型 ('skipgram' 或 'cbow')
+            use_hs: 是否使用层次 Softmax（默认使用负采样）
+            subsample_threshold: 降采样阈值（0 表示不降采样）
         """
         self.vector_size = vector_size
         self.window = window
         self.min_count = min_count
         self.negative = negative
         self.learning_rate = learning_rate
+        self.model_type = model_type
+        self.use_hs = use_hs
+        self.subsample_threshold = subsample_threshold
 
         self.vocab: Optional[Vocabulary] = None
-        self.model: Optional[SkipGramModel] = None
+        self.model = None
         self._is_trained = False
 
     def train(self, corpus: List[List[str]], epochs: int = 100,
@@ -61,6 +77,17 @@ class Word2Vec:
         Returns:
             每个 epoch 的损失列表
         """
+        # 降采样
+        if self.subsample_threshold > 0:
+            subsampler = SubSampler(
+                word_freq=self._count_words(corpus),
+                total_words=sum(len(s) for s in corpus),
+                threshold=self.subsample_threshold
+            )
+            corpus = subsampler.subsample_corpus(corpus)
+            if verbose:
+                print(f"After subsampling: {sum(len(s) for s in corpus)} words")
+
         # 构建词汇表
         self.vocab = Vocabulary(min_count=self.min_count)
         self.vocab.build(corpus)
@@ -68,31 +95,51 @@ class Word2Vec:
         if verbose:
             print(f"Vocabulary size: {len(self.vocab)}")
             print(f"Total words: {self.vocab.total_words}")
+            print(f"Model type: {self.model_type}")
+            print(f"Optimization: {'Hierarchical Softmax' if self.use_hs else 'Negative Sampling'}")
 
         if len(self.vocab) == 0:
             raise ValueError("Vocabulary is empty. Check your corpus or reduce min_count.")
 
         # 初始化模型
-        self.model = SkipGramModel(
-            vocab_size=len(self.vocab),
-            vector_size=self.vector_size
-        )
+        if self.model_type == 'skipgram':
+            self.model = SkipGramModel(
+                vocab_size=len(self.vocab),
+                vector_size=self.vector_size
+            )
+        elif self.model_type == 'cbow':
+            self.model = CBOWModel(
+                vocab_size=len(self.vocab),
+                vector_size=self.vector_size
+            )
+        else:
+            raise ValueError(f"Unknown model type: {self.model_type}. Use 'skipgram' or 'cbow'.")
 
-        # 初始化负采样器
+        # 初始化优化器
         word_freqs = self.vocab.get_word_freqs_array()
-        neg_sampler = NegativeSampler(
-            vocab_size=len(self.vocab),
-            word_freqs=word_freqs
-        )
+
+        if self.use_hs:
+            optimizer = HierarchicalSoftmax(
+                vocab_size=len(self.vocab),
+                vector_size=self.vector_size,
+                word_freqs=word_freqs
+            )
+        else:
+            optimizer = NegativeSampler(
+                vocab_size=len(self.vocab),
+                word_freqs=word_freqs
+            )
 
         # 初始化训练器
         trainer = Trainer(
             model=self.model,
             vocabulary=self.vocab,
-            neg_sampler=neg_sampler,
+            optimizer=optimizer,
             window=self.window,
             learning_rate=self.learning_rate,
-            negative=self.negative
+            negative=self.negative,
+            model_type=self.model_type,
+            use_hs=self.use_hs
         )
 
         # 训练
@@ -100,6 +147,14 @@ class Word2Vec:
 
         self._is_trained = True
         return losses
+
+    def _count_words(self, corpus: List[List[str]]) -> Dict[str, int]:
+        """统计词频"""
+        freq: Dict[str, int] = {}
+        for sentence in corpus:
+            for word in sentence:
+                freq[word] = freq.get(word, 0) + 1
+        return freq
 
     def get_vector(self, word: str) -> Optional[np.ndarray]:
         """获取词向量
@@ -245,7 +300,9 @@ class Word2Vec:
                  vector_size=self.vector_size,
                  window=self.window,
                  min_count=self.min_count,
-                 negative=self.negative)
+                 negative=self.negative,
+                 model_type=self.model_type,
+                 use_hs=int(self.use_hs))
 
         # 保存词汇表
         vocab_data = {
@@ -270,7 +327,9 @@ class Word2Vec:
             vector_size=int(data['vector_size']),
             window=int(data['window']),
             min_count=int(data['min_count']),
-            negative=int(data['negative'])
+            negative=int(data['negative']),
+            model_type=str(data.get('model_type', 'skipgram')),
+            use_hs=bool(int(data.get('use_hs', 0)))
         )
 
         # 加载词汇表
@@ -281,7 +340,11 @@ class Word2Vec:
         model.vocab.word_freq = vocab_data['word_freq']
 
         # 加载模型参数
-        model.model = SkipGramModel(len(model.vocab), model.vector_size)
+        if model.model_type == 'skipgram':
+            model.model = SkipGramModel(len(model.vocab), model.vector_size)
+        else:
+            model.model = CBOWModel(len(model.vocab), model.vector_size)
+
         model.model.W_in = data['W_in']
         model.model.W_out = data['W_out']
 

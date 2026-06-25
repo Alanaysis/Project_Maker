@@ -1,14 +1,26 @@
-# 05 - 开发文档：文本分类
+# 05 - 开发文档：文本分类系统
 
 ## 1. 开发环境
 
 ### 1.1 依赖要求
 
-- Python 3.7+
-- pytest (测试)
-- 无其他外部依赖
+```
+Python >= 3.8
+NumPy >= 1.19.0
+pytest >= 6.0.0 (测试)
+```
 
-### 1.2 项目结构
+### 1.2 安装依赖
+
+```bash
+# 基础依赖
+pip install numpy
+
+# 测试依赖
+pip install pytest pytest-cov
+```
+
+### 1.3 项目结构
 
 ```
 text-classification/
@@ -21,456 +33,466 @@ text-classification/
 │   ├── 04-TESTING.md           # 测试文档
 │   └── 05-DEVELOPMENT.md       # 开发文档
 ├── src/
-│   ├── __init__.py             # 包初始化
-│   ├── tfidf.py                # TF-IDF 向量化器
-│   ├── naive_bayes.py          # 朴素贝叶斯分类器
-│   └── text_classifier.py      # 文本分类管道
+│   ├── __init__.py              # 包初始化
+│   ├── bow.py                   # 词袋模型
+│   ├── tfidf.py                 # TF-IDF向量化器
+│   ├── ngram.py                 # N-gram特征提取
+│   ├── naive_bayes.py           # 朴素贝叶斯分类器
+│   ├── logistic_regression.py   # 逻辑回归分类器
+│   ├── svm_classifier.py        # SVM分类器
+│   ├── deep_learning.py         # 深度学习模型
+│   ├── evaluation.py            # 评估指标
+│   ├── applications.py          # 实际应用
+│   └── text_classifier.py       # 文本分类管道
 └── tests/
     ├── __init__.py
-    ├── test_tfidf.py           # TF-IDF 测试
-    ├── test_naive_bayes.py     # 朴素贝叶斯测试
-    └── test_text_classifier.py # 文本分类器测试
+    ├── test_bow.py
+    ├── test_tfidf.py
+    ├── test_ngram.py
+    ├── test_naive_bayes.py
+    ├── test_logistic_regression.py
+    ├── test_svm.py
+    ├── test_deep_learning.py
+    ├── test_evaluation.py
+    ├── test_applications.py
+    └── test_text_classifier.py
 ```
 
-## 2. 开发流程
+## 2. 快速开始
 
-### 2.1 测试驱动开发 (TDD)
-
-1. **编写测试**：先定义预期行为
-2. **运行测试**：确认测试失败
-3. **编写代码**：实现功能
-4. **运行测试**：确认测试通过
-5. **重构**：优化代码
-
-### 2.2 开发步骤
-
-**步骤 1：实现 TF-IDF 向量化器**
+### 2.1 基本使用
 
 ```python
-# 1. 编写测试
-def test_basic_fit_transform():
-    documents = ["hello world", "hello python"]
-    vectorizer = TFIDFVectorizer()
-    result = vectorizer.fit_transform(documents)
-    assert len(result) == 2
+from src import TextClassifier
 
-# 2. 实现功能
-class TFIDFVectorizer:
+# 训练数据
+texts = [
+    "I love this movie, it is great",
+    "This movie is excellent and wonderful",
+    "I hate this movie, it is terrible",
+    "This movie is awful and boring",
+]
+labels = ["positive", "positive", "negative", "negative"]
+
+# 创建分类器
+classifier = TextClassifier()
+
+# 训练
+classifier.fit(texts, labels)
+
+# 预测
+predictions = classifier.predict([
+    "This movie is great and wonderful",
+    "This movie is terrible and awful",
+])
+print(f"预测结果: {predictions}")
+```
+
+### 2.2 使用不同特征提取器
+
+```python
+from src import BagOfWordsVectorizer, TFIDFVectorizer, NGramVectorizer
+
+# 词袋模型
+bow = BagOfWordsVectorizer()
+X_bow = bow.fit_transform(documents)
+
+# TF-IDF
+tfidf = TFIDFVectorizer()
+X_tfidf = tfidf.fit_transform(documents)
+
+# N-gram
+ngram = NGramVectorizer(ngram_range=(1, 2))
+X_ngram = ngram.fit_transform(documents)
+```
+
+### 2.3 使用不同分类器
+
+```python
+from src import NaiveBayesClassifier, LogisticRegressionClassifier, SVMClassifier
+
+# 朴素贝叶斯
+nb = NaiveBayesClassifier(alpha=1.0)
+nb.fit(X_train, y_train)
+
+# 逻辑回归
+lr = LogisticRegressionClassifier(learning_rate=0.1, max_iter=1000)
+lr.fit(X_train, y_train)
+
+# SVM
+svm = SVMClassifier(C=1.0, max_iter=1000)
+svm.fit(X_train, y_train)
+```
+
+### 2.4 使用深度学习模型
+
+```python
+from src import TextCNN, LSTMModel, BiLSTMAttention
+import numpy as np
+
+# TextCNN
+cnn = TextCNN(vocab_size=10000, embedding_dim=128, num_classes=2)
+x = np.array([1, 2, 3, 4, 5])
+pred = cnn.predict(x)
+
+# LSTM
+lstm = LSTMModel(vocab_size=10000, embedding_dim=128, hidden_dim=128, num_classes=2)
+pred = lstm.predict(x)
+
+# BiLSTM + Attention
+bilstm = BiLSTMAttention(vocab_size=10000, embedding_dim=128, hidden_dim=128, num_classes=2)
+pred = bilstm.predict(x)
+weights = bilstm.get_attention_weights(x)  # 获取注意力权重
+```
+
+### 2.5 使用评估指标
+
+```python
+from src import accuracy, precision, recall, f1_score, confusion_matrix, classification_report
+
+y_true = ["positive", "negative", "positive", "negative"]
+y_pred = ["positive", "positive", "negative", "negative"]
+
+print(f"准确率: {accuracy(y_true, y_pred):.4f}")
+print(f"精确率: {precision(y_true, y_pred):.4f}")
+print(f"召回率: {recall(y_true, y_pred):.4f}")
+print(f"F1分数: {f1_score(y_true, y_pred):.4f}")
+
+print("\n混淆矩阵:")
+print(confusion_matrix(y_true, y_pred))
+
+print("\n分类报告:")
+print(classification_report(y_true, y_pred))
+```
+
+### 2.6 使用实际应用
+
+```python
+from src import SentimentAnalyzer, NewsClassifier, SpamDetector
+
+# 情感分析
+sentiment = SentimentAnalyzer(classifier_type="naive_bayes")
+sentiment.fit(train_texts, train_labels)
+predictions = sentiment.predict(["I love this!"])
+
+# 新闻分类
+news = NewsClassifier(classifier_type="logistic_regression")
+news.fit(train_texts, train_labels)
+predictions = news.predict(["The team won the game."])
+
+# 垃圾邮件检测
+spam = SpamDetector(classifier_type="naive_bayes")
+spam.fit(train_texts, train_labels)
+predictions = spam.predict(["Congratulations! You won!"])
+```
+
+## 3. 开发指南
+
+### 3.1 添加新的特征提取器
+
+```python
+# src/new_vectorizer.py
+class NewVectorizer:
+    def __init__(self, param1=default1):
+        self.param1 = param1
+        self.vocabulary_ = {}
+        self.feature_names_ = []
+
     def fit(self, documents):
-        # 实现词汇表构建
-        pass
+        """学习词汇表"""
+        # 实现学习逻辑
+        return self
 
     def transform(self, documents):
-        # 实现 TF-IDF 计算
-        pass
+        """转换文档为特征向量"""
+        # 实现转换逻辑
+        return result
+
+    def fit_transform(self, documents):
+        """拟合并转换"""
+        return self.fit(documents).transform(documents)
+
+    def get_feature_names(self):
+        """获取特征名称"""
+        return self.feature_names_
 ```
 
-**步骤 2：实现朴素贝叶斯分类器**
+### 3.2 添加新的分类器
 
 ```python
-# 1. 编写测试
-def test_basic_fit_predict():
-    X = [[1, 0], [0, 1]]
-    y = ["a", "b"]
-    clf = NaiveBayesClassifier()
-    clf.fit(X, y)
-    predictions = clf.predict([[1, 0]])
-    assert predictions[0] == "a"
+# src/new_classifier.py
+class NewClassifier:
+    def __init__(self, param1=default1):
+        self.param1 = param1
+        self.classes_ = []
 
-# 2. 实现功能
-class NaiveBayesClassifier:
     def fit(self, X, y):
-        # 实现概率计算
-        pass
+        """训练分类器"""
+        self.classes_ = sorted(set(y))
+        # 实现训练逻辑
+        return self
 
     def predict(self, X):
-        # 实现预测
-        pass
+        """预测类别"""
+        # 实现预测逻辑
+        return predictions
+
+    def predict_proba(self, X):
+        """预测概率"""
+        # 实现概率预测
+        return probabilities
+
+    def score(self, X, y):
+        """计算准确率"""
+        predictions = self.predict(X)
+        correct = sum(1 for p, t in zip(predictions, y) if p == t)
+        return correct / len(y)
+
+    def get_params(self):
+        """获取参数"""
+        return {"param1": self.param1}
 ```
 
-**步骤 3：实现文本分类管道**
+### 3.3 添加新的应用
 
 ```python
-# 1. 编写测试
-def test_basic_pipeline():
-    texts = ["I love this", "I hate this"]
-    labels = ["positive", "negative"]
-    classifier = TextClassifier()
-    classifier.fit(texts, labels)
-    predictions = classifier.predict(["I love this"])
-    assert predictions[0] == "positive"
-
-# 2. 实现功能
-class TextClassifier:
-    def __init__(self):
-        self.vectorizer = TFIDFVectorizer()
-        self.classifier = NaiveBayesClassifier()
+# src/applications.py
+class NewApplication:
+    def __init__(self, classifier_type="naive_bayes"):
+        self.vectorizer = TFIDFVectorizer(...)
+        if classifier_type == "naive_bayes":
+            self.classifier = NaiveBayesClassifier(...)
+        elif classifier_type == "logistic_regression":
+            self.classifier = LogisticRegressionClassifier(...)
+        # ...
 
     def fit(self, texts, labels):
+        """训练模型"""
         X = self.vectorizer.fit_transform(texts)
         self.classifier.fit(X, labels)
+        return self
+
+    def predict(self, texts):
+        """预测"""
+        X = self.vectorizer.transform(texts)
+        return self.classifier.predict(X)
+
+    def evaluate(self, texts, labels):
+        """评估"""
+        predictions = self.predict(texts)
+        return {
+            "accuracy": accuracy(labels, predictions),
+            "precision": precision(labels, predictions),
+            "recall": recall(labels, predictions),
+            "f1": f1_score(labels, predictions),
+        }
 ```
 
-## 3. 代码规范
+## 4. 代码规范
 
-### 3.1 命名规范
+### 4.1 命名规范
 
-- **类名**：PascalCase (`TFIDFVectorizer`, `NaiveBayesClassifier`)
-- **方法名**：snake_case (`fit_transform`, `predict_proba`)
-- **变量名**：snake_case (`feature_names`, `class_log_prior_`)
-- **常量**：UPPER_SNAKE_CASE (`MAX_FEATURES`)
+- **类名**：PascalCase (如 `NaiveBayesClassifier`)
+- **函数名**：snake_case (如 `fit_transform`)
+- **变量名**：snake_case (如 `feature_names`)
+- **常量**：UPPER_CASE (如 `MAX_FEATURES`)
+- **私有属性**：前缀下划线 (如 `_vocabulary`)
 
-### 3.2 文档规范
+### 4.2 文档规范
 
 ```python
-def fit(self, documents: List[str]) -> "TFIDFVectorizer":
+def function_name(param1: type1, param2: type2) -> return_type:
     """
-    Learn vocabulary and IDF weights from training documents.
+    简短描述。
+
+    详细描述（如果需要）。
 
     Parameters
     ----------
-    documents : list of str
-        Raw text documents.
+    param1 : type1
+        参数1描述。
+    param2 : type2
+        参数2描述。
 
     Returns
     -------
-    self
-        Fitted vectorizer.
+    return_type
+        返回值描述。
 
     Raises
     ------
-    ValueError
-        If documents is empty.
+    ExceptionType
+        异常描述。
+
+    Examples
+    --------
+    >>> result = function_name(1, 2)
+    >>> print(result)
+    3
     """
 ```
 
-### 3.3 类型注解
+### 4.3 类型注解
 
 ```python
 from typing import Dict, List, Optional, Tuple
 
-def transform(self, documents: List[str]) -> List[List[float]]:
-    """Transform documents to TF-IDF feature vectors."""
-    pass
-```
+def fit(self, X: List[List[float]], y: List[str]) -> "Classifier":
+    ...
 
-### 3.4 错误处理
-
-```python
 def predict(self, X: List[List[float]]) -> List[str]:
-    """Predict class labels."""
-    if not self.classes_:
-        raise RuntimeError("Classifier has not been fitted. Call fit() first.")
-    # ...
+    ...
+
+def predict_proba(self, X: List[List[float]]) -> List[Dict[str, float]]:
+    ...
 ```
 
-## 4. 测试规范
+## 5. 测试指南
 
-### 4.1 测试命名
-
-```python
-def test_basic_fit_transform(self):
-    """Test basic fit and transform functionality."""
-
-def test_tf_computation(self):
-    """Test term frequency computation."""
-
-def test_predict_before_fit(self):
-    """Test that predict raises error before fit."""
-```
-
-### 4.2 测试结构
+### 5.1 测试命名
 
 ```python
-class TestTFIDFVectorizer:
-    """Test suite for TFIDFVectorizer."""
-
-    def test_basic_fit_transform(self):
-        """Test basic fit and transform functionality."""
-        # Arrange
-        documents = ["hello world", "hello python"]
-
-        # Act
-        vectorizer = TFIDFVectorizer()
-        result = vectorizer.fit_transform(documents)
-
-        # Assert
-        assert len(result) == 2
-        assert len(result[0]) > 0
-```
-
-### 4.3 边界测试
-
-```python
-def test_empty_document(self):
-    """Test with empty document."""
-    documents = ["", "hello world"]
-    vectorizer = TFIDFVectorizer()
-    result = vectorizer.fit_transform(documents)
-    assert len(result) == 2
-
-def test_transform_before_fit(self):
-    """Test that transform raises error before fit."""
-    vectorizer = TFIDFVectorizer()
-    with pytest.raises(RuntimeError, match="not been fitted"):
-        vectorizer.transform(["test"])
-```
-
-## 5. 调试技巧
-
-### 5.1 打印调试
-
-```python
-def fit(self, documents):
-    print(f"Number of documents: {len(documents)}")
-    print(f"Vocabulary size: {len(self.vocabulary_)}")
-    print(f"IDF weights: {self.idf_}")
-    # ...
-```
-
-### 5.2 断言调试
-
-```python
-def transform(self, documents):
-    assert self.vocabulary_, "Vocabulary is empty"
-    assert self.idf_, "IDF weights are empty"
-    # ...
-```
-
-### 5.3 日志调试
-
-```python
-import logging
-
-logger = logging.getLogger(__name__)
-
-def fit(self, documents):
-    logger.info(f"Building vocabulary from {len(documents)} documents")
-    # ...
-    logger.info(f"Vocabulary size: {len(self.vocabulary_)}")
-```
-
-## 6. 性能优化
-
-### 6.1 对数空间计算
-
-```python
-# 不好的方式
-prob = p1 * p2 * p3  # 可能下溢
-
-# 好的方式
-log_prob = log_p1 + log_p2 + log_p3  # 稳定
-```
-
-### 6.2 log-sum-exp 技巧
-
-```python
-# 不好的方式
-exp_values = [math.exp(x) for x in values]  # 可能溢出
-total = sum(exp_values)
-probs = [x / total for x in exp_values]
-
-# 好的方式
-max_value = max(values)
-exp_values = [math.exp(x - max_value) for x in values]  # 稳定
-total = sum(exp_values)
-probs = [x / total for x in exp_values]
-```
-
-### 6.3 稀疏特征优化
-
-```python
-# 只计算非零特征
-for j, value in enumerate(x):
-    if value != 0:
-        score += value * self.feature_log_prob_[cls][j]
-```
-
-## 7. 扩展开发
-
-### 7.1 添加新的向量化方法
-
-```python
-class Word2VecVectorizer:
-    """词嵌入向量化器"""
-
-    def __init__(self, vector_size=100, window=5, min_count=1):
-        self.vector_size = vector_size
-        self.window = window
-        self.min_count = min_count
-
-    def fit(self, documents):
-        # 训练 Word2Vec 模型
-        pass
-
-    def transform(self, documents):
-        # 将文档转换为词嵌入向量
+class TestClassName:
+    def test_method_name_scenario(self):
+        """测试方法名_场景"""
         pass
 ```
 
-### 7.2 添加新的分类器
+### 5.2 测试结构
 
 ```python
-class LogisticRegressionClassifier:
-    """逻辑回归分类器"""
+def test_function():
+    # Arrange - 准备数据
+    input_data = [...]
 
-    def __init__(self, learning_rate=0.01, n_iterations=1000):
-        self.learning_rate = learning_rate
-        self.n_iterations = n_iterations
+    # Act - 执行操作
+    result = function(input_data)
 
-    def fit(self, X, y):
-        # 训练逻辑回归模型
-        pass
-
-    def predict(self, X):
-        # 预测类别
-        pass
+    # Assert - 验证结果
+    assert result == expected
 ```
 
-### 7.3 添加新的预处理
-
-```python
-class TextPreprocessor:
-    """文本预处理器"""
-
-    def __init__(self, remove_stopwords=True, stemming=True):
-        self.remove_stopwords = remove_stopwords
-        self.stemming = stemming
-
-    def preprocess(self, text):
-        # 预处理文本
-        pass
-```
-
-## 8. 文档维护
-
-### 8.1 README 更新
-
-- 保持 README 简洁
-- 包含快速开始示例
-- 更新项目结构
-
-### 8.2 学习笔记
-
-- 记录关键概念
-- 总结实现细节
-- 分享调试经验
-
-### 8.3 API 文档
-
-- 使用 docstring
-- 包含参数说明
-- 提供使用示例
-
-## 9. 版本控制
-
-### 9.1 Git 提交规范
-
-```
-feat: 添加新功能
-fix: 修复 bug
-docs: 更新文档
-test: 添加测试
-refactor: 重构代码
-style: 代码格式
-perf: 性能优化
-```
-
-### 9.2 分支策略
-
-```
-master
-  └── feature/tfidf-vectorizer
-  └── feature/naive-bayes
-  └── fix/bug-fix
-```
-
-## 10. 部署发布
-
-### 10.1 打包
-
-```python
-# setup.py
-from setuptools import setup, find_packages
-
-setup(
-    name="text-classification",
-    version="0.1.0",
-    packages=find_packages(),
-    python_requires=">=3.7",
-)
-```
-
-### 10.2 发布
+### 5.3 测试运行
 
 ```bash
-# 构建
-python setup.py sdist bdist_wheel
+# 运行所有测试
+pytest tests/ -v
 
-# 上传到 PyPI
-twine upload dist/*
+# 运行特定测试
+pytest tests/test_bow.py -v
+
+# 显示覆盖率
+pytest tests/ -v --cov=src --cov-report=term-missing
 ```
 
-## 11. 参考资源
+## 6. 版本管理
 
-### 11.1 Python 开发
+### 6.1 版本号
 
-- PEP 8 风格指南
-- Python 类型注解
-- pytest 官方文档
+```python
+# src/__init__.py
+__version__ = "0.2.0"
+```
 
-### 11.2 NLP 资源
+### 6.2 更新日志
 
-- NLTK 文档
-- scikit-learn 文档
-- 《统计自然语言处理》
+```
+## [0.2.0] - 2024-01-01
 
-### 11.3 机器学习
+### Added
+- 词袋模型 (BagOfWordsVectorizer)
+- N-gram特征提取 (NGramVectorizer)
+- 逻辑回归分类器 (LogisticRegressionClassifier)
+- SVM分类器 (SVMClassifier)
+- 深度学习模型 (TextCNN, LSTM, BiLSTMAttention)
+- 评估指标模块 (evaluation.py)
+- 实际应用模块 (applications.py)
+  - 情感分析 (SentimentAnalyzer)
+  - 新闻分类 (NewsClassifier)
+  - 垃圾邮件检测 (SpamDetector)
 
-- 《机器学习》周志华
-- 《Pattern Recognition and Machine Learning》
-- scikit-learn 用户指南
+### Changed
+- 更新README文档
+- 更新所有文档 (01-05)
 
-## 12. 常见问题
+## [0.1.0] - 2024-01-01
 
-### 12.1 测试失败
+### Added
+- TF-IDF向量化器
+- 朴素贝叶斯分类器
+- 文本分类管道
+```
 
-**问题**：测试失败，但代码看起来正确
+## 7. 部署指南
 
-**解决**：
-1. 检查测试数据是否正确
-2. 检查断言条件是否正确
-3. 使用 print 调试
+### 7.1 打包
 
-### 12.2 性能问题
+```bash
+# 创建setup.py
+# 打包
+python setup.py sdist bdist_wheel
+```
 
-**问题**：代码运行缓慢
+### 7.2 安装
 
-**解决**：
-1. 使用 profiling 工具
-2. 优化算法复杂度
-3. 使用缓存
+```bash
+# 从源码安装
+pip install -e .
 
-### 12.3 内存问题
+# 从打包安装
+pip install dist/text_classification-0.2.0.tar.gz
+```
 
-**问题**：内存占用过高
+## 8. 故障排除
 
-**解决**：
-1. 使用稀疏矩阵
-2. 分批处理数据
-3. 释放不需要的变量
+### 8.1 常见问题
 
-## 13. 总结
+**问题**：ImportError: No module named 'src'
+```bash
+# 解决方案：确保在项目根目录运行
+cd projects/text-classification
+python -m pytest tests/
+```
 
-本文档提供了文本分类项目的开发指南，包括：
+**问题**：分类器未训练错误
+```python
+# 解决方案：先调用fit()
+classifier.fit(X_train, y_train)
+predictions = classifier.predict(X_test)
+```
 
-1. 开发环境配置
-2. 开发流程规范
-3. 代码规范
-4. 测试规范
-5. 调试技巧
-6. 性能优化
-7. 扩展开发
-8. 文档维护
+**问题**：维度不匹配错误
+```python
+# 解决方案：确保训练和测试数据维度一致
+vectorizer.fit(train_texts)
+X_train = vectorizer.transform(train_texts)
+X_test = vectorizer.transform(test_texts)  # 使用transform而不是fit_transform
+```
 
-遵循这些规范可以帮助开发出高质量、可维护的代码。
+### 8.2 调试技巧
+
+```python
+# 打印中间结果
+print(f"词汇表大小: {len(vectorizer.vocabulary_)}")
+print(f"特征矩阵形状: {len(X)} x {len(X[0])}")
+print(f"类别: {classifier.classes_}")
+
+# 使用predict_proba查看概率
+probas = classifier.predict_proba(X_test)
+for i, proba in enumerate(probas):
+    print(f"样本{i}: {proba}")
+```
+
+## 9. 扩展阅读
+
+### 9.1 相关项目
+
+- [tokenizer](../tokenizer/) - 中文分词器
+- [language-model](../language-model/) - N-gram语言模型
+- [random-forest](../random-forest/) - 随机森林
+
+### 9.2 学习资源
+
+- [scikit-learn文档](https://scikit-learn.org/)
+- [NLTK文档](https://www.nltk.org/)
+- [spaCy文档](https://spacy.io/)

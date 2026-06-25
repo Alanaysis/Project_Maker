@@ -11,34 +11,48 @@ stream-processing/
 │   ├── core/
 │   │   ├── event.go         # Event and Window types
 │   │   ├── stream.go        # Channel-based stream
+│   │   ├── time_semantics.go # Time characteristics, late events
 │   │   ├── event_test.go
 │   │   └── stream_test.go
 │   ├── window/
 │   │   ├── assigner.go      # Window assignment logic
 │   │   ├── tumbling.go      # Tumbling window
 │   │   ├── sliding.go       # Sliding window
-│   │   └── window_test.go
+│   │   ├── session.go       # Session window
+│   │   ├── window_test.go
+│   │   └── session_test.go
 │   ├── operator/
 │   │   ├── operator.go      # Operator interface + FuncOperator
 │   │   ├── map.go           # Map operator
 │   │   ├── filter.go        # Filter operator
 │   │   ├── flatmap.go       # FlatMap operator
+│   │   ├── keyby.go         # KeyBy operator
 │   │   ├── reduce.go        # ReduceByKey operator
 │   │   ├── windowed_reduce.go # Windowed aggregation
 │   │   └── operator_test.go
+│   ├── source/
+│   │   ├── source.go        # Source interface
+│   │   ├── file_source.go   # File-based source
+│   │   ├── socket_source.go # TCP/UDP socket source
+│   │   ├── kafka_source.go  # Kafka source (with mock)
+│   │   └── source_test.go
 │   ├── state/
 │   │   ├── state.go         # Key-value state store
 │   │   ├── window_state.go  # Window-scoped state
-│   │   └── state_test.go
+│   │   ├── keyed_state.go   # Keyed state + checkpointing
+│   │   ├── state_test.go
+│   │   └── keyed_state_test.go
+│   ├── watermark/
+│   │   ├── watermark.go     # Watermark tracking
+│   │   └── watermark_test.go
 │   └── pipeline/
 │       ├── pipeline.go      # Pipeline orchestrator
 │       └── pipeline_test.go
+├── examples/
+│   ├── realtime_stats.go    # Real-time statistics
+│   ├── anomaly_detection.go # Anomaly detection
+│   └── etl_pipeline.go      # ETL pipeline
 ├── docs/
-│   ├── 01-RESEARCH.md
-│   ├── 02-DESIGN.md
-│   ├── 03-IMPLEMENTATION.md
-│   ├── 04-TESTING.md
-│   └── 05-DEVELOPMENT.md
 ├── go.mod
 ├── README.md
 └── LEARNING_NOTES.md
@@ -80,50 +94,82 @@ type Stream struct {
 - `Close` signals both the event channel and done channel
 - `Events` returns a read-only channel for consumers
 
-### Operator Implementation
+#### Time Semantics
 
-#### Map Operator
-
-The simplest stateless operator:
+Three time characteristics supported:
 
 ```go
-func (m *MapOperator) Process(event Event, out *Stream) {
+type TimeCharacteristic int
+const (
+    ProcessingTime TimeCharacteristic = iota  // System clock
+    EventTime                                  // Event timestamp
+    IngestionTime                              // Ingestion time
+)
+```
+
+Late event handling policies:
+- `DropLateEvents`: Discard events arriving after watermark
+- `AllowLateEvents`: Process within allowed lateness window
+- `SideOutputLateEvents`: Send to side output
+
+### Data Sources
+
+#### Source Interface
+
+```go
+type Source interface {
+    Name() string
+    Open() (*Stream, error)
+    Stop() error
+}
+```
+
+#### FileSource
+
+Reads lines from a file:
+
+```go
+src := NewFileSource("data.log",
+    WithKeyFunc(func(line string, num int) string { return "log" }),
+    WithValueFunc(func(line string) interface{} { return parse(line) }),
+    WithTimestampFunc(func(line string) time.Time { return extractTime(line) }),
+)
+```
+
+#### SocketSource
+
+Reads from TCP/UDP connections:
+
+```go
+src := NewSocketSource("tcp", "localhost:9999")
+stream, _ := src.Open()
+```
+
+#### KafkaSource
+
+Reads from Kafka topics (uses interface for mock/real implementations):
+
+```go
+consumer := NewMockKafkaConsumer(messages)
+src := NewKafkaSource(consumer, []string{"topic1", "topic2"})
+```
+
+### Operator Implementation
+
+#### KeyBy Operator
+
+Re-keys events based on value:
+
+```go
+func (k *KeyByOperator) Process(event Event, out *Stream) {
     result := Event{
-        Key:       event.Key,
-        Value:     m.fn(event.Value),
+        Key:       k.fn(event.Value),
+        Value:     event.Value,
         Timestamp: event.Timestamp,
     }
     out.Emit(result)
 }
 ```
-
-#### Filter Operator
-
-Predicate-based filtering:
-
-```go
-func (f *FilterOperator) Process(event Event, out *Stream) {
-    if f.fn(event) {
-        out.Emit(event)
-    }
-}
-```
-
-#### ReduceByKey Operator
-
-Accumulates values per key:
-
-```go
-func (r *ReduceByKeyOperator) Process(event Event, out *Stream) {
-    if existing, ok := r.state[event.Key]; ok {
-        r.state[event.Key] = r.fn(existing, event.Value)
-    } else {
-        r.state[event.Key] = event.Value
-    }
-}
-```
-
-Flush emits all accumulated results.
 
 #### WindowedReduce Operator
 
@@ -134,17 +180,15 @@ The most complex operator:
 3. On flush, reduces buffered events and emits results
 4. Thread-safe via mutex
 
-### Window Assignment
+### Window Types
 
 #### Tumbling Window
 
 Each timestamp maps to exactly one window:
 
 ```go
-func (tw *TumblingWindow) Assign(ts time.Time) Window {
-    start := alignTimestamp(ts)
-    return Window{Start: start, End: start.Add(tw.size)}
-}
+tw := NewTumblingWindow(5 * time.Second)
+win := tw.Assign(event.Timestamp)
 ```
 
 #### Sliding Window
@@ -152,10 +196,66 @@ func (tw *TumblingWindow) Assign(ts time.Time) Window {
 Each timestamp may map to multiple windows:
 
 ```go
-func (sw *SlidingWindow) Assign(ts time.Time) []Window {
-    // Walk backwards by slide intervals
-    // Return all windows that contain ts
-}
+sw := NewSlidingWindow(10*time.Second, 5*time.Second)
+windows := sw.Assign(event.Timestamp)
+```
+
+#### Session Window
+
+Gap-based dynamic windows:
+
+```go
+sw := NewSessionWindow(30 * time.Second)
+closedWindows := sw.ProcessEvent(event) // Returns closed windows
+```
+
+Session windows close when the gap between events exceeds the threshold.
+
+### Watermark
+
+Tracks event-time progress:
+
+```go
+wm := NewWatermark(5 * time.Second)
+wm.Update(event.Timestamp)        // Advances watermark
+wm.IsLate(event.Timestamp)        // Checks if event is late
+wm.Current()                      // Returns current watermark
+```
+
+Policies:
+- `BoundedOutOfOrdernessPolicy`: watermark = max(ts) - outOfOrderness
+- `PeriodicWatermarkGenerator`: Emits watermarks at fixed intervals
+
+### State Management
+
+#### KeyedState
+
+Per-key state with checkpointing:
+
+```go
+ks := NewKeyedState()
+ks.Put("user1", "name", "Alice")
+ks.Put("user1", "count", 42)
+
+// Snapshot for checkpointing
+snapshot, _ := ks.Snapshot()
+
+// Restore from snapshot
+ks2 := NewKeyedState()
+ks2.Restore(snapshot)
+
+// Expire old keys
+ks.Expire(1 * time.Hour)
+```
+
+#### CheckpointManager
+
+Periodic state checkpointing:
+
+```go
+cm := NewCheckpointManager(10*time.Second, 5) // 10s interval, keep 5
+cm.Register(keyedState)
+ch := cm.Start() // Channel receives checkpoint IDs
 ```
 
 ### Pipeline Execution
@@ -168,8 +268,6 @@ Chains operators through intermediate streams:
 input -> [Op1] -> chan1 -> [Op2] -> chan2 -> [Op3] -> output
 ```
 
-Each intermediate operator runs in its own goroutine for pipelining.
-
 #### Parallel Mode
 
 Distributes events across N workers:
@@ -180,35 +278,13 @@ input -> [Worker1: Op1 -> Op2 -> Op3] -> output
        -> [Worker3: Op1 -> Op2 -> Op3] -> output
 ```
 
-Each worker independently processes its assigned events.
-
-### State Management
-
-#### StateStore
-
-Thread-safe key-value store with:
-- Basic CRUD (Get, Put, Delete)
-- Atomic update (`Update(key, fn)`)
-- Bulk operations (Keys, Clear, Size)
-
-#### WindowState
-
-Manages per-window state with automatic expiration:
-
-```go
-ws := NewWindowState(1 * time.Hour)
-store := ws.GetState(window)
-store.Put("count", 42)
-ws.Expire(time.Now())  // Cleans up old windows
-```
-
 ## Go-Specific Patterns Used
 
 1. **Channel-based streams**: Go's native concurrency primitive
 2. **Goroutine pipelines**: Each operator stage runs concurrently
 3. **sync.RWMutex**: Read-heavy state access optimization
 4. **sync.WaitGroup**: Parallel worker coordination
-5. **Functional options**: Could be used for configuration (not implemented)
+5. **Functional options**: Configuration via `WithXxx` functions
 6. **Package-level organization**: `internal/` prevents external imports
 
 ## Performance Considerations

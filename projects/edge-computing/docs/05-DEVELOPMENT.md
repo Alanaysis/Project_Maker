@@ -54,6 +54,9 @@
 3. Scheduler（调度器）
 4. EdgeCluster（边缘集群）
 5. Coordinator（协调器）
+6. DataProcessor（数据处理器）
+7. CloudSync（云端同步）
+8. IoTGateway（IoT 网关）
 
 ### 阶段 4: 测试验证
 
@@ -182,6 +185,232 @@ if self.callback:
 self._completed_tasks[task_id] = TaskResult(...)
 ```
 
+### 6. 数据过滤实现
+
+**问题**: 如何高效过滤边缘数据？
+
+**解决方案**: 使用规则组合和多种操作符
+
+```python
+class FilterRule:
+    def matches(self, data_point: DataPoint) -> bool:
+        field_value = self._get_field_value(data_point)
+        result = self._compare(field_value)
+        return not result if self.negate else result
+
+class DataFilter:
+    def filter(self, data_points: List[DataPoint]) -> List[DataPoint]:
+        if self._match_all:
+            return [dp for dp in data_points if all(r.matches(dp) for r in self._rules)]
+        else:
+            return [dp for dp in data_points if any(r.matches(dp) for r in self._rules)]
+```
+
+**支持的操作符**:
+- EQ, NEQ: 等于/不等于
+- GT, GTE, LT, LTE: 大于/大于等于/小于/小于等于
+- IN, NOT_IN: 在列表中/不在列表中
+- CONTAINS: 包含
+- REGEX: 正则匹配
+
+### 7. 数据聚合实现
+
+**问题**: 如何进行时间窗口聚合？
+
+**解决方案**: 使用环形缓冲区和时间窗口
+
+```python
+class DataAggregator:
+    def __init__(self, window_size: float = 60.0):
+        self.window_size = window_size
+        self._buffer: Dict[str, List[DataPoint]] = defaultdict(list)
+
+    def add(self, data_point: DataPoint) -> None:
+        key = f"{data_point.source}:{data_point.metric}"
+        self._buffer[key].append(data_point)
+        self._cleanup(key)
+
+    def _cleanup(self, key: str) -> None:
+        cutoff = time.time() - self.window_size
+        self._buffer[key] = [dp for dp in self._buffer[key] if dp.timestamp >= cutoff]
+```
+
+**支持的聚合类型**:
+- COUNT: 计数
+- SUM: 求和
+- AVG: 平均值
+- MIN/MAX: 最小/最大值
+- FIRST/LAST: 首/末值
+- STDDEV: 标准差
+
+### 8. 规则引擎实现
+
+**问题**: 如何实现灵活的规则处理？
+
+**解决方案**: 使用策略模式和动作处理器
+
+```python
+class RuleEngine:
+    def __init__(self):
+        self._handlers: Dict[RuleAction, Callable] = {
+            RuleAction.FORWARD: self._handle_forward,
+            RuleAction.DROP: self._handle_drop,
+            RuleAction.TRANSFORM: self._handle_transform,
+            RuleAction.ALERT: self._handle_alert,
+        }
+
+    def process(self, data_point: DataPoint) -> Optional[DataPoint]:
+        for rule in self._rules:
+            if rule.evaluate(data_point):
+                handler = self._handlers.get(rule.action)
+                if handler:
+                    return handler(data_point, rule)
+        return data_point
+```
+
+**支持的动作**:
+- FORWARD: 转发数据
+- DROP: 丢弃数据
+- TRANSFORM: 转换数据（缩放、偏移、重命名）
+- ALERT: 触发告警
+
+### 9. 云端同步实现
+
+**问题**: 如何实现可靠的数据同步？
+
+**解决方案**: 使用队列、重试机制和校验和
+
+```python
+class DataUploader:
+    def upload_batch(self) -> Dict[str, Any]:
+        batch = []
+        with self._lock:
+            for _ in range(min(self.config.batch_size, len(self._upload_queue))):
+                if self._upload_queue:
+                    batch.append(self._upload_queue.popleft())
+
+        for record in batch:
+            for attempt in range(self.config.max_retries):
+                if self.connector.upload_data(upload_data):
+                    record.synced = True
+                    break
+                else:
+                    if attempt < self.config.max_retries - 1:
+                        time.sleep(self.config.retry_delay)
+```
+
+**特性**:
+- 批量上传
+- 失败重试
+- 校验和验证
+- 进度跟踪
+
+### 10. 配置管理实现
+
+**问题**: 如何管理边缘节点配置？
+
+**解决方案**: 支持远程配置和本地覆盖
+
+```python
+class ConfigManager:
+    def get(self, key: str, default: Any = None) -> Any:
+        # 优先返回本地覆盖
+        if key in self._overrides:
+            return self._overrides[key]
+        # 然后返回远程配置
+        if key in self._config:
+            return self._config[key]
+        return default
+
+    def sync_from_cloud(self) -> Dict[str, Any]:
+        cloud_config = self.connector.get_config()
+        for key, value in cloud_config.items():
+            old_value = self._config.get(key)
+            self._config[key] = value
+            if old_value != value:
+                self._notify_watchers(key, old_value, value)
+```
+
+**特性**:
+- 远程配置下发
+- 本地配置覆盖
+- 变更通知
+- 版本管理
+
+### 11. 设备管理实现
+
+**问题**: 如何管理大量 IoT 设备？
+
+**解决方案**: 使用注册表和索引
+
+```python
+class DeviceRegistry:
+    def __init__(self):
+        self._devices: Dict[str, IoTDevice] = {}
+        self._device_types: Dict[str, Set[str]] = defaultdict(set)
+
+    def register(self, device: IoTDevice) -> bool:
+        with self._lock:
+            if device.device_id in self._devices:
+                return False
+            self._devices[device.device_id] = device
+            self._device_types[device.device_type].add(device.device_id)
+            return True
+
+    def get_devices_by_type(self, device_type: str) -> List[IoTDevice]:
+        device_ids = self._device_types.get(device_type, set())
+        return [self._devices[did] for did in device_ids if did in self._devices]
+```
+
+**特性**:
+- 设备注册/注销
+- 按类型索引
+- 心跳检测
+- 健康检查
+
+### 12. 实时分析实现
+
+**问题**: 如何进行实时数据分析？
+
+**解决方案**: 使用统计方法和异常检测
+
+```python
+class RealtimeAnalyzer:
+    def detect_trend(self, readings: List[SensorReading]) -> Dict[str, Any]:
+        # 简单线性回归
+        n = len(values)
+        sum_x = sum(x for x, _ in values)
+        sum_y = sum(y for _, y in values)
+        sum_xy = sum(x * y for x, y in values)
+        sum_x2 = sum(x * x for x, _ in values)
+
+        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+
+        if abs(slope) < 0.001:
+            trend = "stable"
+        elif slope > 0:
+            trend = "increasing"
+        else:
+            trend = "decreasing"
+
+        return {"trend": trend, "slope": slope}
+
+    def detect_anomalies(self, readings: List[SensorReading], threshold: float = 2.0) -> List[SensorReading]:
+        # Z-score 异常检测
+        mean = sum(values) / len(values)
+        stddev = (sum((x - mean) ** 2 for x in values) / len(values)) ** 0.5
+
+        for reading in readings:
+            z_score = abs(reading.value - mean) / stddev
+            if z_score > threshold:
+                anomalies.append(reading)
+```
+
+**功能**:
+- 统计计算（均值、方差、极值）
+- 趋势检测（线性回归）
+- 异常检测（Z-score）
+
 ## 遇到的问题和解决方案
 
 ### 问题 1: 相对导入错误
@@ -235,6 +464,48 @@ NameError: name 'TaskStatus' is not defined
 from task import Task, TaskPriority, TaskStatus
 ```
 
+### 问题 4: 浮点精度问题
+
+**问题描述**: 趋势检测测试失败，因为大时间戳导致浮点精度问题
+
+**原因**: Unix 时间戳（约 17 亿）与小数值（0-9）计算时精度丢失
+
+**解决方案**: 使用小的相对时间戳进行测试
+
+```python
+# 不好的做法
+readings = [
+    SensorReading(f"r-{i}", "device-1", DataType.TEMPERATURE, float(i), "°C", timestamp=time.time() + i)
+    for i in range(10)
+]
+
+# 好的做法
+readings = [
+    SensorReading(f"r-{i}", "device-1", DataType.TEMPERATURE, float(i) * 10, "°C", timestamp=float(i))
+    for i in range(10)
+]
+```
+
+### 问题 5: 线程安全问题
+
+**问题描述**: 多线程环境下访问共享资源可能导致数据竞争
+
+**解决方案**: 使用 threading.Lock 保护共享资源
+
+```python
+class DeviceRegistry:
+    def __init__(self):
+        self._devices: Dict[str, IoTDevice] = {}
+        self._lock = threading.Lock()
+
+    def register(self, device: IoTDevice) -> bool:
+        with self._lock:
+            if device.device_id in self._devices:
+                return False
+            self._devices[device.device_id] = device
+            return True
+```
+
 ## 代码质量
 
 ### 1. 代码风格
@@ -260,6 +531,7 @@ from task import Task, TaskPriority, TaskStatus
 - 选择合适的数据结构
 - 避免不必要的计算
 - 使用缓存（可选）
+- 批量处理减少 I/O
 
 ## 版本控制
 
@@ -381,18 +653,21 @@ CMD ["python3", "-m", "pytest", "tests/", "-v"]
 1. **异步支持**: 使用 asyncio 实现异步任务处理
 2. **更多调度算法**: 添加更多调度策略
 3. **性能优化**: 优化关键路径的性能
+4. **MQTT 集成**: 支持 MQTT 协议的设备通信
 
 ### 中期计划
 
 1. **分布式部署**: 支持跨网络的节点管理
 2. **动态扩缩容**: 根据负载自动调整节点数量
 3. **故障恢复**: 实现任务重试和故障转移
+4. **数据持久化**: 集成时序数据库存储历史数据
 
 ### 长期计划
 
 1. **监控告警**: 集成 Prometheus/Grafana 监控
 2. **Web 界面**: 提供 Web 管理界面
 3. **API 网关**: 提供 RESTful API
+4. **机器学习**: 集成边缘 AI 推理
 
 ## 经验总结
 
@@ -424,9 +699,18 @@ CMD ["python3", "-m", "pytest", "tests/", "-v"]
 - 文档反映最新实现
 - 保持文档的准确性
 
+### 5. 关注边界情况
+
+- 空输入处理
+- 极端值处理
+- 并发安全
+- 错误恢复
+
 ## 参考资料
 
 1. [Python 开发最佳实践](https://docs.python.org/3/tutorial/)
 2. [Git 工作流](https://www.atlassian.com/git/tutorials/comparing-workflows)
 3. [持续集成](https://en.wikipedia.org/wiki/Continuous_integration)
 4. [测试驱动开发](https://en.wikipedia.org/wiki/Test-driven_development)
+5. [线程安全编程](https://docs.python.org/3/library/threading.html)
+6. [设计模式](https://refactoring.guru/design-patterns)

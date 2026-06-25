@@ -1,268 +1,194 @@
-# MVCC 并发控制
+# MVCC 并发控制引擎
 
-## 项目概述
+> 多版本并发控制 (Multi-Version Concurrency Control) 的 Python 实现
 
-这是一个学习多版本并发控制（Multi-Version Concurrency Control, MVCC）的项目。MVCC 是现代数据库系统中最常用的并发控制机制之一，通过维护数据的多个版本来实现事务隔离，避免读写冲突。
+## 项目简介
 
-## 学习目标
+本项目实现了一个教学级别的 MVCC 并发控制引擎，完整演示了数据库事务隔离的核心机制。MVCC 是 PostgreSQL、MySQL InnoDB 等主流数据库使用的核心并发控制技术。
 
-- 理解 MVCC 的核心原理和设计思想
-- 掌握快照隔离（Snapshot Isolation）的实现方式
-- 学会版本管理和垃圾回收机制
-- 了解乐观并发控制（OCC）与写写冲突检测
+### 核心特性
 
-## 技术栈
+- **版本链**: 每条数据维护完整的历史版本链
+- **快照隔离**: 事务看到开始时的一致性数据视图
+- **写缓冲**: 写入先缓存，提交时批量应用
+- **冲突检测**: 自动检测写写冲突和读写冲突 (Write Skew)
+- **垃圾回收**: 自动清理不可见的旧版本
 
-- **语言**: Go 1.21+
-- **框架**: 无（纯标准库实现）
-- **测试**: Go 标准测试框架
+## 快速开始
+
+### 环境要求
+
+- Python 3.10+
+- pytest (测试)
+
+### 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 基本使用
+
+```python
+from mvcc.engine import MVCCEngine
+
+# 创建引擎
+engine = MVCCEngine()
+
+# 写入数据
+txn = engine.begin()
+engine.txn_write(txn, "account_a", 1000)
+engine.txn_write(txn, "account_b", 2000)
+result = engine.commit(txn)
+print(result.message)  # "Transaction committed successfully."
+
+# 读取数据
+txn = engine.begin()
+balance = engine.txn_read(txn, "account_a")
+print(f"Account A: {balance}")  # Account A: 1000
+engine.commit(txn)
+```
+
+### 并发冲突检测
+
+```python
+engine = MVCCEngine()
+
+# 写入初始数据
+txn = engine.begin()
+engine.txn_write(txn, "key", 100)
+engine.commit(txn)
+
+# 两个并发事务修改同一个 key
+txn1 = engine.begin()
+txn2 = engine.begin()
+
+engine.txn_write(txn1, "key", 200)
+engine.txn_write(txn2, "key", 300)
+
+# txn1 先提交 -> 成功
+engine.commit(txn1)
+
+# txn2 后提交 -> 写写冲突，自动中止
+result = engine.commit(txn2)
+print(result.has_conflict)     # True
+print(result.conflict_type)    # "write_write"
+```
+
+### 快照隔离
+
+```python
+engine = MVCCEngine()
+
+# 写入初始数据
+txn = engine.begin()
+engine.txn_write(txn, "data", 100)
+engine.commit(txn)
+
+# 事务 A 开始（快照时刻 data=100）
+txn_a = engine.begin()
+print(engine.txn_read(txn_a, "data"))  # 100
+
+# 事务 B 修改 data 并提交
+txn_b = engine.begin()
+engine.txn_write(txn_b, "data", 200)
+engine.commit(txn_b)
+
+# 事务 A 仍然看到旧值（快照隔离）
+print(engine.txn_read(txn_a, "data"))  # 100
+engine.commit(txn_a)
+```
+
+## 运行测试
+
+```bash
+# 运行所有测试
+pytest tests/ -v
+
+# 运行特定模块测试
+pytest tests/test_version.py -v
+pytest tests/test_engine.py -v
+```
+
+## 运行示例
+
+```bash
+# 基本使用示例
+python examples/basic_usage.py
+
+# 并发访问模拟
+python examples/concurrent_access.py
+```
 
 ## 项目结构
 
 ```
 mvcc/
-├── README.md
-├── docs/                        # 学习文档
-│   ├── 01-RESEARCH.md          # 研究笔记
-│   ├── 02-DESIGN.md            # 设计文档
-│   ├── 03-IMPLEMENTATION.md    # 实现细节
-│   ├── 04-TESTING.md           # 测试文档
-│   └── 05-DEVELOPMENT.md       # 开发日志
-├── LEARNING_NOTES.md            # 学习笔记
-├── cmd/                         # 示例程序
-│   └── main.go
-├── internal/                    # 内部实现
-│   ├── mvcc.go                 # MVCC 引擎
-│   ├── store/                   # 版本存储
-│   │   ├── version.go
-│   │   └── version_test.go
-│   ├── transaction/             # 事务管理
-│   │   ├── transaction.go
-│   │   └── transaction_test.go
-│   └── gc/                      # 垃圾回收
-│       ├── garbage_collector.go
-│       └── garbage_collector_test.go
-└── test/                        # 集成测试
-    └── mvcc_test.go
+├── src/mvcc/
+│   ├── version.py       # 版本链管理
+│   ├── transaction.py   # 事务管理器
+│   ├── snapshot.py      # 快照隔离
+│   ├── storage.py       # 存储引擎
+│   ├── conflict.py      # 冲突检测
+│   ├── gc.py            # 垃圾回收
+│   └── engine.py        # 主引擎接口
+├── tests/               # 单元测试和集成测试
+├── examples/            # 使用示例
+└── docs/                # 设计文档
 ```
 
-## 核心概念
+## 技术文档
 
-### MVCC 工作原理
-
-MVCC 的核心思想是：**读操作不阻塞写操作，写操作不阻塞读操作**。
-
-```
-传统锁机制:          MVCC:
-Writer -----> Block  Writer -----> Write v2
-Reader -----> Wait   Reader -----> Read v1 (snapshot)
-```
-
-### 快照隔离（Snapshot Isolation）
-
-每个事务在开始时获取一个**快照时间戳**，之后的所有读操作都基于这个快照：
-
-```
-T1 (snapshot=5):     T2 (snapshot=8):
-  Read(key) → v5       Read(key) → v8
-  即使 T2 在 T1       T2 看不到 T1 之后
-  期间提交了新版本      的修改
-```
-
-### 版本链
-
-每个 key 维护一个版本链，按创建时间排序：
-
-```
-key: "balance"
-  ┌─────────────────────────────────────┐
-  │ v1: 1000  (txn=1, ts=1)            │
-  │ v2: 1500  (txn=2, ts=3)            │
-  │ v3: 1200  (txn=3, ts=5) ← current │
-  └─────────────────────────────────────┘
-```
-
-### 写写冲突检测
-
-使用乐观并发控制（OCC）检测写写冲突：
-
-```
-T1 (read_ts=1):      T2 (read_ts=2):
-  Read(key) → v1       Read(key) → v2
-  Write(key, newVal)
-  Commit OK!
-                       Write(key, another)
-                       Commit FAIL! (conflict)
-```
-
-## 快速开始
-
-### 运行示例
-
-```bash
-cd projects/mvcc
-go run cmd/main.go
-```
-
-### 运行测试
-
-```bash
-# 运行所有测试
-go test ./...
-
-# 运行特定包的测试
-go test ./internal/store/...
-go test ./internal/transaction/...
-go test ./internal/gc/...
-go test ./test/...
-
-# 运行测试并显示详细信息
-go test -v ./...
-```
-
-## API 示例
-
-### 基本用法
-
-```go
-package main
-
-import (
-    "fmt"
-    "mvcc/internal"
-)
-
-func main() {
-    // 创建 MVCC 引擎
-    engine := internal.NewMVSSEngine()
-
-    // 开始事务并写入数据
-    txn1 := engine.Begin()
-    txn1.Write("name", []byte("Alice"))
-    txn1.Write("age", []byte("30"))
-    txn1.Commit()
-
-    // 新事务读取数据
-    txn2 := engine.Begin()
-    name, _ := txn2.Read("name")
-    age, _ := txn2.Read("age")
-    fmt.Printf("name=%s, age=%s\n", string(name), string(age))
-    txn2.Commit()
-}
-```
-
-### 快照隔离示例
-
-```go
-// T1 开始（快照时间戳 = 5）
-t1 := engine.Begin()
-
-// T2 修改数据并提交
-t2 := engine.Begin()
-t2.Write("x", []byte("new_value"))
-t2.Commit()
-
-// T1 仍然看到旧值（快照隔离）
-val, _ := t1.Read("x")  // 返回旧值
-t1.Commit()
-```
-
-### 写写冲突检测
-
-```go
-// 两个事务同时读取同一个 key
-t1 := engine.Begin()
-t2 := engine.Begin()
-
-t1.Read("account")
-t2.Read("account")
-
-// T1 先写入并提交
-t1.Write("account", []byte("1100"))
-t1.Commit() // 成功
-
-// T2 后写入并提交 - 检测到冲突
-t2.Write("account", []byte("900"))
-err := t2.Commit() // 返回冲突错误
-```
-
-### 删除操作
-
-```go
-txn := engine.Begin()
-txn.Delete("key_to_remove")
-txn.Commit()
-
-// 新事务读取 - 返回未找到
-newTxn := engine.Begin()
-_, ok := newTxn.Read("key_to_remove") // ok = false
-newTxn.Commit()
-```
-
-### 并发事务
-
-```go
-var wg sync.WaitGroup
-for i := 0; i < 100; i++ {
-    wg.Add(1)
-    go func(id int) {
-        defer wg.Done()
-        txn := engine.Begin()
-        txn.Write(fmt.Sprintf("key_%d", id), []byte("value"))
-        txn.Commit()
-    }(i)
-}
-wg.Wait()
-```
-
-## 架构设计
-
-```
-┌─────────────────────────────────────────────────┐
-│                  MVCC Engine                     │
-│  ┌─────────────┐  ┌──────────┐  ┌──────────┐  │
-│  │    Store     │  │   Txn    │  │    GC    │  │
-│  │  (Versions)  │  │ Manager  │  │ Collector│  │
-│  └──────┬──────┘  └────┬─────┘  └────┬─────┘  │
-│         │              │              │         │
-│  ┌──────┴──────────────┴──────────────┴──────┐ │
-│  │              Transaction Context           │ │
-│  │  Begin → Read → Write → Commit/Abort      │ │
-│  └───────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────┘
-```
-
-### 组件说明
-
-| 组件 | 职责 |
+| 文档 | 说明 |
 |------|------|
-| **Store** | 管理 key-value 的多版本存储 |
-| **Transaction Manager** | 分配时间戳，管理事务生命周期 |
-| **GC** | 回收不再被任何活跃事务可见的旧版本 |
-| **Transaction** | 封装事务操作，提供读写接口 |
+| [技术调研](docs/01_RESEARCH.md) | MVCC 原理和相关论文 |
+| [需求分析](docs/02_REQUIREMENTS.md) | 功能和非功能需求 |
+| [系统设计](docs/03_DESIGN.md) | 架构和模块设计 |
+| [产品规范](docs/04_PRODUCT.md) | 接口和性能规格 |
+| [开发笔记](docs/05_DEVELOPMENT.md) | 实现细节和问题记录 |
 
-## 核心循环
+## MVCC 核心概念
 
 ```
-事务开始 → 读取快照 → 写入 → 提交 → 版本回收
-   │          │        │       │        │
-   │          │        │       │        └── GC 清理旧版本
-   │          │        │       └────────── 冲突检测 + 时间戳分配
-   │          │        └────────────────── 缓冲写入
-   │          └─────────────────────────── 基于快照时间戳读取
-   └────────────────────────────────────── 获取唯一事务 ID 和快照时间戳
+┌─────────────────────────────────────────────────────┐
+│                    MVCC 架构                         │
+│                                                      │
+│  事务 A (读)              事务 B (写)                │
+│  ┌──────────────┐        ┌──────────────┐           │
+│  │ 快照 ts=5     │        │ 写缓冲        │           │
+│  │ active={2,3} │        │ {k1: v1}     │           │
+│  └──────────────┘        └──────────────┘           │
+│         │                       │                    │
+│         ▼                       ▼                    │
+│  ┌──────────────┐        ┌──────────────┐           │
+│  │ 版本链查找    │        │ 提交时检测    │           │
+│  │ find_visible │        │ 冲突          │           │
+│  └──────────────┘        └──────────────┘           │
+│         │                       │                    │
+│         ▼                       ▼                    │
+│  返回 ts<=5 且          无冲突: 应用写缓冲            │
+│  不在 active 中         有冲突: 中止事务              │
+│  的最新版本                                            │
+└─────────────────────────────────────────────────────┘
 ```
 
-## 参考资源
+## 技术栈
 
-- [A Critique of ANSI SQL Isolation Levels](https://arxiv.org/abs/cs/0701157)
-- [Serializable Isolation for Snapshot Databases](https://www.cs.cmu.edu/~natassa/courses/15-721/papers/p2100-Fekete.pdf)
-- [PostgreSQL MVCC Documentation](https://www.postgresql.org/docs/current/mvcc.html)
-- [Designing Data-Intensive Applications - Chapter 7](https://dataintensive.net/)
+- **语言**: Python 3.10+
+- **测试**: pytest
+- **并发**: threading
 
-## 许可证
+## 难度等级
 
-MIT License
+中级 (3/5)
+
+## 学习收获
+
+1. 理解 MVCC 多版本并发控制的核心原理
+2. 掌握快照隔离的实现方式
+3. 学习冲突检测（写写冲突、读写冲突）策略
+4. 理解垃圾回收和安全点的概念
+5. 了解主流数据库（PostgreSQL、MySQL）的并发控制机制
 
 ---
 

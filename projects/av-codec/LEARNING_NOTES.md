@@ -3,9 +3,11 @@
 ## 学习目标
 
 1. 理解音视频编解码原理
-2. 掌握 H.264/H.265 编码技术
-3. 学会音频 AAC 编码
-4. 了解容器格式封装
+2. 掌握 H.264/H.265/VP9/AV1 编码技术
+3. 学会 AAC/MP3/Opus 音频编码
+4. 了解容器格式封装（MP4/MKV/FLV）
+5. 掌握流媒体协议（RTMP/HLS/DASH/WebRTC）
+6. 学习性能优化技术（SIMD/多线程/GPU）
 
 ## 学习路线
 
@@ -60,27 +62,35 @@
 - 减少方块效应
 - 提高图像质量
 
-#### 2.2 H.264编码流程
+#### 2.2 H.265/HEVC 编码原理
 
-```
-输入帧 → 帧内/帧间预测 → 残差计算 → DCT变换 → 量化 → 熵编码 → 输出码流
-         ↓
-      重建帧 ← 反量化 ← 反DCT变换 ← 量化系数
-         ↓
-      环路滤波
-         ↓
-      参考帧缓存
-```
+##### CTU/CU/PU/TU 结构
+- CTU (Coding Tree Unit): 编码树单元，最大64x64
+- CU (Coding Unit): 编码单元
+- PU (Prediction Unit): 预测单元
+- TU (Transform Unit): 变换单元
 
-#### 2.3 帧类型
-- **I帧**: 关键帧，帧内编码，可独立解码
-- **P帧**: 预测帧，使用前向参考帧
-- **B帧**: 双向预测帧，使用前后参考帧
+##### 35种帧内预测模式
+- Planar模式
+- DC模式
+- 33种角度预测模式
 
-#### 2.4 GOP (Group of Pictures)
-- 两个I帧之间的帧序列
-- GOP越大，压缩率越高，但随机访问延迟增大
-- 典型值：30-120帧
+##### SAO滤波
+- 样本自适应偏移
+- 减少振铃效应
+
+#### 2.3 VP9/AV1 编码技术
+
+##### VP9 特点
+- 超级块最大64x64
+- 3个参考帧
+- 自适应量化
+
+##### AV1 特点
+- 超级块最大128x128
+- 7个参考帧
+- CDEF/恢复滤波
+- 胶片颗粒合成
 
 ### 第三阶段：音频编码 (1-2周)
 
@@ -100,15 +110,19 @@
 - 比特分配：根据心理声学模型分配比特
 - 哈夫曼编码
 
-##### AAC编码流程
-```
-输入PCM → 分帧 → MDCT变换 → 心理声学模型 → 量化 → 哈夫曼编码 → 输出AAC
-```
+#### 3.2 Opus 编码技术
 
-#### 3.2 AAC编码类型
-- **AAC-LC**: 低复杂度，最常用
-- **HE-AAC**: 高效AAC，使用SBR技术
-- **HE-AAC v2**: 使用PS技术
+##### SILK 模式
+- 线性预测编码
+- 适合语音
+
+##### CELT 模式
+- MDCT变换
+- 适合音乐
+
+##### 混合模式
+- 低频用SILK
+- 高频用CELT
 
 ### 第四阶段：容器格式 (1周)
 
@@ -118,63 +132,58 @@
 - mdat: 媒体数据
 - 支持随机访问
 
-#### 4.2 FLV格式
+#### 4.2 MKV格式
+- EBML结构
+- 支持多种编码
+- 支持字幕和章节
+
+#### 4.3 FLV格式
 - 流媒体格式
 - 适合网络传输
 - 结构简单
 
-#### 4.3 复用/解复用
-- 将音视频流封装到容器
-- 从容器中提取音视频流
-- 时间戳同步
+### 第五阶段：流媒体协议 (1-2周)
 
-### 第五阶段：FFmpeg API (2-3周)
+#### 5.1 RTMP协议
+- 基于TCP
+- 低延迟（1-3秒）
+- 推流/拉流
 
-#### 5.1 核心数据结构
-- AVFormatContext: 格式上下文
-- AVCodecContext: 编解码器上下文
-- AVFrame: 帧数据
-- AVPacket: 编码数据包
+#### 5.2 HLS协议
+- 基于HTTP
+- 切片传输（.ts文件）
+- 自适应码率
 
-#### 5.2 编码流程
-```cpp
-// 1. 查找编码器
-AVCodec *codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+#### 5.3 DASH协议
+- 基于HTTP
+- MPD描述文件
+- 分段MP4
 
-// 2. 创建编码器上下文
-AVCodecContext *ctx = avcodec_alloc_context3(codec);
+#### 5.4 WebRTC
+- P2P连接
+- 浏览器原生支持
+- 低延迟
 
-// 3. 设置编码参数
-ctx->width = 1920;
-ctx->height = 1080;
-ctx->bit_rate = 2000000;
-ctx->time_base = {1, 30};
+### 第六阶段：性能优化 (1-2周)
 
-// 4. 打开编码器
-avcodec_open2(ctx, codec, NULL);
+#### 6.1 SIMD优化
+- SSE2/AVX2/NEON指令集
+- 优化SAD/DCT/量化计算
 
-// 5. 编码循环
-AVFrame *frame = av_frame_alloc();
-AVPacket *pkt = av_packet_alloc();
-avcodec_send_frame(ctx, frame);
-avcodec_receive_packet(ctx, pkt);
-```
+#### 6.2 多线程编码
+- 帧级并行
+- 切片级并行
+- WPP并行
 
-#### 5.3 解码流程
-```cpp
-// 1. 查找解码器
-AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+#### 6.3 GPU加速
+- CUDA/OpenCL
+- GPU运动估计
+- GPU DCT变换
 
-// 2. 创建解码器上下文
-AVCodecContext *ctx = avcodec_alloc_context3(codec);
-
-// 3. 打开解码器
-avcodec_open2(ctx, codec, NULL);
-
-// 4. 解码循环
-avcodec_send_packet(ctx, pkt);
-avcodec_receive_frame(ctx, frame);
-```
+#### 6.4 硬件编解码
+- NVENC/NVDEC (NVIDIA)
+- QSV (Intel)
+- VAAPI (Linux)
 
 ## 实践心得
 
@@ -197,5 +206,7 @@ avcodec_receive_frame(ctx, frame);
 
 1. [FFmpeg官方文档](https://ffmpeg.org/documentation.html)
 2. [H.264/AVC标准](https://www.itu.int/rec/T-REC-H.264)
-3. [AAC标准](https://www.iso.org/standard/43345.html)
-4. [音视频开发基础](https://blog.csdn.net/leixiaohua1020)
+3. [H.265/HEVC标准](https://www.itu.int/rec/T-REC-H.265)
+4. [AV1标准](https://aomediacodec.github.io/av1-spec/)
+5. [Opus标准](https://opus-codec.org/)
+6. [音视频开发基础](https://blog.csdn.net/leixiaohua1020)

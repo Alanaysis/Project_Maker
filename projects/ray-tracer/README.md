@@ -1,231 +1,258 @@
 # 光线追踪渲染器
 
-一个用 C++ 实现的简易光线追踪渲染器，用于理解光线追踪原理。
+一个完整的光线追踪渲染器项目，涵盖光线追踪的核心技术，包括基础光线追踪、材质系统、光源系统、加速结构、渲染算法和高级特性。
 
-## 项目概述
+## 项目简介
 
-本项目实现了一个基本的光线追踪渲染器，支持：
-
-- 基本的光线追踪算法
-- 球体和平面求交
-- 多种材质（漫反射、金属、电介质）
-- 相机系统（支持景深）
-- 多重采样抗锯齿
-- PPM 图像输出
-
-## 核心循环
-
-```
-相机 → 光线发射 → 场景求交 → 光照计算 → 像素颜色
-```
-
-## 技术栈
-
-- **语言**：C++17
-- **构建**：CMake 3.10+
-- **依赖**：无外部依赖
+本项目是一个从零开始实现的光线追踪渲染器，使用 C++17/20 编写。项目旨在帮助学习者深入理解光线追踪的原理和实现，涵盖从基础的光线-物体相交测试到高级的全局光照算法。
 
 ## 快速开始
 
-### 构建项目
+### 环境要求
+
+- C++17/20 兼容的编译器（GCC 9+、Clang 10+、MSVC 2019+）
+- CMake 3.10+
+- 支持多线程的系统
+
+### 编译运行
 
 ```bash
+# 克隆项目
 cd projects/ray-tracer
-mkdir build
-cd build
+
+# 创建构建目录
+mkdir build && cd build
+
+# 编译
 cmake ..
 make
-```
 
-### 运行程序
-
-```bash
-# 默认场景
-./ray-tracer --scene default --output output.ppm
-
-# 复杂场景
-./ray-tracer --scene complex --output complex.ppm
-
-# 测试场景
-./ray-tracer --scene test --output test.ppm
-```
-
-### 运行测试
-
-```bash
-ctest
-```
-
-### 运行示例
-
-```bash
+# 运行基础示例
 ./basic_scene
+
+# 运行其他示例
+./01_basic_sphere
+./02_complex_scene
+./03_primitives
+# ... 更多示例
 ```
 
-## 项目结构
+## 技术分类
+
+### 1. 光线追踪基础
+
+| 技术 | 文件 | 描述 |
+|------|------|------|
+| 光线-球体相交 | `sphere.h` | 使用二次方程求解 |
+| 光线-三角形相交 | `triangle.h` | Moller-Trumbore 算法 |
+| 光线-平面相交 | `sphere.h` | 平面方程求解 |
+| 光线-盒子相交 | `box.h` | Slab 方法 |
+| 光线-圆柱相交 | `cylinder.h` | 侧面+端面相交 |
+
+### 2. 材质系统
+
+| 材质类型 | 文件 | 描述 |
+|----------|------|------|
+| 漫反射 (Lambertian) | `material.h` | 随机散射 |
+| 镜面反射 (Metal) | `material.h` | 模糊反射 |
+| 折射 (Dielectric) | `material.h` | Snell 定律 + Schlick 近似 |
+| 自发光 (Emissive) | `advanced_material.h` | 光源材质 |
+| 纹理材质 | `advanced_material.h` | 支持各种纹理 |
+| 各向异性 | `advanced_material.h` | 拉丝金属效果 |
+| 清漆 | `advanced_material.h` | 多层材质 |
+| 混合材质 | `advanced_material.h` | 材质混合 |
+| 菲涅尔材质 | `advanced_material.h` | 角度依赖反射 |
+
+### 3. 光源系统
+
+| 光源类型 | 文件 | 描述 |
+|----------|------|------|
+| 点光源 | `light.h` | 衰减光 |
+| 方向光源 | `light.h` | 平行光（太阳光） |
+| 面光源 | `light.h` | 软阴影 |
+| 环境光 | `light.h` | 全局光照 |
+| 环境遮蔽 | `light.h` | 接近遮蔽 |
+
+### 4. 加速结构
+
+| 结构 | 文件 | 描述 |
+|------|------|------|
+| BVH | `bvh.h` | 包围盒层次结构 |
+| KD-Tree | `kdtree.h` | 空间分割 |
+| 八叉树 | `octree.h` | 3D 空间分割 |
+| 均匀网格 | `octree.h` | 规则网格 |
+
+### 5. 渲染算法
+
+| 算法 | 文件 | 描述 |
+|------|------|------|
+| 路径追踪 | `advanced_renderer.h` | 物理准确的渲染 |
+| 双向路径追踪 | `advanced_renderer.h` | 光源+相机双向 |
+| 光子映射 | `advanced_renderer.h` | 焦散效果 |
+
+### 6. 高级特性
+
+| 特性 | 文件 | 描述 |
+|------|------|------|
+| 抗锯齿 | `renderer.h` | 多重采样 |
+| 景深 | `advanced_features.h` | 焦距模糊 |
+| 运动模糊 | `advanced_features.h` | 移动物体模糊 |
+| 焦散 | `advanced_features.h` | 光线聚焦 |
+| 体积渲染 | `advanced_features.h` | 烟雾效果 |
+| 采样策略 | `advanced_features.h` | 分层/Halton 采样 |
+
+### 7. 纹理系统
+
+| 纹理类型 | 文件 | 描述 |
+|----------|------|------|
+| 纯色纹理 | `texture.h` | 单一颜色 |
+| 棋盘格纹理 | `texture.h` | 黑白相间 |
+| 噪声纹理 | `texture.h` | Perlin 噪声 |
+| 图像纹理 | `texture.h` | PPM 图像 |
+| 渐变纹理 | `texture.h` | 颜色渐变 |
+| 条纹纹理 | `texture.h` | 条纹图案 |
+
+## 学习路径
+
+### 初级：光线追踪基础
+
+1. **Vec3 向量类** - 理解 3D 向量运算
+2. **Ray 光线类** - 理解光线表示
+3. **Hitable 接口** - 理解物体抽象
+4. **Sphere 球体** - 理解光线-球体相交
+5. **Material 材质** - 理解材质系统
+
+### 中级：材质与光源
+
+6. **Lambertian 漫反射** - 理解漫反射模型
+7. **Metal 金属** - 理解镜面反射
+8. **Dielectric 电介质** - 理解折射和反射
+9. **Light 光源** - 理解光照模型
+10. **Texture 纹理** - 理解纹理映射
+
+### 高级：渲染算法
+
+11. **Path Tracing 路径追踪** - 理解全局光照
+12. **BVH 加速** - 理解空间加速结构
+13. **Depth of Field 景深** - 理解相机模型
+14. **Motion Blur 运动模糊** - 理解时间采样
+15. **Volume Rendering 体积渲染** - 理解体积效果
+
+## 文件组织
 
 ```
-projects/ray-tracer/
-├── CMakeLists.txt          # 构建配置
-├── README.md               # 本文件
-├── LEARNING_NOTES.md       # 学习笔记
-├── docs/                   # 文档目录
-│   ├── 01-RESEARCH.md      # 调研文档
-│   ├── 02-DESIGN.md        # 设计文档
-│   ├── 03-IMPLEMENTATION.md # 实现文档
-│   ├── 04-TESTING.md       # 测试文档
-│   └── 05-DEVELOPMENT.md   # 开发文档
-├── include/                # 头文件
-│   ├── vec3.h              # 三维向量
-│   ├── ray.h               # 光线
-│   ├── hitable.h           # 可命中物体
-│   ├── sphere.h            # 球体和平面
-│   ├── material.h          # 材质
-│   ├── camera.h            # 相机
-│   ├── renderer.h          # 渲染器
-│   └── scene.h             # 场景工厂
-├── src/                    # 源代码
-│   └── main.cpp            # 主程序
-├── tests/                  # 测试文件
-│   ├── test_vec3.cpp       # Vec3 测试
-│   ├── test_ray.cpp        # Ray 测试
-│   ├── test_sphere.cpp     # Sphere 测试
-│   └── test_renderer.cpp   # Renderer 测试
-└── examples/               # 示例文件
-    └── basic_scene.cpp     # 基础场景示例
+ray-tracer/
+├── include/                    # 头文件
+│   ├── vec3.h                 # 3D 向量类
+│   ├── ray.h                  # 光线类
+│   ├── hitable.h              # 可命中物体接口
+│   ├── sphere.h               # 球体和平面
+│   ├── triangle.h             # 三角形
+│   ├── box.h                  # 盒子
+│   ├── cylinder.h             # 圆柱和圆锥
+│   ├── material.h             # 基础材质
+│   ├── advanced_material.h    # 高级材质
+│   ├── texture.h              # 纹理系统
+│   ├── light.h                # 光源系统
+│   ├── camera.h               # 相机
+│   ├── renderer.h             # 基础渲染器
+│   ├── advanced_renderer.h    # 高级渲染器
+│   ├── advanced_features.h    # 高级特性
+│   ├── scene.h                # 场景工厂
+│   ├── bvh.h                  # BVH 加速
+│   ├── kdtree.h               # KD-Tree 加速
+│   └── octree.h               # 八叉树和均匀网格
+├── src/
+│   └── main.cpp               # 主程序
+├── examples/                   # 示例程序
+│   ├── basic_scene.cpp        # 基础场景
+│   ├── 01_basic_sphere.cpp    # 基础球体
+│   ├── 02_complex_scene.cpp   # 复杂场景
+│   ├── 03_primitives.cpp      # 几何图元
+│   ├── 04_path_tracing.cpp    # 路径追踪
+│   ├── 05_depth_of_field.cpp  # 景深效果
+│   ├── 06_textures.cpp        # 纹理渲染
+│   ├── 07_advanced_materials.cpp  # 高级材质
+│   ├── 08_motion_blur.cpp     # 运动模糊
+│   ├── 09_acceleration.cpp    # 加速结构
+│   └── 10_sampling.cpp        # 采样策略
+├── tests/                      # 测试程序
+├── docs/                       # 文档
+└── CMakeLists.txt              # 构建配置
 ```
 
-## 核心组件
+## 示例说明
 
-### Vec3（三维向量）
+### 示例 1：基础球体渲染
+展示如何渲染简单的球体场景，包含漫反射、金属和玻璃材质。
 
-实现三维向量的基本运算，包括：
-- 加法、减法、标量乘法
-- 点积、叉积
-- 单位化、反射、折射
+### 示例 2：复杂场景渲染
+渲染包含多个随机球体的复杂场景，展示材质多样性。
 
-### Ray（光线）
+### 示例 3：几何图元渲染
+展示各种几何图元的渲染：球体、平面、三角形、盒子、圆柱体。
 
-光线表示为 `P(t) = origin + t * direction`，其中：
-- origin：起点
-- direction：方向（单位向量）
-- t：参数
+### 示例 4：路径追踪渲染
+使用路径追踪算法渲染场景，支持全局光照和多线程。
 
-### Hitable（可命中物体）
+### 示例 5：景深效果
+展示景深相机的使用，创建焦点清晰、背景模糊的效果。
 
-抽象基类，支持：
-- Sphere（球体）
-- Plane（平面）
-- HitableList（物体集合）
+### 示例 6：纹理渲染
+展示各种纹理的使用：棋盘格、噪声、渐变等。
 
-### Material（材质）
+### 示例 7：高级材质渲染
+展示高级材质：自发光、各向异性、清漆、混合材质等。
 
-材质基类，支持：
-- Lambertian（漫反射）
-- Metal（金属）
-- Dielectric（电介质）
+### 示例 8：运动模糊
+展示运动模糊效果，让移动的物体看起来更自然。
 
-### Camera（相机）
+### 示例 9：加速结构
+展示各种加速结构的使用和性能对比。
 
-相机系统，支持：
-- 视角（FOV）控制
-- 光圈和景深效果
-- 相机坐标系
+### 示例 10：采样策略
+展示不同采样策略对抗锯齿效果的影响。
 
-### Renderer（渲染器）
+## 性能优化
 
-渲染器，支持：
-- 递归颜色计算
-- 多重采样抗锯齿
-- 伽马校正
-- PPM 格式输出
+### 多线程渲染
+- 使用 `std::thread` 进行并行渲染
+- 支持自定义线程数
+- 行级并行处理
 
-## 学习目标
+### 采样优化
+- 分层采样减少噪声
+- Halton 低差异序列
+- 自适应采样
 
-通过本项目，你将学到：
+### 加速结构
+- BVH：快速包围盒测试
+- KD-Tree：高效空间查询
+- 八叉树：3D 空间分割
+- 均匀网格：简单快速
 
-1. **光线追踪算法**
-   - 光线-物体求交
-   - 递归光线追踪
-   - 全局光照
+## 输出格式
 
-2. **几何数学**
-   - 向量运算
-   - 点积和叉积
-   - 光线-球体求交
-   - 光线-平面求交
+所有示例输出 PPM 格式的图像文件，可以使用以下工具查看：
 
-3. **材质模型**
-   - Lambertian 漫反射
-   - 金属反射
-   - 电介质折射
+- **Linux**: `eog`, `feh`, `xdg-open`
+- **macOS**: `Preview`, `open`
+- **Windows**: `Paint`, `IrfanView`
 
-4. **相机系统**
-   - 视角控制
-   - 景深效果
+## 扩展建议
 
-5. **图像处理**
-   - 多重采样抗锯齿
-   - 伽马校正
-   - PPM 格式输出
-
-## 示例输出
-
-渲染默认场景：
-
-```bash
-./ray-tracer --scene default --output default.ppm
-```
-
-生成的图像包含：
-- 三个球体（蓝色漫反射、金属、玻璃）
-- 灰色地面
-- 天空渐变背景
-- 金属球有模糊反射
-- 玻璃球有折射效果
-
-## 文档
-
-详细文档请参考 `docs/` 目录：
-
-- [01-RESEARCH.md](docs/01-RESEARCH.md) - 技术调研
-- [02-DESIGN.md](docs/02-DESIGN.md) - 系统设计
-- [03-IMPLEMENTATION.md](docs/03-IMPLEMENTATION.md) - 实现细节
-- [04-TESTING.md](docs/04-TESTING.md) - 测试文档
-- [05-DEVELOPMENT.md](docs/05-DEVELOPMENT.md) - 开发指南
-
-## 学习笔记
-
-学习过程记录请参考 [LEARNING_NOTES.md](LEARNING_NOTES.md)。
-
-## 扩展方向
-
-1. **添加新材质**
-   - 发光材质
-   - 各向异性材质
-   - 次表面散射
-
-2. **添加新物体**
-   - 三角形
-   - 网格
-   - 曲面
-
-3. **性能优化**
-   - BVH 空间划分
-   - 并行渲染
-   - GPU 加速
-
-4. **高级特性**
-   - 纹理映射
-   - 环境光遮蔽
-   - 焦散
+1. **添加更多几何体**：贝塞尔曲面、NURBS、细分曲面
+2. **实现更多渲染算法**：Metropolis 光传输、辐射度
+3. **添加 GPU 加速**：CUDA、OpenCL
+4. **支持更多纹理格式**：PNG、JPEG、HDR
+5. **实现实时预览**：OpenGL、Vulkan
 
 ## 参考资源
 
 - [Ray Tracing in One Weekend](https://raytracing.github.io/)
-- [Scratchapixel](https://www.scratchapixel.com/)
-- [smallpt](http://www.kevinbeason.com/smallpt/)
+- [Physically Based Rendering](http://www.pbr-book.org/)
+- [Ray Tracing from the Ground Up](https://www.amazon.com/Ray-Tracing-Ground-Up-Kevin/dp/1568812728)
 
 ## 许可证
 
-本项目仅供学习使用。
+本项目仅用于学习目的。

@@ -1,0 +1,41 @@
+# 语言特性示例
+add_executable(multidimensional_subscript multidimensional_subscript.cpp)
+add_executable(if_consteval if_consteval.cpp)
+add_executable(static_operator static_operator.cpp)
+add_executable(deducing_this deducing_this.cpp)
+add_executable(unreachable_example unreachable.cpp)
+add_executable(assume_attribute assume_attribute.cpp)
+add_executable(encoding encoding.cpp)
+
+# 标准库特性示例
+add_executable(expected_example expected_example.cpp)
+add_executable(mdspan_example mdspan_example.cpp)
+add_executable(generator_example generator_example.cpp)
+add_executable(print_example print_example.cpp)
+add_executable(stacktrace_example stacktrace_example.cpp)
+add_executable(flat_map_example flat_map_example.cpp)
+add_executable(move_only_function_example move_only_function_example.cpp)
+add_executable(out_ptr_example out_ptr_example.cpp)
+
+# Ranges 特性示例
+add_executable(ranges_to_example ranges_to_example.cpp)
+add_executable(ranges_chunk_example ranges_chunk_example.cpp)
+add_executable(ranges_slide_example ranges_slide_example.cpp)
+add_executable(ranges_zip_example ranges_zip_example.cpp)
+add_executable(ranges_enumerate_example ranges_enumerate_example.cpp)
+add_executable(ranges_cartesian_product_example ranges_cartesian_product_example.cpp)
+add_executable(ranges_chunk_by_example ranges_chunk_by_example.cpp)
+add_executable(adjacent_view_example adjacent_view_example.cpp)
+add_executable(views_as_const_example views_as_const_example.cpp)
+add_executable(views_as_rvalue_example views_as_rvalue_example.cpp)
+add_executable(views_join_with_example views_join_with_example.cpp)
+add_executable(views_stride_example views_stride_example.cpp)
+add_executable(views_cache_latest_example views_cache_latest_example.cpp)
+
+# 其他改进示例
+add_executable(optional_ranges_example optional_ranges_example.cpp)
+add_executable(tuple_pair_example tuple_pair_example.cpp)
+add_executable(constexpr_example constexpr_example.cpp)
+add_executable(bitset_example bitset_example.cpp)
+add_executable(string_contains_example string_contains_example.cpp)
+add_executable(ranges_algorithms_example ranges_algorithms_example.cpp)

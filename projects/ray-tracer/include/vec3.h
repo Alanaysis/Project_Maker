@@ -37,6 +37,11 @@ public:
         return Vec3(x / t, y / t, z / t);
     }
 
+    // 向量分量除法
+    Vec3 operator/(const Vec3& v) const {
+        return Vec3(x / v.x, y / v.y, z / v.z);
+    }
+
     // 取负
     Vec3 operator-() const {
         return Vec3(-x, -y, -z);
@@ -126,5 +131,19 @@ inline Vec3 cross(const Vec3& u, const Vec3& v) {
 inline Vec3 normalize(const Vec3& v) {
     return v.normalize();
 }
+
+// 二维向量（用于纹理坐标等）
+class Vec2 {
+public:
+    double x, y;
+
+    Vec2() : x(0), y(0) {}
+    Vec2(double x, double y) : x(x), y(y) {}
+
+    Vec2 operator+(const Vec2& v) const { return Vec2(x + v.x, y + v.y); }
+    Vec2 operator-(const Vec2& v) const { return Vec2(x - v.x, y - v.y); }
+    Vec2 operator*(double t) const { return Vec2(x * t, y * t); }
+    Vec2 operator/(double t) const { return Vec2(x / t, y / t); }
+};
 
 } // namespace rt

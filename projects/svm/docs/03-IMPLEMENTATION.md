@@ -2,450 +2,197 @@
 
 ## 1. 实现概述
 
-本文档记录 SVM 支持向量机的实现细节，包括关键代码片段、设计决策和实现难点。
+本项目从零实现了完整的 SVM 系统，包括分类、回归、多分类和评估指标。所有代码仅依赖 NumPy。
 
-## 2. 核函数实现
+## 2. 核函数实现 (kernel.py)
 
 ### 2.1 线性核
 
 ```python
-def linear_kernel() -> Callable[[np.ndarray, np.ndarray], float]:
-    """
-    线性核函数: K(x, y) = x · y
-    """
-    def kernel(x: np.ndarray, y: np.ndarray) -> float:
+def linear_kernel():
+    def kernel(x, y):
         return np.dot(x, y)
     return kernel
 ```
 
-**实现要点**：
-- 使用闭包返回核函数
-- 使用 `np.dot` 计算点积
-- 返回浮点数
-
 ### 2.2 RBF 核
 
 ```python
-def rbf_kernel(gamma: float = 1.0) -> Callable[[np.ndarray, np.ndarray], float]:
-    """
-    RBF 核函数: K(x, y) = exp(-gamma * ||x - y||^2)
-    """
-    if gamma <= 0:
-        raise ValueError("gamma 必须为正数")
-
-    def kernel(x: np.ndarray, y: np.ndarray) -> float:
+def rbf_kernel(gamma=1.0):
+    def kernel(x, y):
         diff = x - y
         return np.exp(-gamma * np.dot(diff, diff))
     return kernel
 ```
 
-**实现要点**：
-- 验证 gamma 参数
-- 使用 `np.dot(diff, diff)` 计算 ||x-y||²
-- 使用 `np.exp` 计算指数
-
 ### 2.3 多项式核
 
 ```python
-def polynomial_kernel(
-    degree: int = 3,
-    coef0: float = 1.0
-) -> Callable[[np.ndarray, np.ndarray], float]:
-    """
-    多项式核函数: K(x, y) = (x · y + coef0)^degree
-    """
-    if degree <= 0:
-        raise ValueError("degree 必须为正整数")
-
-    def kernel(x: np.ndarray, y: np.ndarray) -> float:
+def polynomial_kernel(degree=3, coef0=1.0):
+    def kernel(x, y):
         return (np.dot(x, y) + coef0) ** degree
     return kernel
 ```
 
-**实现要点**：
-- 验证 degree 参数
-- 先计算点积，再加 coef0，最后求幂
-
-### 2.4 核矩阵预计算
+### 2.4 Sigmoid 核
 
 ```python
-def precompute_kernel_matrix(
-    X: np.ndarray,
-    kernel_func: Callable[[np.ndarray, np.ndarray], float]
-) -> np.ndarray:
-    """
-    预计算核矩阵 (Gram 矩阵)
-    """
-    n_samples = X.shape[0]
-    K = np.zeros((n_samples, n_samples))
+def sigmoid_kernel(gamma=1.0, coef0=0.0):
+    def kernel(x, y):
+        return np.tanh(gamma * np.dot(x, y) + coef0)
+    return kernel
+```
 
-    for i in range(n_samples):
-        for j in range(i, n_samples):
+### 2.5 核矩阵预计算
+
+```python
+def precompute_kernel_matrix(X, kernel_func):
+    n = X.shape[0]
+    K = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i, n):
             K[i, j] = kernel_func(X[i], X[j])
-            K[j, i] = K[i, j]  # 对称性
-
+            K[j, i] = K[i, j]
     return K
 ```
 
-**实现要点**：
-- 利用对称性，只计算上三角
-- 时间复杂度 O(n²)
-
-## 3. SMO 算法实现
+## 3. SMO 算法实现 (smo.py)
 
 ### 3.1 主优化循环
 
-```python
-def optimize(self, K: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, float]:
-    """
-    使用 SMO 算法求解 SVM 对偶问题
-    """
-    n_samples = K.shape[0]
-    alpha = np.zeros(n_samples)
-    b = 0.0
-    passes = 0
+SMO 算法的核心是交替优化两个拉格朗日乘子：
 
-    while passes < self.max_passes:
-        num_changed_alphas = 0
+1. 遍历所有样本
+2. 检查是否违反 KKT 条件
+3. 如果违反，选择第二个乘子进行更新
+4. 更新 alpha_i, alpha_j 和偏置 b
+5. 重复直到收敛
 
-        for i in range(n_samples):
-            # 计算误差
-            Ei = self._compute_error(i, K, y, alpha, b)
-
-            # 检查 KKT 条件
-            if self._violates_kkt(y[i], Ei, alpha[i]):
-                # 选择第二个变量
-                j = self._select_j(i, n_samples)
-                Ej = self._compute_error(j, K, y, alpha, b)
-
-                # 保存旧值
-                alpha_i_old = alpha[i]
-                alpha_j_old = alpha[j]
-
-                # 计算边界
-                L, H = self._compute_bounds(y[i], y[j], alpha[i], alpha[j])
-
-                if L == H:
-                    continue
-
-                # 计算 eta
-                eta = K[i, i] + K[j, j] - 2 * K[i, j]
-
-                if eta <= 0:
-                    continue
-
-                # 更新 alpha[j]
-                alpha[j] = alpha_j_old + y[j] * (Ei - Ej) / eta
-                alpha[j] = np.clip(alpha[j], L, H)
-
-                # 检查变化
-                if abs(alpha[j] - alpha_j_old) < 1e-5:
-                    continue
-
-                # 更新 alpha[i]
-                alpha[i] = alpha_i_old + y[i] * y[j] * (alpha_j_old - alpha[j])
-
-                # 更新 b
-                b1 = (b - Ei
-                      - y[i] * (alpha[i] - alpha_i_old) * K[i, i]
-                      - y[j] * (alpha[j] - alpha_j_old) * K[i, j])
-
-                b2 = (b - Ej
-                      - y[i] * (alpha[i] - alpha_i_old) * K[i, j]
-                      - y[j] * (alpha[j] - alpha_j_old) * K[j, j])
-
-                if 0 < alpha[i] < self.C:
-                    b = b1
-                elif 0 < alpha[j] < self.C:
-                    b = b2
-                else:
-                    b = (b1 + b2) / 2.0
-
-                num_changed_alphas += 1
-
-        if num_changed_alphas == 0:
-            passes += 1
-        else:
-            passes = 0
-
-    return alpha, b
-```
-
-**实现要点**：
-- 使用 `passes` 计数器判断收敛
-- 遍历所有样本，找到违反 KKT 条件的样本
-- 更新两个变量并计算新的偏置
-
-### 3.2 误差计算
+### 3.2 KKT 条件检查
 
 ```python
-def _compute_error(
-    self,
-    i: int,
-    K: np.ndarray,
-    y: np.ndarray,
-    alpha: np.ndarray,
-    b: float
-) -> float:
-    """
-    计算第 i 个样本的预测误差
-    Ei = f(xi) - yi
-    """
-    prediction = np.sum(alpha * y * K[i]) + b
-    return prediction - y[i]
-```
-
-**实现要点**：
-- 使用向量化计算
-- `K[i]` 是第 i 行，即 xi 与所有样本的核值
-
-### 3.3 KKT 条件检查
-
-```python
-def _violates_kkt(self, yi: float, Ei: float, alpha_i: float) -> bool:
-    """
-    检查是否违反 KKT 条件
-    """
+def _violates_kkt(self, yi, Ei, alpha_i):
     return ((alpha_i < self.C and yi * Ei < -self.tol) or
             (alpha_i > 0 and yi * Ei > self.tol))
 ```
 
-**实现要点**：
-- 检查两种违反情况
-- 使用容差 `tol` 避免数值问题
-
-### 3.4 边界计算
+### 3.3 边界计算
 
 ```python
-def _compute_bounds(
-    self,
-    yi: float,
-    yj: float,
-    alpha_i: float,
-    alpha_j: float
-) -> Tuple[float, float]:
-    """
-    计算 alpha_j 的上下界
-    """
+def _compute_bounds(self, yi, yj, alpha_i, alpha_j):
     if yi != yj:
         L = max(0, alpha_j - alpha_i)
         H = min(self.C, self.C + alpha_j - alpha_i)
     else:
         L = max(0, alpha_i + alpha_j - self.C)
         H = min(self.C, alpha_i + alpha_j)
-
     return L, H
 ```
 
-**实现要点**：
-- 根据 yi 和 yj 的关系计算不同的边界
-- 确保 alpha_j 在 [0, C] 范围内
+## 4. SVM 分类器实现 (svm.py)
 
-## 4. SVM 分类器实现
-
-### 4.1 初始化
+### 4.1 训练流程
 
 ```python
-def __init__(
-    self,
-    kernel: Literal["linear", "rbf", "polynomial"] = "rbf",
-    C: float = 1.0,
-    gamma: float = 1.0,
-    degree: int = 3,
-    coef0: float = 1.0,
-    tol: float = 1e-3,
-    max_passes: int = 10
-):
-    self.kernel_type = kernel
-    self.C = C
-    self.gamma = gamma
-    self.degree = degree
-    self.coef0 = coef0
-    self.tol = tol
-    self.max_passes = max_passes
-
-    # 初始化核函数
-    self._kernel_func = self._create_kernel()
-
-    # 训练后的属性
-    self.alpha = None
-    self.b = None
-    self.support_vectors = None
-    self.support_vector_labels = None
-    self.support_vector_alphas = None
-    self._X_train = None
-    self._y_train = None
-```
-
-**实现要点**：
-- 使用 `Literal` 类型注解限制核函数类型
-- 在初始化时创建核函数
-- 训练后的属性初始化为 None
-
-### 4.2 训练
-
-```python
-def fit(self, X: np.ndarray, y: np.ndarray) -> "SVM":
-    """
-    训练 SVM 分类器
-    """
-    # 验证标签
-    unique_labels = np.unique(y)
-    if not np.array_equal(unique_labels, [-1, 1]):
-        raise ValueError("标签必须为 +1 或 -1")
-
-    n_samples = X.shape[0]
-
-    # 预计算核矩阵
+def fit(self, X, y):
+    # 1. 验证标签 (+1/-1)
+    # 2. 预计算核矩阵
     K = precompute_kernel_matrix(X, self._kernel_func)
-
-    # 使用 SMO 算法求解
-    smo = SMO(C=self.C, tol=self.tol, max_passes=self.max_passes)
+    # 3. 使用 SMO 求解
     self.alpha, self.b = smo.optimize(K, y)
-
-    # 提取支持向量
+    # 4. 提取支持向量
     support_mask = self.alpha > 1e-7
     self.support_vectors = X[support_mask]
-    self.support_vector_labels = y[support_mask]
-    self.support_vector_alphas = self.alpha[support_mask]
-
-    # 保存训练数据
-    self._X_train = X
-    self._y_train = y
-
-    return self
 ```
 
-**实现要点**：
-- 验证标签格式
-- 预计算核矩阵
-- 使用 SMO 优化
-- 提取支持向量
-- 返回 self 支持链式调用
-
-### 4.3 预测
+### 4.2 预测流程
 
 ```python
-def predict(self, X: np.ndarray) -> np.ndarray:
-    """
-    预测新数据的类别
-    """
-    if self.alpha is None:
-        raise RuntimeError("模型尚未训练，请先调用 fit() 方法")
-
+def predict(self, X):
     decision_values = self.decision_function(X)
     return np.sign(decision_values).astype(int)
+
+def decision_function(self, X):
+    # f(x) = sum(alpha_i * y_i * K(x_i, x)) + b
+    for i in range(n_test):
+        for j in range(n_train):
+            if alpha[j] > 1e-7:
+                s += alpha[j] * y[j] * K(x_j, x_i)
+        decision[i] = s + b
 ```
 
-**实现要点**：
-- 检查是否已训练
-- 使用决策函数的符号作为预测结果
+## 5. SVR 回归器实现 (svr.py)
 
-### 4.4 决策函数
+### 5.1 SVR 的 SMO 算法
+
+SVR 引入两组乘子 alpha 和 alpha_star，满足：
+- `alpha_i * alpha_star_i = 0` (互补松弛)
+- `sum(alpha - alpha_star) = 0`
+
+每次迭代选择一个样本，更新其 alpha 或 alpha_star。
+
+### 5.2 预测
 
 ```python
-def decision_function(self, X: np.ndarray) -> np.ndarray:
-    """
-    计算决策函数值
-    f(x) = sum(alpha_i * y_i * K(xi, x)) + b
-    """
-    if self.alpha is None:
-        raise RuntimeError("模型尚未训练，请先调用 fit() 方法")
-
-    n_samples = X.shape[0]
-    decision_values = np.zeros(n_samples)
-
-    for i in range(n_samples):
-        s = 0.0
-        for j in range(len(self._X_train)):
-            if self.alpha[j] > 1e-7:
-                s += (self.alpha[j] * self._y_train[j] *
-                      self._kernel_func(self._X_train[j], X[i]))
-        decision_values[i] = s + self.b
-
-    return decision_values
+def predict(self, X):
+    w = self.alpha - self.alpha_star
+    for i in range(n_test):
+        for j in range(n_train):
+            if abs(w[j]) > 1e-7:
+                s += w[j] * K(x_j, x_i)
+        predictions[i] = s + self.b
 ```
 
-**实现要点**：
-- 只使用支持向量 (alpha > 0)
-- 计算所有支持向量的贡献之和
-- 加上偏置 b
+## 6. 多分类实现 (multiclass.py)
 
-### 4.5 准确率计算
+### 6.1 One-vs-Rest
 
 ```python
-def score(self, X: np.ndarray, y: np.ndarray) -> float:
-    """
-    计算分类准确率
-    """
-    predictions = self.predict(X)
-    return np.mean(predictions == y)
+class OneVsRestSVM:
+    def fit(self, X, y):
+        for cls in self.classes:
+            binary_y = np.where(y == cls, 1, -1)
+            svm = SVM(...)
+            svm.fit(X, binary_y)
+            self.classifiers.append(svm)
+
+    def predict(self, X):
+        # 选择决策值最大的类别
+        decision_values[:, idx] = svm.decision_function(X)
+        return self.classes[argmax(decision_values)]
 ```
 
-## 5. 实现难点
+### 6.2 One-vs-One
 
-### 5.1 数值稳定性
+```python
+class OneVsOneSVM:
+    def fit(self, X, y):
+        for i, j in combinations(classes, 2):
+            mask = (y == i) | (y == j)
+            svm.fit(X[mask], binary_y)
+            self.classifiers.append(svm)
 
-**问题**：浮点运算可能导致精度问题
+    def predict(self, X):
+        # 投票机制
+        for svm in classifiers:
+            votes[pred == cls_i] += 1
+        return self.classes[argmax(votes)]
+```
 
-**解决方案**：
-- 使用容差 `tol` 判断收敛
-- 对 alpha 进行裁剪
-- 使用 `1e-7` 作为零的阈值
+## 7. 评估指标实现 (metrics.py)
 
-### 5.2 收敛性
+### 7.1 分类指标
 
-**问题**：SMO 算法可能收敛很慢
+- **准确率**：`accuracy = correct / total`
+- **精确率**：`precision = TP / (TP + FP)`
+- **召回率**：`recall = TP / (TP + FN)`
+- **F1**：`f1 = 2 * p * r / (p + r)`
+- **混淆矩阵**：`C[i][j] = 真实为i且预测为j的样本数`
 
-**解决方案**：
-- 设置合理的 `max_passes`
-- 使用 `passes` 计数器判断收敛
-- 优化第二个变量的选择策略
+支持 binary/micro/macro 三种平均方式。
 
-### 5.3 内存占用
+### 7.2 回归指标
 
-**问题**：核矩阵需要 O(n²) 的存储空间
-
-**解决方案**：
-- 对于小数据集，预计算核矩阵
-- 对于大数据集，考虑使用线性核或近似方法
-
-## 6. 测试策略
-
-### 6.1 单元测试
-
-- 测试每个核函数的正确性
-- 测试 SMO 算法的收敛性
-- 测试 SVM 分类器的功能
-
-### 6.2 集成测试
-
-- 测试完整流程
-- 测试不同核函数
-- 测试不同数据分布
-
-### 6.3 边界测试
-
-- 测试空数据
-- 测试单样本数据
-- 测试无效参数
-
-## 7. 优化建议
-
-### 7.1 性能优化
-
-- 使用向量化计算
-- 预计算核矩阵
-- 优化第二个变量的选择
-
-### 7.2 功能扩展
-
-- 添加更多核函数
-- 支持多分类
-- 支持回归
-
-### 7.3 代码优化
-
-- 添加类型注解
-- 添加文档字符串
-- 添加日志记录
+- **MSE**：`mse = mean((y_true - y_pred)^2)`
+- **R2**：`r2 = 1 - SS_res / SS_tot`
+- **MAE**：`mae = mean(|y_true - y_pred|)`

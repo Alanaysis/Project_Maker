@@ -244,6 +244,8 @@ func (rs *RaftState) GetState() (int64, bool) {
 - **心跳协程**：定期发送心跳
 - **日志复制协程**：并行复制日志
 - **状态机应用协程**：应用已提交的日志
+- **快照协程**：定期创建快照
+- **成员变更协程**：处理成员变更请求
 
 ### 6.3 通道通信
 
@@ -251,6 +253,40 @@ func (rs *RaftState) GetState() (int64, bool) {
 type RaftNode struct {
     applyCh chan ApplyMsg  // 状态机应用通道
     stopCh  chan struct{}  // 停止信号通道
+}
+```
+
+### 6.4 快照实现
+
+```go
+type SnapshotManager struct {
+    state           *RaftState
+    peers           map[int64]*Peer
+    lastIncludedIdx int64
+    lastIncludedTerm int64
+    data            []byte
+}
+
+func (sm *SnapshotManager) CreateSnapshot(lastIncludedIndex int64, data []byte) {
+    // 1. 获取 lastIncludedIndex 处的任期
+    // 2. 保存快照数据
+    // 3. 截断日志
+}
+```
+
+### 6.5 成员变更实现
+
+```go
+type MembershipManager struct {
+    state      *RaftState
+    peers      *map[int64]*Peer
+    pendingCh  chan MembershipChange
+}
+
+func (mm *MembershipManager) RequestChange(change MembershipChange) error {
+    // 1. 检查是否是领导者
+    // 2. 验证变更请求
+    // 3. 执行变更
 }
 ```
 
@@ -301,22 +337,80 @@ type RaftNode struct {
 - [Raft 一致性算法](https://www.cnblogs.com/mindwind/p/5231986.html)
 - [Raft 算法详解](https://zhuanlan.zhihu.com/p/27207160)
 
-## 九、总结
+## 九、快照机制
 
-### 9.1 核心要点
+### 9.1 为什么需要快照？
+
+日志会无限增长，快照机制用于压缩日志：
+- 保存状态机当前状态
+- 删除快照点之前的日志
+- 减少存储空间和恢复时间
+
+### 9.2 快照创建流程
+
+1. 状态机创建快照
+2. 保存快照元数据（lastIncludedIndex, lastIncludedTerm）
+3. 截断日志
+4. 持久化快照数据
+
+### 9.3 快照传输
+
+当跟随者落后太多时，领导者发送快照：
+1. 领导者发送 InstallSnapshot RPC
+2. 跟随者接收并安装快照
+3. 跟随者重置日志和状态
+
+## 十、成员变更
+
+### 10.1 单节点变更
+
+一次只添加或移除一个节点，确保安全性：
+- 添加节点：新节点以只读模式加入，追上进度后正式加入
+- 移除节点：确保移除后仍有多数节点
+
+### 10.2 联合共识
+
+两阶段成员变更：
+1. 阶段一：旧配置和新配置同时生效
+2. 阶段二：新配置生效
+
+## 十一、客户端交互
+
+### 11.1 线性一致性读
+
+确保读取到最新提交的数据：
+1. 确认领导权（发送心跳）
+2. 等待 commitIndex 被应用
+3. 执行读操作
+
+### 11.2 命令转发
+
+非领导者自动转发请求到领导者：
+1. 检查是否是领导者
+2. 获取领导者地址
+3. 转发请求
+
+## 十二、总结
+
+### 12.1 核心要点
 
 1. **领导者选举**：随机化超时避免选票分割
 2. **日志复制**：领导者负责复制，大多数确认后提交
 3. **安全性**：选举限制确保日志完整性
+4. **快照机制**：日志压缩防止无限增长
+5. **成员变更**：支持集群动态调整
+6. **客户端交互**：提供线性一致性接口
 
-### 9.2 实践建议
+### 12.2 实践建议
 
 1. **理解原理**：先理解算法原理再实现
 2. **测试驱动**：先写测试再写实现
 3. **增量开发**：逐步完善功能
+4. **故障测试**：测试各种故障场景
 
-### 9.3 进阶学习
+### 12.3 进阶学习
 
-1. **快照机制**：实现日志压缩
-2. **成员变更**：实现集群成员动态调整
-3. **性能优化**：优化网络传输和存储性能
+1. **性能优化**：优化网络传输和存储性能
+2. **持久化存储**：实现 BoltDB 等持久化存储
+3. **监控告警**：实现集群监控和告警
+4. **生产部署**：部署到生产环境

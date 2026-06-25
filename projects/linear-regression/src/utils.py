@@ -1,6 +1,6 @@
 """工具函数模块
 
-提供数据生成、可视化等辅助功能。
+提供数据生成、数据集划分、可视化等辅助功能。
 """
 
 import numpy as np
@@ -17,6 +17,8 @@ def generate_linear_data(
     random_state: Optional[int] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """生成线性回归数据
+
+    生成符合 y = X @ weights + bias + noise 的数据。
 
     Args:
         n_samples: 样本数量
@@ -50,6 +52,33 @@ def generate_linear_data(
     return X, y
 
 
+def generate_nonlinear_data(
+    n_samples: int = 100,
+    noise: float = 0.1,
+    random_state: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """生成非线性数据（用于演示多项式回归）
+
+    生成 y = 0.5*x² + x + 2 + noise 的数据。
+
+    Args:
+        n_samples: 样本数量
+        noise: 噪声标准差
+        random_state: 随机种子
+
+    Returns:
+        X: 特征矩阵，形状 (n_samples, 1)
+        y: 目标值，形状 (n_samples,)
+    """
+    if random_state is not None:
+        np.random.seed(random_state)
+
+    X = np.random.randn(n_samples, 1) * 2
+    y = 0.5 * X.flatten() ** 2 + X.flatten() + 2 + noise * np.random.randn(n_samples)
+
+    return X, y
+
+
 def train_test_split(
     X: np.ndarray,
     y: np.ndarray,
@@ -79,27 +108,6 @@ def train_test_split(
     train_indices = indices[n_test:]
 
     return X[train_indices], X[test_indices], y[train_indices], y[test_indices]
-
-
-def compute_r2_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """计算 R² 分数
-
-    R² = 1 - SS_res / SS_tot
-
-    Args:
-        y_true: 真实值
-        y_pred: 预测值
-
-    Returns:
-        R² 分数，越接近 1 越好
-    """
-    y_true = np.asarray(y_true).flatten()
-    y_pred = np.asarray(y_pred).flatten()
-
-    ss_res = np.sum((y_true - y_pred) ** 2)
-    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
-
-    return 1 - (ss_res / ss_tot)
 
 
 def plot_loss_curve(
@@ -138,7 +146,7 @@ def plot_regression_line(
     title: str = "Linear Regression",
     save_path: Optional[str] = None,
 ) -> None:
-    """绘制回归线
+    """绘制回归线（仅支持单特征）
 
     Args:
         X: 特征矩阵，形状 (n_samples, 1)
@@ -236,3 +244,67 @@ def plot_training_process(
         plt.show()
 
     plt.close()
+
+
+def plot_regularization_comparison(
+    alphas: List[float],
+    train_scores: List[float],
+    test_scores: List[float],
+    title: str = "Regularization Strength vs R2 Score",
+    save_path: Optional[str] = None,
+) -> None:
+    """绘制正则化强度与模型性能的关系
+
+    Args:
+        alphas: 正则化强度列表
+        train_scores: 训练集 R² 分数
+        test_scores: 测试集 R² 分数
+        title: 图表标题
+        save_path: 保存路径
+    """
+    plt.figure(figsize=(10, 6))
+    plt.semilogx(alphas, train_scores, "b-o", label="Train R²")
+    plt.semilogx(alphas, test_scores, "r-o", label="Test R²")
+    plt.xlabel("Regularization Strength (alpha)", fontsize=12)
+    plt.ylabel("R² Score", fontsize=12)
+    plt.title(title, fontsize=14)
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Regularization comparison plot saved to {save_path}")
+    else:
+        plt.show()
+
+    plt.close()
+
+
+def print_evaluation_report(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    dataset_name: str = "Test",
+) -> None:
+    """打印模型评估报告
+
+    Args:
+        y_true: 真实值
+        y_pred: 预测值
+        dataset_name: 数据集名称
+    """
+    from .evaluation import mean_squared_error, root_mean_squared_error
+    from .evaluation import mean_absolute_error, r2_score
+
+    mse = mean_squared_error(y_true, y_pred)
+    rmse = root_mean_squared_error(y_true, y_pred)
+    mae = mean_absolute_error(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
+
+    print(f"\n{'=' * 40}")
+    print(f"  {dataset_name} Set Evaluation Report")
+    print(f"{'=' * 40}")
+    print(f"  MSE  = {mse:.6f}")
+    print(f"  RMSE = {rmse:.6f}")
+    print(f"  MAE  = {mae:.6f}")
+    print(f"  R²   = {r2:.6f}")
+    print(f"{'=' * 40}\n")

@@ -1,0 +1,125 @@
+# ============================================================================
+# GitLab CI/CD 配置
+# 本文件展示如何使用 GitLab CI 进行 C++ 项目的 CI/CD
+# ============================================================================
+
+stages:
+  - build
+  - test
+  - analysis
+  - coverage
+  - deploy
+
+variables:
+  BUILD_TYPE: Release
+
+# ============================================================================
+# 1. 构建阶段
+# ============================================================================
+build:gcc:
+  stage: build
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update
+    - apt-get install -y build-essential cmake git
+  script:
+    - cmake -B build -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+    - cmake --build build
+  artifacts:
+    paths:
+      - build/
+    expire_in: 1 hour
+
+build:clang:
+  stage: build
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update
+    - apt-get install -y clang cmake git
+  script:
+    - cmake -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+    - cmake --build build
+  artifacts:
+    paths:
+      - build/
+    expire_in: 1 hour
+
+# ============================================================================
+# 2. 测试阶段
+# ============================================================================
+test:
+  stage: test
+  image: ubuntu:22.04
+  dependencies:
+    - build:gcc
+  script:
+    - cd build
+    - ctest -C ${BUILD_TYPE} --output-on-failure
+  artifacts:
+    reports:
+      junit: build/test-results/*.xml
+
+# ============================================================================
+# 3. 代码分析阶段
+# ============================================================================
+clang-tidy:
+  stage: analysis
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update
+    - apt-get install -y cmake clang-tidy
+  script:
+    - cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    - find src -name "*.cpp" -exec clang-tidy -p build {} \;
+  allow_failure: true
+
+cppcheck:
+  stage: analysis
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update
+    - apt-get install -y cppcheck
+  script:
+    - cppcheck --enable=all --suppress=missingIncludeSystem --error-exitcode=1 src/
+  allow_failure: true
+
+# ============================================================================
+# 4. 覆盖率阶段
+# ============================================================================
+coverage:
+  stage: coverage
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update
+    - apt-get install -y build-essential cmake lcov
+  script:
+    - cmake -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+    - cmake --build build
+    - cd build && ctest --output-on-failure
+    - lcov --capture --directory . --output-file coverage.info
+    - lcov --remove coverage.info '/usr/*' '*/test/*' --output-file coverage_filtered.info
+    - genhtml coverage_filtered.info --output-directory coverage_report
+  coverage: '/lines\.\.\.\.\.: (\d+\.\d+)%/'
+  artifacts:
+    paths:
+      - build/coverage_report/
+    expire_in: 30 days
+
+# ============================================================================
+# 5. 部署阶段
+# ============================================================================
+deploy:release:
+  stage: deploy
+  image: ubuntu:22.04
+  dependencies:
+    - build:gcc
+  script:
+    - echo "Deploying release..."
+    - mkdir -p deploy
+    - cp build/bin/* deploy/
+  artifacts:
+    paths:
+      - deploy/
+    expire_in: 30 days
+  only:
+    - tags

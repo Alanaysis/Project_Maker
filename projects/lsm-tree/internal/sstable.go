@@ -14,13 +14,14 @@ import (
 // SSTable (Sorted String Table) is the on-disk storage format for an LSM Tree.
 //
 // File format:
-//   [data blocks]  - sorted key-value pairs
-//   [index block]  - sparse index: every Nth key with its offset
-//   [index offset] - offset of the index block (8 bytes)
-//   [footer]       - metadata: entry count, index count (8+8 bytes)
+//   [data blocks]   - sorted key-value pairs
+//   [index block]   - sparse index: every Nth key with its offset
+//   [bloom filter]  - Bloom filter for fast negative lookups
+//   [footer]        - metadata (see below)
 //
 // Each data entry: [key_len:4][key][val_len:4][value][deleted:1][crc32:4]
 // Each index entry: [key_len:4][key][offset:8]
+// Footer (40 bytes): [indexBlockOffset:8][bloomOffset:8][bloomLen:8][entryCount:8][indexCount:4][level:4]
 
 const (
 	indexInterval = 16 // every 16th key is indexed
@@ -31,6 +32,7 @@ type SSTable struct {
 	filePath   string
 	file       *os.File
 	index      []*indexEntry
+	bloom      *BloomFilter
 	entryCount uint64
 	level      int
 	dataSize   uint64 // byte offset where data section ends (= index block starts)
@@ -79,6 +81,9 @@ func (b *SSTableBuilder) Build(filePath string, level int) (*SSTable, error) {
 	var dataOffset uint64
 	var indexEntries []*indexEntry
 
+	// Build Bloom filter for non-deleted entries
+	bloom := OptimalBloomFilter(uint64(len(b.entries)), 0.01)
+
 	// Write data entries
 	for i, entry := range b.entries {
 		// Write key
@@ -122,6 +127,11 @@ func (b *SSTableBuilder) Build(filePath string, level int) (*SSTable, error) {
 			return nil, err
 		}
 
+		// Add to Bloom filter (only non-deleted keys for efficiency)
+		if !entry.Deleted {
+			bloom.Add(entry.Key)
+		}
+
 		// Build sparse index: every indexInterval-th key
 		if i%indexInterval == 0 {
 			indexEntries = append(indexEntries, &indexEntry{
@@ -153,8 +163,32 @@ func (b *SSTableBuilder) Build(filePath string, level int) (*SSTable, error) {
 		}
 	}
 
-	// Write footer: indexBlockOffset(8) + entryCount(8) + indexCount(8) + level(8)
+	// Serialize and write Bloom filter
+	bloomData := bloom.MarshalBinary()
+	bloomOffset := indexBlockOffset + uint64(len(indexEntries))*(4+8) // approximate
+	// Actually, we need the exact position after index block
+	bloomOffset = dataOffset
+	for _, ie := range indexEntries {
+		bloomOffset += 4 + uint64(len(ie.key)) + 8
+	}
+	bloomLen := uint64(len(bloomData))
+
+	if _, err := writer.Write(bloomData); err != nil {
+		f.Close()
+		return nil, err
+	}
+
+	// Write footer (40 bytes):
+	// [indexBlockOffset:8][bloomOffset:8][bloomLen:8][entryCount:8][indexCount:4][level:4]
 	if err := binary.Write(writer, binary.LittleEndian, indexBlockOffset); err != nil {
+		f.Close()
+		return nil, err
+	}
+	if err := binary.Write(writer, binary.LittleEndian, bloomOffset); err != nil {
+		f.Close()
+		return nil, err
+	}
+	if err := binary.Write(writer, binary.LittleEndian, bloomLen); err != nil {
 		f.Close()
 		return nil, err
 	}
@@ -162,11 +196,11 @@ func (b *SSTableBuilder) Build(filePath string, level int) (*SSTable, error) {
 		f.Close()
 		return nil, err
 	}
-	if err := binary.Write(writer, binary.LittleEndian, uint64(len(indexEntries))); err != nil {
+	if err := binary.Write(writer, binary.LittleEndian, uint32(len(indexEntries))); err != nil {
 		f.Close()
 		return nil, err
 	}
-	if err := binary.Write(writer, binary.LittleEndian, uint64(level)); err != nil {
+	if err := binary.Write(writer, binary.LittleEndian, uint32(level)); err != nil {
 		f.Close()
 		return nil, err
 	}
@@ -184,37 +218,48 @@ func (b *SSTableBuilder) Build(filePath string, level int) (*SSTable, error) {
 	return OpenSSTable(filePath)
 }
 
-// OpenSSTable opens an existing SSTable file and reads its index.
+// OpenSSTable opens an existing SSTable file and reads its index and Bloom filter.
 func OpenSSTable(filePath string) (*SSTable, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("sstable: failed to open file: %w", err)
 	}
 
-	// Read footer (last 32 bytes): indexBlockOffset(8) + entryCount(8) + indexCount(8) + level(8)
+	// Read footer (last 40 bytes):
+	// [indexBlockOffset:8][bloomOffset:8][bloomLen:8][entryCount:8][indexCount:4][level:4]
 	fileInfo, err := f.Stat()
 	if err != nil {
 		f.Close()
 		return nil, err
 	}
 	fileSize := fileInfo.Size()
-	if fileSize < 32 {
+	if fileSize < 40 {
 		f.Close()
 		return nil, fmt.Errorf("sstable: file too small")
 	}
 
-	footerOffset := fileSize - 32
+	footerOffset := fileSize - 40
 	if _, err := f.Seek(footerOffset, io.SeekStart); err != nil {
 		f.Close()
 		return nil, err
 	}
 
 	var indexBlockOffset uint64
+	var bloomOffset uint64
+	var bloomLen uint64
 	var entryCount uint64
-	var indexCount uint64
-	var level uint64
+	var indexCount uint32
+	var level uint32
 
 	if err := binary.Read(f, binary.LittleEndian, &indexBlockOffset); err != nil {
+		f.Close()
+		return nil, err
+	}
+	if err := binary.Read(f, binary.LittleEndian, &bloomOffset); err != nil {
+		f.Close()
+		return nil, err
+	}
+	if err := binary.Read(f, binary.LittleEndian, &bloomLen); err != nil {
 		f.Close()
 		return nil, err
 	}
@@ -239,7 +284,7 @@ func OpenSSTable(filePath string) (*SSTable, error) {
 
 	reader := bufio.NewReader(f)
 	index := make([]*indexEntry, 0, indexCount)
-	for i := uint64(0); i < indexCount; i++ {
+	for i := uint32(0); i < indexCount; i++ {
 		var keyLen uint32
 		if err := binary.Read(reader, binary.LittleEndian, &keyLen); err != nil {
 			f.Close()
@@ -258,18 +303,40 @@ func OpenSSTable(filePath string) (*SSTable, error) {
 		index = append(index, &indexEntry{key: key, offset: offset})
 	}
 
+	// Read Bloom filter
+	var bloom *BloomFilter
+	if bloomLen > 0 {
+		if _, err := f.Seek(int64(bloomOffset), io.SeekStart); err != nil {
+			f.Close()
+			return nil, err
+		}
+		bloomData := make([]byte, bloomLen)
+		if _, err := io.ReadFull(f, bloomData); err != nil {
+			f.Close()
+			return nil, err
+		}
+		bloom = UnmarshalBloomFilter(bloomData)
+	}
+
 	return &SSTable{
 		filePath:   filePath,
 		file:       f,
 		index:      index,
+		bloom:      bloom,
 		entryCount: entryCount,
 		level:      int(level),
 		dataSize:   indexBlockOffset,
 	}, nil
 }
 
-// Get searches for a key in the SSTable using the sparse index.
+// Get searches for a key in the SSTable using the Bloom filter and sparse index.
+// First checks the Bloom filter to quickly reject keys that are definitely not present.
 func (s *SSTable) Get(key []byte) ([]byte, bool, error) {
+	// Use Bloom filter for fast negative lookup
+	if s.bloom != nil && !s.bloom.Contains(key) {
+		return nil, false, nil // definitely not in this SSTable
+	}
+
 	// Find the rightmost index entry whose key <= target key
 	startOffset := uint64(0)
 	for i := len(s.index) - 1; i >= 0; i-- {
@@ -322,6 +389,11 @@ func (s *SSTable) EntryCount() uint64 {
 // Level returns the compaction level of this SSTable.
 func (s *SSTable) Level() int {
 	return s.level
+}
+
+// BloomFilter returns the Bloom filter of this SSTable, or nil if not present.
+func (s *SSTable) BloomFilter() *BloomFilter {
+	return s.bloom
 }
 
 // readSSTableEntry reads a single data entry from the SSTable.

@@ -7,7 +7,6 @@ import (
 	"github.com/container-orchestrator/pkg/container"
 	"github.com/container-orchestrator/pkg/manager"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewManager(t *testing.T) {
@@ -15,7 +14,7 @@ func TestNewManager(t *testing.T) {
 	assert.NotNil(t, mgr)
 }
 
-func TestAddRemoveNode(t *testing.T) {
+func TestManagerAddRemoveNode(t *testing.T) {
 	mgr := manager.NewManager()
 
 	// Add node
@@ -91,7 +90,7 @@ func TestCreateDeleteService(t *testing.T) {
 	assert.Len(t, services, 0)
 }
 
-func TestScaleService(t *testing.T) {
+func TestManagerScaleService(t *testing.T) {
 	mgr := manager.NewManager()
 
 	// Add node
@@ -159,7 +158,7 @@ func TestResolveService(t *testing.T) {
 	assert.NotEmpty(t, endpoint.Address)
 }
 
-func TestGetClusterStats(t *testing.T) {
+func TestManagerGetClusterStats(t *testing.T) {
 	mgr := manager.NewManager()
 
 	// Add nodes
@@ -208,9 +207,9 @@ func TestGetHealthSummary(t *testing.T) {
 	// Wait for containers
 	time.Sleep(100 * time.Millisecond)
 
-	// Get health summary
+	// Get health summary - now includes both liveness and readiness results
 	summary := mgr.GetHealthSummary()
-	assert.Equal(t, 2, summary.Total)
+	assert.Equal(t, 4, summary.Total) // 2 liveness + 2 readiness
 }
 
 func TestStartStop(t *testing.T) {

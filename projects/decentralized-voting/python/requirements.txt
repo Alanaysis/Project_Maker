@@ -1,0 +1,11 @@
+# 去中心化投票系统依赖
+
+# 核心依赖
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# 可选依赖
+# cryptography>=41.0.0  # 用于更安全的加密
+# web3>=6.0.0           # 用于连接以太坊网络
+# fastapi>=0.100.0      # 用于 REST API
+# uvicorn>=0.23.0       # 用于 ASGI 服务器

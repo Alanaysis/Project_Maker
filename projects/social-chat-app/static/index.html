@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>社交聊天</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 登录/注册页面 -->
+        <div id="auth-page" class="page active">
+            <div class="auth-container">
+                <h1>社交聊天</h1>
+                <div class="auth-tabs">
+                    <button class="tab-btn active" data-tab="login">登录</button>
+                    <button class="tab-btn" data-tab="register">注册</button>
+                </div>
+
+                <!-- 登录表单 -->
+                <form id="login-form" class="auth-form active">
+                    <div class="form-group">
+                        <label for="login-username">用户名</label>
+                        <input type="text" id="login-username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">密码</label>
+                        <input type="password" id="login-password" required>
+                    </div>
+                    <button type="submit" class="btn-primary">登录</button>
+                </form>
+
+                <!-- 注册表单 -->
+                <form id="register-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="reg-username">用户名</label>
+                        <input type="text" id="reg-username" required minlength="3" maxlength="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">邮箱</label>
+                        <input type="email" id="reg-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">密码</label>
+                        <input type="password" id="reg-password" required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-nickname">昵称</label>
+                        <input type="text" id="reg-nickname">
+                    </div>
+                    <button type="submit" class="btn-primary">注册</button>
+                </form>
+
+                <div id="auth-error" class="error-message"></div>
+            </div>
+        </div>
+
+        <!-- 聊天主页面 -->
+        <div id="chat-page" class="page">
+            <div class="chat-layout">
+                <!-- 左侧边栏 -->
+                <div class="sidebar">
+                    <div class="sidebar-header">
+                        <div class="user-info">
+                            <span id="current-user"></span>
+                            <span id="online-status" class="status online">在线</span>
+                        </div>
+                        <div class="sidebar-actions">
+                            <button id="btn-add-friend" title="添加好友">+</button>
+                            <button id="btn-create-group" title="创建群组">G</button>
+                        </div>
+                    </div>
+
+                    <div class="search-box">
+                        <input type="text" id="search-input" placeholder="搜索用户或消息...">
+                    </div>
+
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="contacts">联系人</button>
+                        <button class="tab-btn" data-tab="groups">群组</button>
+                    </div>
+
+                    <div id="contacts-list" class="list-container active">
+                        <!-- 联系人列表将在这里动态生成 -->
+                    </div>
+
+                    <div id="groups-list" class="list-container">
+                        <!-- 群组列表将在这里动态生成 -->
+                    </div>
+                </div>
+
+                <!-- 右侧聊天区域 -->
+                <div class="chat-area">
+                    <div id="chat-placeholder" class="chat-placeholder">
+                        <p>选择一个联系人或群组开始聊天</p>
+                    </div>
+
+                    <div id="chat-container" class="chat-container hidden">
+                        <div class="chat-header">
+                            <div class="chat-target-info">
+                                <span id="chat-target-name"></span>
+                                <span id="chat-target-status"></span>
+                            </div>
+                            <div class="chat-actions">
+                                <button id="btn-search-chat" title="搜索">🔍</button>
+                            </div>
+                        </div>
+
+                        <div id="messages-container" class="messages-container">
+                            <!-- 消息将在这里动态生成 -->
+                        </div>
+
+                        <div id="typing-indicator" class="typing-indicator hidden">
+                            <span>对方正在输入...</span>
+                        </div>
+
+                        <div class="message-input">
+                            <button id="btn-attach" title="发送文件">📎</button>
+                            <input type="text" id="message-input" placeholder="输入消息...">
+                            <button id="btn-send" class="btn-send">发送</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 添加好友模态框 -->
+        <div id="add-friend-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>添加好友</h3>
+                <input type="text" id="search-user-input" placeholder="搜索用户...">
+                <div id="search-results" class="search-results">
+                    <!-- 搜索结果将在这里动态生成 -->
+                </div>
+                <button class="btn-close">关闭</button>
+            </div>
+        </div>
+
+        <!-- 创建群组模态框 -->
+        <div id="create-group-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>创建群组</h3>
+                <div class="form-group">
+                    <label for="group-name">群组名称</label>
+                    <input type="text" id="group-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="group-desc">群组描述</label>
+                    <textarea id="group-desc"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button id="btn-confirm-create" class="btn-primary">创建</button>
+                    <button class="btn-close">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

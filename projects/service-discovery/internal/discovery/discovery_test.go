@@ -258,3 +258,160 @@ func TestExtractIDFromKey(t *testing.T) {
 		}
 	}
 }
+
+func TestDiscovererGetServicesByTags(t *testing.T) {
+	s := store.NewMemStore()
+	defer s.Close()
+	ctx := context.Background()
+
+	putService(t, s, ctx, &registry.Service{
+		ID: "svc-1", Name: "web", Address: "10.0.0.1", Port: 8001,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "prod", "version": "1.0"},
+	})
+	putService(t, s, ctx, &registry.Service{
+		ID: "svc-2", Name: "web", Address: "10.0.0.2", Port: 8002,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "staging", "version": "1.0"},
+	})
+	putService(t, s, ctx, &registry.Service{
+		ID: "svc-3", Name: "web", Address: "10.0.0.3", Port: 8003,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "prod", "version": "2.0"},
+	})
+
+	d := New(s)
+	defer d.Stop()
+	d.Start(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	// Filter by env=prod
+	services := d.GetServicesByTags("web", map[string]string{"env": "prod"})
+	if len(services) != 2 {
+		t.Errorf("expected 2 prod services, got %d", len(services))
+	}
+
+	// Filter by env=prod AND version=1.0
+	services = d.GetServicesByTags("web", map[string]string{"env": "prod", "version": "1.0"})
+	if len(services) != 1 {
+		t.Errorf("expected 1 prod v1.0 service, got %d", len(services))
+	}
+
+	// Filter by nonexistent tag
+	services = d.GetServicesByTags("web", map[string]string{"region": "us-east"})
+	if len(services) != 0 {
+		t.Errorf("expected 0 services, got %d", len(services))
+	}
+
+	// Empty tags should return all
+	services = d.GetServicesByTags("web", map[string]string{})
+	if len(services) != 3 {
+		t.Errorf("expected 3 services with empty tags, got %d", len(services))
+	}
+}
+
+func TestDiscovererGetAllServicesByTags(t *testing.T) {
+	s := store.NewMemStore()
+	defer s.Close()
+	ctx := context.Background()
+
+	putService(t, s, ctx, &registry.Service{
+		ID: "svc-1", Name: "web", Address: "10.0.0.1", Port: 8001,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "prod"},
+	})
+	putService(t, s, ctx, &registry.Service{
+		ID: "svc-2", Name: "api", Address: "10.0.0.2", Port: 9001,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "prod"},
+	})
+	putService(t, s, ctx, &registry.Service{
+		ID: "svc-3", Name: "api", Address: "10.0.0.3", Port: 9002,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "staging"},
+	})
+
+	d := New(s)
+	defer d.Stop()
+	d.Start(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	// Filter by env=prod
+	all := d.GetAllServicesByTags(map[string]string{"env": "prod"})
+	if len(all) != 2 {
+		t.Errorf("expected 2 service names, got %d", len(all))
+	}
+	if len(all["web"]) != 1 {
+		t.Errorf("expected 1 web service, got %d", len(all["web"]))
+	}
+	if len(all["api"]) != 1 {
+		t.Errorf("expected 1 api service, got %d", len(all["api"]))
+	}
+}
+
+func TestMatchTags(t *testing.T) {
+	tests := []struct {
+		name   string
+		svc    *registry.Service
+		tags   map[string]string
+		expect bool
+	}{
+		{
+			name:   "nil tags matches all",
+			svc:    &registry.Service{Metadata: map[string]string{"env": "prod"}},
+			tags:   nil,
+			expect: true,
+		},
+		{
+			name:   "empty tags matches all",
+			svc:    &registry.Service{Metadata: map[string]string{"env": "prod"}},
+			tags:   map[string]string{},
+			expect: true,
+		},
+		{
+			name:   "nil metadata with tags",
+			svc:    &registry.Service{},
+			tags:   map[string]string{"env": "prod"},
+			expect: false,
+		},
+		{
+			name:   "matching tag",
+			svc:    &registry.Service{Metadata: map[string]string{"env": "prod"}},
+			tags:   map[string]string{"env": "prod"},
+			expect: true,
+		},
+		{
+			name:   "non-matching tag value",
+			svc:    &registry.Service{Metadata: map[string]string{"env": "prod"}},
+			tags:   map[string]string{"env": "staging"},
+			expect: false,
+		},
+		{
+			name:   "missing tag key",
+			svc:    &registry.Service{Metadata: map[string]string{"env": "prod"}},
+			tags:   map[string]string{"region": "us-east"},
+			expect: false,
+		},
+		{
+			name:   "multiple tags all match",
+			svc:    &registry.Service{Metadata: map[string]string{"env": "prod", "version": "1.0"}},
+			tags:   map[string]string{"env": "prod", "version": "1.0"},
+			expect: true,
+		},
+		{
+			name:   "multiple tags partial match",
+			svc:    &registry.Service{Metadata: map[string]string{"env": "prod", "version": "1.0"}},
+			tags:   map[string]string{"env": "prod", "version": "2.0"},
+			expect: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchTags(tt.svc, tt.tags)
+			if got != tt.expect {
+				t.Errorf("matchTags() = %v, want %v", got, tt.expect)
+			}
+		})
+	}
+}

@@ -1,0 +1,39 @@
+[package]
+name = "bezier-engine"
+version = "0.1.0"
+edition = "2021"
+authors = ["AIanaysis"]
+license = "MIT"
+readme = "README.md"
+keywords = ["bezier", "curve", "graphics", "math", "geometry"]
+categories = ["graphics", "mathematics", "rendering"]
+description = "贝塞尔曲线编辑和渲染引擎 - Bézier curve editing and rendering engine"
+
+[lib]
+name = "bezier_engine"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bezier-demo"
+path = "src/main.rs"
+
+[[example]]
+name = "basic_curves"
+path = "examples/basic_curves.rs"
+
+[[example]]
+name = "curve_subdivision"
+path = "examples/curve_subdivision.rs"
+
+[[example]]
+name = "svg_output"
+path = "examples/svg_output.rs"
+
+[[example]]
+name = "interactive_editor"
+path = "examples/interactive_editor.rs"
+
+[dependencies]
+# 无外部依赖，纯 Rust 实现
+
+[dev-dependencies]

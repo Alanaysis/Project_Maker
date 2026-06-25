@@ -266,6 +266,55 @@ var (
 3. **磁盘满**：触发紧急检查点并清理旧日志
 4. **I/O 错误**：重试或切换到备用存储
 
+## 日志清理和保留设计
+
+### 保留策略
+
+```go
+type RetentionPolicy struct {
+    MaxSize  int64         // 最大总大小（字节）
+    MaxAge   time.Duration // 最大保留时间
+    MaxFiles int           // 最大文件数量
+    MinFiles int           // 最小文件数量
+}
+```
+
+### 清理策略
+
+1. **基于大小**：当总大小超过阈值时删除最旧的文件
+2. **基于时间**：删除超过保留时间的文件
+3. **基于数量**：保留指定数量的文件
+4. **最小保留**：确保至少保留指定数量的文件
+
+### 清理流程
+
+```
+1. 获取所有 WAL 文件
+2. 按修改时间排序
+3. 应用年龄清理策略
+4. 应用数量清理策略
+5. 应用大小清理策略
+6. 确保最小文件数量
+7. 删除标记的文件
+```
+
+### 截断机制
+
+```go
+// 按 LSN 截断
+func TruncateWAL(walPath string, truncateLSN uint64) error
+
+// 按时间截断
+func TruncateWALAfterTime(walPath string, after time.Time) error
+```
+
+截断流程：
+1. 读取所有日志条目
+2. 过滤保留的条目
+3. 创建临时文件
+4. 写入保留的条目
+5. 替换原文件
+
 ## 性能设计
 
 ### 缓冲策略

@@ -1,7 +1,7 @@
 """Visualization utilities for Q-Learning.
 
 Provides functions to visualize training progress, learned policies,
-and Q-value landscapes.
+Q-value landscapes, and algorithm comparisons.
 """
 
 from typing import Optional
@@ -13,6 +13,182 @@ ACTION_SYMBOLS = {0: "↑", 1: "→", 2: "↓", 3: "←"}
 
 # Cell type labels
 CELL_LABELS = {0: ".", 1: "#", 2: "G", 3: "X"}
+
+
+def visualize_q_table_heatmap(
+    q_table: np.ndarray,
+    rows: int,
+    cols: int,
+    title: str = "Q-Table Heatmap",
+) -> str:
+    """Create a text-based heatmap of Q-values.
+
+    Args:
+        q_table: Q-value table (n_states x n_actions).
+        rows: Number of rows in grid.
+        cols: Number of columns in grid.
+        title: Title for visualization.
+
+    Returns:
+        String with ASCII heatmap.
+    """
+    # Get max Q-value for each state
+    max_q = np.max(q_table, axis=1)
+    min_q = np.min(q_table, axis=1)
+    avg_q = np.mean(q_table, axis=1)
+
+    lines = []
+    lines.append("=" * 50)
+    lines.append(title)
+    lines.append("=" * 50)
+    lines.append("")
+
+    # Heatmap for max Q-values
+    lines.append("Max Q-Value Heatmap:")
+    intensity_chars = " .:-=+*#%@"
+
+    for r in range(rows):
+        row_str = []
+        for c in range(cols):
+            state_idx = r * cols + c
+            val = max_q[state_idx]
+
+            # Normalize to 0-1
+            all_max = np.max(max_q)
+            all_min = np.min(max_q)
+            if all_max > all_min:
+                normalized = (val - all_min) / (all_max - all_min)
+            else:
+                normalized = 0.5
+
+            char_idx = int(normalized * (len(intensity_chars) - 1))
+            char_idx = max(0, min(len(intensity_chars) - 1, char_idx))
+            row_str.append(f"[{intensity_chars[char_idx]}]")
+        lines.append(" ".join(row_str))
+
+    lines.append("")
+    lines.append(f"Q-value range: [{np.min(q_table):.2f}, {np.max(q_table):.2f}]")
+    lines.append("=" * 50)
+
+    return "\n".join(lines)
+
+
+def visualize_learning_curves(
+    curves: dict[str, list[float]],
+    window: int = 50,
+    title: str = "Learning Curves Comparison",
+) -> str:
+    """Compare learning curves of different algorithms.
+
+    Args:
+        curves: Dict mapping algorithm names to reward lists.
+        window: Window size for moving average.
+        title: Title for visualization.
+
+    Returns:
+        String with ASCII comparison plot.
+    """
+    lines = []
+    lines.append("=" * 60)
+    lines.append(title)
+    lines.append("=" * 60)
+    lines.append("")
+
+    # Statistics for each algorithm
+    lines.append("Algorithm Comparison:")
+    lines.append("-" * 60)
+    lines.append(f"{'Algorithm':<20} {'Final Avg':<15} {'Best':<15} {'Converged':<10}")
+    lines.append("-" * 60)
+
+    for name, rewards in curves.items():
+        if len(rewards) >= window:
+            final_avg = np.mean(rewards[-window:])
+            best = max(rewards)
+            # Simple convergence check
+            if len(rewards) >= 2 * window:
+                recent = np.mean(rewards[-window:])
+                older = np.mean(rewards[-2 * window:-window])
+                converged = abs(recent - older) < 0.05
+            else:
+                converged = False
+            lines.append(f"{name:<20} {final_avg:<15.1f} {best:<15.1f} {'Yes' if converged else 'No':<10}")
+        else:
+            lines.append(f"{name:<20} {'N/A':<15} {'N/A':<15} {'N/A':<10}")
+
+    lines.append("-" * 60)
+
+    # ASCII plot comparison
+    lines.append("")
+    lines.append("Learning Curves (moving average):")
+    lines.append("")
+
+    # Find global min/max for scaling
+    all_values = []
+    for rewards in curves.values():
+        if len(rewards) >= window:
+            all_values.extend(_moving_average(rewards, window))
+
+    if not all_values:
+        lines.append("  No data to plot")
+        return "\n".join(lines)
+
+    vmin, vmax = min(all_values), max(all_values)
+
+    # Simple ASCII plot for each algorithm
+    symbols = ["*", "+", "x", "o", "#"]
+    for i, (name, rewards) in enumerate(curves.items()):
+        if len(rewards) >= window:
+            avg = _moving_average(rewards, window)
+            # Show last 50 values
+            display = avg[-50:] if len(avg) > 50 else avg
+            symbol = symbols[i % len(symbols)]
+            line = f"  {symbol} {name}: "
+            for val in display:
+                if vmax > vmin:
+                    intensity = int((val - vmin) / (vmax - vmin) * 5)
+                else:
+                    intensity = 3
+                line += "▁▂▃▄▅"[min(4, max(0, intensity))]
+            lines.append(line)
+
+    lines.append("")
+    lines.append("Legend: " + ", ".join(f"{symbols[i % len(symbols)]}={name}" for i, name in enumerate(curves.keys())))
+    lines.append("=" * 60)
+
+    return "\n".join(lines)
+
+
+def visualize_strategy_comparison(
+    results: dict[str, dict],
+    title: str = "Strategy Comparison",
+) -> str:
+    """Compare different exploration strategies.
+
+    Args:
+        results: Dict mapping strategy names to result dicts.
+        title: Title for visualization.
+
+    Returns:
+        String with comparison table.
+    """
+    lines = []
+    lines.append("=" * 70)
+    lines.append(title)
+    lines.append("=" * 70)
+    lines.append("")
+    lines.append(f"{'Strategy':<20} {'Success Rate':<15} {'Avg Reward':<15} {'Avg Steps':<15}")
+    lines.append("-" * 70)
+
+    for name, metrics in results.items():
+        success = metrics.get("success_rate", 0)
+        reward = metrics.get("mean_reward", 0)
+        steps = metrics.get("mean_steps", 0)
+        lines.append(f"{name:<20} {success:<15.1%} {reward:<15.1f} {steps:<15.1f}")
+
+    lines.append("-" * 70)
+    lines.append("=" * 70)
+
+    return "\n".join(lines)
 
 
 def visualize_training(rewards: list[float], steps: list[int], window: int = 50) -> str:

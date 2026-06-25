@@ -380,21 +380,128 @@ assert np.allclose(V.T @ V, np.eye(n))
 assert np.isclose(np.sum(ratio), 1.0)
 ```
 
-## 10. 实现总结
+## 10. 核 PCA 实现
 
-### 10.1 代码量统计
+### 10.1 核矩阵计算
+
+```python
+def _compute_kernel(self, X, Y=None):
+    if Y is None:
+        Y = X
+
+    if self.kernel == 'rbf':
+        sq_dists = np.sum(X**2, axis=1, keepdims=True) + \
+                   np.sum(Y**2, axis=1, keepdims=True).T - \
+                   2 * X @ Y.T
+        K = np.exp(-self.gamma_ * sq_dists)
+
+    elif self.kernel == 'poly':
+        K = (self.gamma_ * X @ Y.T + self.coef0) ** self.degree
+
+    return K
+```
+
+实现要点：
+- 使用广播机制计算距离矩阵
+- 支持多种核函数
+- gamma 参数控制 RBF 核的宽度
+
+### 10.2 核矩阵中心化
+
+```python
+one_n = np.ones((n_samples, n_samples)) / n_samples
+K_centered = K - one_n @ K - K @ one_n + one_n @ K @ one_n
+```
+
+实现要点：
+- 核矩阵必须中心化，否则特征值分解结果不正确
+- 使用矩阵乘法实现中心化
+
+### 10.3 特征值分解和归一化
+
+```python
+eigenvalues, eigenvectors = np.linalg.eigh(K_centered)
+
+# 选择正特征值
+positive_idx = eigenvalues > 1e-10
+eigenvalues = eigenvalues[positive_idx]
+eigenvectors = eigenvectors[:, positive_idx]
+
+# 归一化特征向量
+alphas = eigenvectors / np.sqrt(eigenvalues)[np.newaxis, :]
+```
+
+实现要点：
+- 只保留正特征值
+- 归一化确保投影后方差为 1
+
+## 11. 增量 PCA 实现
+
+### 11.1 增量均值更新
+
+```python
+# 增量更新均值
+delta = col_mean - self.mean_
+self.mean_ = self.mean_ + delta * n_samples / n_total
+```
+
+实现要点：
+- 使用增量公式避免重新计算全部数据的均值
+- 数值稳定
+
+### 11.2 增量 SVD 更新
+
+```python
+# 构建组合矩阵
+K = np.vstack([
+    np.diag(self.singular_values_[:self.n_components]),
+    X_centered @ self.components_[:self.n_components].T
+])
+
+# 更新 SVD
+U_k, S_k, Vt_k = np.linalg.svd(K, full_matrices=False)
+
+# 更新主成分
+self.components_ = Vt_k[:n_comp] @ self.components_[:self.n_components]
+```
+
+实现要点：
+- 使用矩阵分解技巧避免重新计算完整 SVD
+- 保持主成分的正交性
+
+### 11.3 增量方差更新
+
+```python
+# 增量更新方差
+self.var_ = (
+    (self.n_samples_seen_ * self.var_ + n_samples * col_var) / n_total +
+    self.n_samples_seen_ * n_samples * (delta ** 2) / (n_total ** 2)
+)
+```
+
+实现要点：
+- 使用 Welford 算法的增量版本
+- 考虑均值变化对方差的影响
+
+## 12. 实现总结
+
+### 12.1 代码量统计
 
 | 模块 | 行数 | 说明 |
 |------|------|------|
 | covariance.py | ~80 | 协方差矩阵计算 |
 | eigen.py | ~180 | 特征值分解 |
 | pca.py | ~200 | PCA 核心类 |
+| kernel_pca.py | ~150 | 核 PCA |
+| incremental_pca.py | ~200 | 增量 PCA |
 | visualization.py | ~250 | 可视化工具 |
-| 总计 | ~710 | |
+| 总计 | ~1060 | |
 
-### 10.2 关键学习点
+### 12.2 关键学习点
 
 1. 协方差矩阵的计算和性质
 2. 特征值分解的两种算法
 3. PCA 的完整流程
 4. 数值计算的稳定性问题
+5. 核技巧实现非线性降维
+6. 增量算法处理大数据

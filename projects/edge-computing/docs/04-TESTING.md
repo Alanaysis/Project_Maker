@@ -255,37 +255,6 @@ def test_select_least_loaded(self):
 | test_active_nodes | 测试活跃节点 | 只返回在线节点 |
 | test_cluster_repr | 测试字符串表示 | 格式正确 |
 
-#### 关键测试代码
-
-```python
-def test_submit_task(self):
-    """测试提交任务"""
-    cluster = EdgeCluster(scheduler=RoundRobinScheduler())
-    node = EdgeNode(name="node-1", capacity=5)
-
-    cluster.add_node(node)
-
-    task = Task(name="task-1")
-    result = cluster.submit_task(task)
-
-    assert result is True
-    assert node.current_load == 1
-
-def test_health_check(self):
-    """测试健康检查"""
-    cluster = EdgeCluster()
-
-    node = EdgeNode(name="node-1", capacity=5)
-    cluster.add_node(node)
-
-    health = cluster.health_check()
-
-    assert health["healthy"] is True
-    assert health["total_nodes"] == 1
-    assert health["healthy_nodes"] == 1
-    assert health["unhealthy_nodes"] == 0
-```
-
 ### 5. Coordinator 测试
 
 **文件**: `tests/test_coordinator.py`
@@ -310,53 +279,216 @@ def test_health_check(self):
 | test_health_check | 测试健康检查 | 健康状态正确 |
 | test_coordinator_repr | 测试字符串表示 | 格式正确 |
 
+### 6. DataProcessor 测试
+
+**文件**: `tests/test_data_processor.py`
+
+#### 测试用例列表
+
+| 测试用例 | 描述 | 预期结果 |
+|---------|------|---------|
+| test_eq_operator | 测试等于操作符 | 正确匹配 |
+| test_gt_operator | 测试大于操作符 | 正确比较 |
+| test_in_operator | 测试在列表中 | 正确匹配 |
+| test_tags_field | 测试标签字段过滤 | 正确过滤 |
+| test_negate | 测试取反 | 正确取反 |
+| test_single_rule | 测试单规则过滤 | 正确过滤 |
+| test_and_mode | 测试 AND 模式 | 所有条件匹配 |
+| test_or_mode | 测试 OR 模式 | 任一条件匹配 |
+| test_avg_aggregation | 测试平均值聚合 | 计算正确 |
+| test_count_aggregation | 测试计数聚合 | 计数正确 |
+| test_min_max_aggregation | 测试最小最大值 | 结果正确 |
+| test_forward_rule | 测试转发规则 | 数据转发 |
+| test_drop_rule | 测试丢弃规则 | 数据丢弃 |
+| test_transform_rule | 测试转换规则 | 数据转换 |
+| test_alert_rule | 测试告警规则 | 触发告警 |
+| test_rule_priority | 测试规则优先级 | 高优先级先执行 |
+| test_process_batch | 测试批量处理 | 正确处理 |
+| test_stats | 测试统计信息 | 统计正确 |
+
 #### 关键测试代码
 
 ```python
-def test_submit_task_auto_select_cluster(self):
-    """测试自动选择集群提交任务"""
-    coordinator = Coordinator()
+def test_eq_operator(self):
+    """测试等于操作符"""
+    rule = FilterRule(field="source", operator=FilterOperator.EQ, value="sensor-1")
+    dp_match = DataPoint(timestamp=0, source="sensor-1", metric="test", value=1)
+    dp_no_match = DataPoint(timestamp=0, source="sensor-2", metric="test", value=1)
 
-    cluster1 = EdgeCluster(cluster_id="cluster-1")
-    node1 = EdgeNode(name="node-1", capacity=5)
-    cluster1.add_node(node1)
+    assert rule.matches(dp_match) is True
+    assert rule.matches(dp_no_match) is False
 
-    cluster2 = EdgeCluster(cluster_id="cluster-2")
-    node2 = EdgeNode(name="node-2", capacity=10)
-    cluster2.add_node(node2)
+def test_drop_rule(self):
+    """测试丢弃规则"""
+    engine = RuleEngine()
+    engine.add_rule(Rule(
+        rule_id="r1",
+        name="drop bad data",
+        conditions=[FilterRule(field="value", operator=FilterOperator.LT, value=0)],
+        action=RuleAction.DROP,
+    ))
 
-    coordinator.add_cluster(cluster1)
-    coordinator.add_cluster(cluster2)
+    dp_good = DataPoint(timestamp=0, source="s", metric="m", value=10)
+    dp_bad = DataPoint(timestamp=0, source="s", metric="m", value=-1)
 
-    task = Task(name="task-1")
-    result = coordinator.submit_task(task)
+    assert engine.process(dp_good) is not None
+    assert engine.process(dp_bad) is None
+```
 
-    assert result is True
+### 7. CloudSync 测试
 
-def test_task_callback(self):
-    """测试任务回调"""
-    coordinator = Coordinator()
+**文件**: `tests/test_cloud_sync.py`
 
-    cluster = EdgeCluster(cluster_id="cluster-1")
-    node = EdgeNode(name="node-1", capacity=5)
-    cluster.add_node(node)
+#### 测试用例列表
 
-    coordinator.add_cluster(cluster)
+| 测试用例 | 描述 | 预期结果 |
+|---------|------|---------|
+| test_connect_disconnect | 测试连接断开 | 状态正确 |
+| test_upload_data | 测试上传数据 | 上传成功 |
+| test_upload_when_disconnected | 测试断开时上传 | 上传失败 |
+| test_download_data | 测试下载数据 | 下载成功 |
+| test_get_config | 测试获取配置 | 配置正确 |
+| test_report_status | 测试状态上报 | 上报成功 |
+| test_queue_data | 测试数据入队 | 入队成功 |
+| test_upload_batch | 测试批量上传 | 上传成功 |
+| test_upload_batch_size_limit | 测试批量大小限制 | 正确限制 |
+| test_upload_callback | 测试上传回调 | 回调触发 |
+| test_upload_stats | 测试上传统计 | 统计正确 |
+| test_get_default | 测试获取默认配置 | 默认值正确 |
+| test_set_override | 测试设置覆盖 | 覆盖生效 |
+| test_remove_override | 测试移除覆盖 | 覆盖移除 |
+| test_sync_from_cloud | 测试云端同步 | 同步成功 |
+| test_watch_config_changes | 测试配置监视 | 变更通知 |
+| test_start_stop | 测试启动停止 | 状态正确 |
+| test_sync_data | 测试数据同步 | 同步成功 |
+| test_sync_batch | 测试批量同步 | 同步成功 |
+| test_report_status | 测试状态上报 | 上报成功 |
+| test_sync_history | 测试同步历史 | 历史正确 |
 
-    callback_results = []
+#### 关键测试代码
 
-    def callback(result):
-        callback_results.append(result)
+```python
+def test_upload_batch(self, mock_connector, sync_config):
+    """测试批量上传"""
+    uploader = DataUploader(mock_connector, sync_config)
 
-    task = Task(name="task-1")
-    coordinator.submit_task(task, cluster_id="cluster-1", callback=callback)
+    # 入队多个数据
+    for i in range(5):
+        uploader.queue_data(
+            data_type="sensor",
+            data_id=f"sensor-{i}",
+            data={"value": i * 10.0},
+        )
 
-    coordinator.complete_task(
-        task.task_id, node.node_id, "cluster-1", {"output": "done"}
+    # 执行批量上传
+    result = uploader.upload_batch()
+
+    assert result["success"] is True
+    assert result["uploaded"] == 5
+    assert uploader.get_pending_count() == 0
+
+def test_sync_from_cloud(self, mock_connector):
+    """测试从云端同步配置"""
+    manager = ConfigManager(mock_connector, "node-1")
+
+    result = manager.sync_from_cloud()
+    assert result["success"] is True
+    assert manager.get("sync_interval") == 60
+```
+
+### 8. IoTGateway 测试
+
+**文件**: `tests/test_iot_gateway.py`
+
+#### 测试用例列表
+
+| 测试用例 | 描述 | 预期结果 |
+|---------|------|---------|
+| test_device_creation | 测试设备创建 | 属性正确 |
+| test_update_status | 测试状态更新 | 状态正确 |
+| test_is_alive | 测试存活检查 | 检查正确 |
+| test_to_dict | 测试字典转换 | 转换正确 |
+| test_reading_creation | 测试读数创建 | 属性正确 |
+| test_register_device | 测试设备注册 | 注册成功 |
+| test_register_duplicate | 测试重复注册 | 注册失败 |
+| test_unregister_device | 测试设备注销 | 注销成功 |
+| test_get_device | 测试获取设备 | 获取成功 |
+| test_get_devices_by_type | 测试按类型获取 | 获取成功 |
+| test_get_online_devices | 测试获取在线设备 | 获取成功 |
+| test_heartbeat | 测试心跳 | 心跳成功 |
+| test_check_device_health | 测试健康检查 | 检查正确 |
+| test_stats | 测试统计信息 | 统计正确 |
+| test_add_reading | 测试添加读数 | 添加成功 |
+| test_get_recent | 测试获取最近数据 | 获取成功 |
+| test_max_size | 测试最大容量 | 限制正确 |
+| test_clear | 测试清空缓冲区 | 清空成功 |
+| test_add_rule | 测试添加规则 | 添加成功 |
+| test_check_triggers_alert | 测试触发告警 | 告警触发 |
+| test_no_alert_within_threshold | 测试阈值内不触发 | 无告警 |
+| test_alert_callback | 测试告警回调 | 回调触发 |
+| test_acknowledge_alert | 测试确认告警 | 确认成功 |
+| test_get_alerts_by_device | 测试按设备获取告警 | 获取成功 |
+| test_calculate_stats | 测试统计计算 | 计算正确 |
+| test_detect_trend_increasing | 测试上升趋势 | 趋势正确 |
+| test_detect_trend_stable | 测试稳定趋势 | 趋势正确 |
+| test_detect_anomalies | 测试异常检测 | 检测正确 |
+| test_gateway_creation | 测试网关创建 | 创建成功 |
+| test_register_device | 测试设备注册 | 注册成功 |
+| test_start_stop | 测试启动停止 | 状态正确 |
+| test_receive_data | 测试接收数据 | 接收成功 |
+| test_receive_data_triggers_alert | 测试数据触发告警 | 告警触发 |
+| test_data_callback | 测试数据回调 | 回调触发 |
+| test_get_device_summary | 测试设备摘要 | 摘要正确 |
+| test_gateway_stats | 测试网关统计 | 统计正确 |
+| test_device_offline_after_timeout | 测试超时离线 | 离线正确 |
+
+#### 关键测试代码
+
+```python
+def test_receive_data_triggers_alert(self, sample_device):
+    """测试数据接收触发告警"""
+    gateway = IoTGateway()
+    gateway.register_device(sample_device)
+    gateway.start()
+
+    # 添加告警规则
+    gateway.add_alert_rule(
+        rule_id="r1",
+        data_type=DataType.TEMPERATURE,
+        condition="gt",
+        threshold=30.0,
+        level=AlertLevel.WARNING,
     )
 
-    assert len(callback_results) == 1
-    assert callback_results[0].success is True
+    # 高温数据
+    reading = SensorReading(
+        reading_id="r-1",
+        device_id="device-1",
+        data_type=DataType.TEMPERATURE,
+        value=35.0,
+        unit="°C",
+    )
+
+    result = gateway.receive_data(reading)
+    assert result["success"] is True
+    assert result["alert"] is not None
+
+def test_detect_anomalies(self):
+    """测试异常检测"""
+    analyzer = RealtimeAnalyzer()
+
+    # 正常数据 + 异常值
+    readings = [
+        SensorReading(f"r-{i}", "device-1", DataType.TEMPERATURE, 25.0, "°C")
+        for i in range(9)
+    ]
+    readings.append(
+        SensorReading("r-anomaly", "device-1", DataType.TEMPERATURE, 100.0, "°C")
+    )
+
+    anomalies = analyzer.detect_anomalies(readings)
+    assert len(anomalies) == 1
+    assert anomalies[0].value == 100.0
 ```
 
 ## 测试结果
@@ -366,82 +498,25 @@ def test_task_callback(self):
 ```
 ============================= test session starts ==============================
 platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
-collected 63 items
+collected 147 items
 
 tests/test_coordinator.py::TestCoordinator::test_coordinator_creation PASSED
 tests/test_coordinator.py::TestCoordinator::test_add_cluster PASSED
-tests/test_coordinator.py::TestCoordinator::test_add_duplicate_cluster PASSED
-tests/test_coordinator.py::TestCoordinator::test_remove_cluster PASSED
-tests/test_coordinator.py::TestCoordinator::test_remove_cluster_with_load PASSED
-tests/test_coordinator.py::TestCoordinator::test_submit_task_to_specific_cluster PASSED
-tests/test_coordinator.py::TestCoordinator::test_submit_task_auto_select_cluster PASSED
-tests/test_coordinator.py::TestCoordinator::test_submit_task_no_cluster PASSED
-tests/test_coordinator.py::TestCoordinator::test_submit_tasks_batch PASSED
-tests/test_coordinator.py::TestCoordinator::test_complete_task PASSED
-tests/test_coordinator.py::TestCoordinator::test_task_callback PASSED
-tests/test_coordinator.py::TestCoordinator::test_get_task_result PASSED
-tests/test_coordinator.py::TestCoordinator::test_system_stats PASSED
-tests/test_coordinator.py::TestCoordinator::test_health_check PASSED
-tests/test_coordinator.py::TestCoordinator::test_coordinator_repr PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_cluster_creation PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_add_node PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_add_duplicate_node PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_remove_node PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_remove_node_with_active_tasks PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_submit_task PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_submit_task_no_nodes PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_submit_tasks_batch PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_complete_task PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_complete_task_wrong_node PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_cluster_stats PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_health_check PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_health_check_with_offline_node PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_active_nodes PASSED
-tests/test_edge_cluster.py::TestEdgeCluster::test_cluster_repr PASSED
-tests/test_edge_node.py::TestEdgeNode::test_node_creation PASSED
-tests/test_edge_node.py::TestEdgeNode::test_node_with_custom_id PASSED
-tests/test_edge_node.py::TestEdgeNode::test_node_types PASSED
-tests/test_edge_node.py::TestEdgeNode::test_submit_task PASSED
-tests/test_edge_node.py::TestEdgeNode::test_submit_task_when_full PASSED
-tests/test_edge_node.py::TestEdgeNode::test_complete_task PASSED
-tests/test_edge_node.py::TestEdgeNode::test_fail_task PASSED
-tests/test_edge_node.py::TestEdgeNode::test_node_status_updates PASSED
-tests/test_edge_node.py::TestEdgeNode::test_heartbeat PASSED
-tests/test_edge_node.py::TestEdgeNode::test_node_stats PASSED
-tests/test_edge_node.py::TestEdgeNode::test_node_repr PASSED
-tests/test_scheduler.py::TestRoundRobinScheduler::test_basic_scheduling PASSED
-tests/test_scheduler.py::TestRoundRobinScheduler::test_schedule_batch PASSED
-tests/test_scheduler.py::TestRoundRobinScheduler::test_no_available_nodes PASSED
-tests/test_scheduler.py::TestLeastLoadScheduler::test_select_least_loaded PASSED
-tests/test_scheduler.py::TestLeastLoadScheduler::test_equal_load_distribution PASSED
-tests/test_scheduler.py::TestWeightedScheduler::test_capacity_based_scheduling PASSED
-tests/test_scheduler.py::TestPriorityScheduler::test_high_priority_to_best_node PASSED
-tests/test_scheduler.py::TestLocationAwareScheduler::test_select_nearest_node PASSED
-tests/test_task.py::TestTask::test_task_creation PASSED
-tests/test_task.py::TestTask::test_task_with_custom_id PASSED
-tests/test_task.py::TestTask::test_task_priority PASSED
-tests/test_task.py::TestTask::test_task_priority_ordering PASSED
-tests/test_task.py::TestTask::test_task_lifecycle PASSED
-tests/test_task.py::TestTask::test_task_failure PASSED
-tests/test_task.py::TestTask::test_task_cancellation PASSED
-tests/test_task.py::TestTask::test_cannot_cancel_finished_task PASSED
-tests/test_task.py::TestTask::test_task_timing PASSED
-tests/test_task.py::TestTask::test_task_callback PASSED
-tests/test_task.py::TestTask::test_task_to_dict PASSED
-tests/test_task.py::TestTask::test_task_repr PASSED
-tests/test_task.py::TestTaskResult::test_result_creation PASSED
-tests/test_task.py::TestTaskResult::test_failed_result PASSED
+...
+tests/test_data_processor.py::TestRuleEngine::test_stats PASSED
+tests/test_cloud_sync.py::TestCloudSyncManager::test_config_sync PASSED
+tests/test_iot_gateway.py::TestIoTGateway::test_device_offline_after_timeout PASSED
 
-============================== 63 passed in 0.07s ===============================
+============================== 147 passed in 0.12s ==============================
 ```
 
 ### 测试统计
 
-- **总测试数**: 63
-- **通过**: 63
+- **总测试数**: 147
+- **通过**: 147
 - **失败**: 0
 - **错误**: 0
-- **执行时间**: 0.07s
+- **执行时间**: 0.12s
 
 ## 测试最佳实践
 
@@ -471,6 +546,28 @@ tests/test_task.py::TestTaskResult::test_failed_result PASSED
 - 边界条件测试
 - 错误处理测试
 - 并发场景测试（可选）
+
+### 5. 测试夹具
+
+使用 pytest 夹具管理测试数据：
+
+```python
+@pytest.fixture
+def mock_connector():
+    """创建模拟云端连接器"""
+    connector = MockCloudConnector(endpoint="https://test.cloud.com")
+    connector.connect()
+    return connector
+
+@pytest.fixture
+def sample_device():
+    """创建测试设备"""
+    return IoTDevice(
+        device_id="device-1",
+        name="Temperature Sensor",
+        device_type="sensor",
+    )
+```
 
 ## 持续集成
 

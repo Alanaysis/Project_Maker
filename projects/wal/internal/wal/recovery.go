@@ -10,6 +10,20 @@ import (
 	"strings"
 )
 
+// Storage defines the interface for data storage used by the recovery manager.
+type Storage interface {
+	// Get retrieves a value by key.
+	Get(key string) ([]byte, error)
+	// Put stores a key-value pair.
+	Put(key string, value []byte) error
+	// Delete removes a key-value pair.
+	Delete(key string) error
+	// List returns all keys.
+	List() ([]string, error)
+	// Close closes the storage.
+	Close() error
+}
+
 // RecoveryManager handles crash recovery.
 type RecoveryManager struct {
 	walPath          string

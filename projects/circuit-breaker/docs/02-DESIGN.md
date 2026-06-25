@@ -26,9 +26,14 @@ circuit-breaker/
 │   ├── circuit_breaker.go   # 核心熔断器
 │   ├── states.go            # 状态定义
 │   ├── metrics.go           # 指标统计
-│   └── fallback.go          # 降级策略
+│   ├── fallback.go          # 降级策略
+│   ├── ratelimiter.go       # 限流器
+│   └── retry.go             # 重试机制
 ├── tests/                   # 测试代码
-└── examples/                # 使用示例
+├── examples/                # 使用示例
+│   ├── main.go              # 基础示例
+│   └── api_gateway.go       # API网关示例
+└── docs/                    # 学习文档
 ```
 
 ### 2.2 核心组件
@@ -37,6 +42,8 @@ circuit-breaker/
 2. **State**：状态枚举，定义三种状态
 3. **Metrics**：指标统计，记录请求成功率和失败率
 4. **FallbackStrategy**：降级策略接口，支持多种降级实现
+5. **RateLimiter**：限流器接口，支持固定窗口、滑动窗口、令牌桶
+6. **Retryer**：重试器，支持指数退避和抖动
 
 ## 3. 类设计
 
@@ -108,6 +115,44 @@ type FallbackStrategy interface {
 - CacheFallback：缓存降级
 - StaticFallback：静态降级
 - CompositeFallback：组合降级
+
+### 3.5 RateLimiter
+
+```go
+type RateLimiter interface {
+    Allow() bool
+    AllowN(n int) bool
+    GetAvailable() int64
+}
+```
+
+**实现：**
+- FixedWindowLimiter：固定窗口限流
+- SlidingWindowLimiter：滑动窗口限流
+- TokenBucketLimiter：令牌桶限流
+
+### 3.6 Retryer
+
+```go
+type Retryer struct {
+    config RetryConfig
+}
+
+type RetryConfig struct {
+    MaxRetries      int
+    InitialInterval time.Duration
+    MaxInterval     time.Duration
+    Multiplier      float64
+    Jitter          bool
+    RetryableFunc   func(error) bool
+}
+```
+
+**特性：**
+- 指数退避：间隔按倍数递增
+- 抖动：添加随机偏移避免惊群
+- 可重试判断：自定义错误是否可重试
+- 组合熔断器：RetryableCircuitBreaker
 
 ## 4. 配置设计
 

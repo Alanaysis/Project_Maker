@@ -88,10 +88,7 @@ func transactionExample(tmpDir string) {
 	storageDir := filepath.Join(tmpDir, "storage")
 
 	// Create storage
-	store, err := storage.NewMemStorage()
-	if err != nil {
-		log.Fatalf("Failed to create storage: %v", err)
-	}
+	store := storage.NewMemStorage()
 	defer store.Close()
 
 	// Create WAL writer

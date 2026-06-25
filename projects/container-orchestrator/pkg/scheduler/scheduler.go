@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"errors"
+	"math/rand"
 	"sort"
 	"sync"
 
@@ -20,6 +21,9 @@ const (
 	StrategyBinPacking   SchedulerStrategy = "bin_packing"
 	StrategySpread       SchedulerStrategy = "spread"
 	StrategyRoundRobin   SchedulerStrategy = "round_robin"
+	StrategyRandom       SchedulerStrategy = "random"
+	StrategyResourceAware SchedulerStrategy = "resource_aware"
+	StrategyAffinity     SchedulerStrategy = "affinity"
 )
 
 // Scheduler handles container scheduling
@@ -97,6 +101,12 @@ func (s *Scheduler) Schedule(c *container.Container) (*container.Node, error) {
 		selectedNode = s.spread(availableNodes, c)
 	case StrategyRoundRobin:
 		selectedNode = s.roundRobin(availableNodes)
+	case StrategyRandom:
+		selectedNode = s.randomSelect(availableNodes)
+	case StrategyResourceAware:
+		selectedNode = s.resourceAware(availableNodes, c)
+	case StrategyAffinity:
+		selectedNode = s.affinity(availableNodes, c)
 	default:
 		selectedNode = s.binPacking(availableNodes, c)
 	}
@@ -201,6 +211,70 @@ func (s *Scheduler) roundRobin(nodes []*container.Node) *container.Node {
 	selected := nodes[s.rrIndex%len(nodes)]
 	s.rrIndex++
 	return selected
+}
+
+// randomSelect selects a node randomly
+func (s *Scheduler) randomSelect(nodes []*container.Node) *container.Node {
+	if len(nodes) == 0 {
+		return nil
+	}
+	return nodes[rand.Intn(len(nodes))]
+}
+
+// resourceAware selects the node with the most available resources relative to the container's needs
+func (s *Scheduler) resourceAware(nodes []*container.Node, c *container.Container) *container.Node {
+	if len(nodes) == 0 {
+		return nil
+	}
+	// Score each node based on resource fit
+	type nodeScore struct {
+		node  *container.Node
+		score float64
+	}
+	scores := make([]nodeScore, 0, len(nodes))
+	for _, node := range nodes {
+		avail := node.AvailableResources()
+		// Score: higher is better - considers how well the container fits
+		cpuRatio := avail.CPU / (c.Resources.CPU + 0.001)
+		memRatio := float64(avail.Memory) / float64(c.Resources.Memory+1)
+		// Prefer nodes where resources are balanced relative to demand
+		score := (cpuRatio + memRatio) / 2.0
+		scores = append(scores, nodeScore{node: node, score: score})
+	}
+	sort.Slice(scores, func(i, j int) bool {
+		return scores[i].score > scores[j].score
+	})
+	return scores[0].node
+}
+
+// affinity selects nodes based on label affinity with the container
+func (s *Scheduler) affinity(nodes []*container.Node, c *container.Container) *container.Node {
+	if len(nodes) == 0 {
+		return nil
+	}
+	// Score nodes based on label matching with container labels
+	type nodeScore struct {
+		node  *container.Node
+		score int
+	}
+	scores := make([]nodeScore, 0, len(nodes))
+	for _, node := range nodes {
+		score := 0
+		for k, v := range c.Labels {
+			if nodeVal, ok := node.Labels[k]; ok && nodeVal == v {
+				score++
+			}
+		}
+		scores = append(scores, nodeScore{node: node, score: score})
+	}
+	sort.Slice(scores, func(i, j int) bool {
+		return scores[i].score > scores[j].score
+	})
+	// If no affinity match, fall back to spread
+	if scores[0].score == 0 {
+		return s.spread(nodes, c)
+	}
+	return scores[0].node
 }
 
 // GetClusterStats returns cluster statistics

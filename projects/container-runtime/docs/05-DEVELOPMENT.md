@@ -85,13 +85,15 @@ sudo make example
 
 ```bash
 # 运行所有测试
-go test ./...
+go test ./tests/ -v
 
 # 或使用 Make
 make test
 
 # 运行特定测试
-go test -v ./tests/container_test.go
+go test ./tests/ -run TestContainerManager -v
+go test ./tests/ -run TestNetworkManager -v
+go test ./tests/ -run TestCgroupManager -v
 ```
 
 ## 项目结构
@@ -100,28 +102,32 @@ go test -v ./tests/container_test.go
 container-runtime/
 ├── cmd/
 │   └── minicontainer/        # CLI 入口
-│       └── main.go           # 主程序
+│       ├── main.go           # 主命令和子命令
+│       ├── exec_linux.go     # Linux execve 实现
+│       └── exec_other.go     # 非 Linux 平台实现
 ├── pkg/
 │   ├── container/            # 容器核心逻辑
-│   │   ├── container.go      # 容器创建和管理
-│   │   ├── namespace.go      # Namespace 隔离
+│   │   ├── container.go      # 容器生命周期管理
+│   │   ├── namespace.go      # Namespace 隔离实现
 │   │   ├── cgroup.go         # Cgroups 资源限制
-│   │   └── helper.go         # 辅助函数
+│   │   └── helper.go         # JSON 辅助函数
 │   ├── image/                # 镜像管理
-│   │   └── image.go          # 镜像操作
+│   │   └── image.go          # 镜像操作（Pull/Load/Get/Delete）
 │   ├── network/              # 网络管理
-│   │   └── network.go        # 网络配置
+│   │   └── network.go        # 网桥和 veth 配置
 │   └── storage/              # 存储管理
-│       └── storage.go        # 存储接口
+│       └── storage.go        # OverlayFS 分层存储
 ├── docs/                     # 项目文档
-│   ├── 01-RESEARCH.md        # 市场调研
+│   ├── 01-RESEARCH.md        # 技术调研
 │   ├── 02-REQUIREMENTS.md    # 需求分析
 │   ├── 03-DESIGN.md          # 技术设计
 │   ├── 04-PRODUCT.md         # 产品思维
 │   └── 05-DEVELOPMENT.md     # 开发手册
 ├── tests/                    # 测试文件
-│   ├── container_test.go     # 容器测试
-│   └── image_test.go         # 镜像测试
+│   ├── container_test.go     # 容器和存储测试
+│   ├── image_test.go         # 镜像管理测试
+│   ├── network_test.go       # 网络管理测试
+│   └── cgroup_test.go        # Cgroup 资源限制测试
 ├── examples/                 # 使用示例
 ├── Makefile                  # 构建脚本
 ├── go.mod                    # Go 模块文件
@@ -135,9 +141,10 @@ container-runtime/
 #### container.go
 
 **核心功能**：
-- 容器生命周期管理
-- 容器状态管理
-- 容器配置管理
+- 容器生命周期管理（Create/Start/Stop/Delete）
+- 容器状态管理（Created/Running/Stopped/Paused/Error）
+- 容器配置持久化（config.json）
+- 从磁盘恢复容器状态
 
 **关键结构体**：
 ```go
@@ -150,6 +157,7 @@ type ContainerConfig struct {
     RootFS     string          // 根文件系统路径
     Namespaces []string        // 启用的命名空间
     Resources  *ResourceLimit  // 资源限制
+    Mounts     []Mount         // 卷挂载
 }
 
 // Container 容器实例
@@ -166,8 +174,13 @@ type Container struct {
 // Create 创建容器
 func (m *ContainerManager) Create(config *ContainerConfig) (*Container, error)
 
-// Start 启动容器
+// Start 启动容器（核心流程）
 func (m *ContainerManager) Start(id string) error
+// 1. 创建 cgroup 并设置资源限制
+// 2. 使用 clone() 创建新进程
+// 3. 子进程进入 "child" 命令分支
+// 4. 父进程将子进程 PID 加入 cgroup
+// 5. 父进程异步等待子进程退出
 
 // Stop 停止容器
 func (m *ContainerManager) Stop(id string) error
@@ -177,8 +190,9 @@ func (m *ContainerManager) Stop(id string) error
 
 **核心功能**：
 - Namespace 创建和管理
-- Mount Namespace 配置
-- 根文件系统切换
+- Mount Namespace 配置（pivot_root）
+- 设备节点创建（/dev/null, /dev/zero 等）
+- 卷挂载支持（bind mount, tmpfs）
 
 **关键技术**：
 ```go
@@ -194,13 +208,35 @@ const (
 // pivot_root 切换根文件系统
 func setupMountNamespace(config *ContainerConfig) error {
     // 1. 重新挂载根文件系统为私有
-    unix.Mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, "")
+    mount("", "/", "", MS_PRIVATE|MS_REC, "")
 
     // 2. 绑定挂载新的根文件系统
-    unix.Mount(newRoot, newRoot, "", unix.MS_BIND|unix.MS_REC, "")
+    mount(newRoot, newRoot, "", MS_BIND|MS_REC, "")
 
-    // 3. 切换根文件系统
-    unix.PivotRoot(newRoot, oldRoot)
+    // 3. 挂载 /proc, /sys, /dev
+    mount("proc", "/proc", "proc", 0, "")
+    mount("tmpfs", "/dev", "tmpfs", MS_NOSUID, "mode=755")
+
+    // 4. 创建设备节点
+    createDevNodes("/dev")
+
+    // 5. 切换根文件系统
+    pivotRoot(newRoot, oldRoot)
+
+    // 6. 卸载旧的根文件系统
+    unmount("/oldroot", MNT_DETACH)
+}
+
+// 卷挂载支持
+func setupVolumeMounts(config *ContainerConfig) error {
+    for _, m := range config.Mounts {
+        switch m.Type {
+        case "bind":
+            mount(m.Source, m.Destination, "", MS_BIND|MS_REC, "")
+        case "tmpfs":
+            mount("tmpfs", m.Destination, "tmpfs", 0, "")
+        }
+    }
 }
 ```
 
@@ -208,8 +244,9 @@ func setupMountNamespace(config *ContainerConfig) error {
 
 **核心功能**：
 - Cgroups v2 管理
-- 资源限制设置
+- 资源限制设置（CPU、内存、I/O、进程数）
 - 资源使用统计
+- 进程添加到 cgroup
 
 **关键技术**：
 ```go
@@ -220,12 +257,19 @@ func setupMountNamespace(config *ContainerConfig) error {
 │   │   ├── cpu.max        # CPU 限制
 │   │   ├── memory.max     # 内存限制
 │   │   ├── pids.max       # 进程数限制
+│   │   ├── io.max         # I/O 限制
 │   │   └── cgroup.procs   # 进程列表
 
 // 设置内存限制
 func (m *CgroupManager) SetMemoryLimit(limit int64) error {
     memoryMaxPath := filepath.Join(m.Path, "memory.max")
     return os.WriteFile(memoryMaxPath, []byte(strconv.FormatInt(limit, 10)), 0644)
+}
+
+// 将进程添加到 cgroup
+func (m *CgroupManager) AddProcess(pid int) error {
+    procsPath := filepath.Join(m.Path, "cgroup.procs")
+    return os.WriteFile(procsPath, []byte(strconv.Itoa(pid)), 0644)
 }
 ```
 
@@ -237,6 +281,7 @@ func (m *CgroupManager) SetMemoryLimit(limit int64) error {
 - 镜像拉取和存储
 - 镜像配置管理
 - 镜像层管理
+- 从本地 tar 包加载镜像
 
 **关键技术**：
 ```go
@@ -256,6 +301,11 @@ type ImageConfig struct {
     Cmd          []string // 默认命令
     Env          []string // 环境变量
 }
+
+// 镜像名称解析
+// "alpine" -> docker.io/library/alpine:latest
+// "nginx:1.21" -> docker.io/library/nginx:1.21
+// "myregistry.com/myapp:v1" -> myregistry.com/myapp:v1
 ```
 
 ### 3. Network 模块
@@ -264,8 +314,10 @@ type ImageConfig struct {
 
 **核心功能**：
 - 网络命名空间配置
-- veth pair 创建
+- veth pair 创建和管理
 - Linux bridge 管理
+- IP 地址池管理
+- 容器网络配置
 
 **关键技术**：
 ```go
@@ -284,6 +336,27 @@ type ImageConfig struct {
     │   172.17.0.2  │ │   172.17.0.3  │
     └───────────────┘ └───────────────┘
         Container 1       Container 2
+
+// IP 地址池管理
+type IPPool struct {
+    Subnet    *net.IPNet
+    Allocated map[string]bool
+}
+
+// 创建容器网络
+func (m *NetworkManager) CreateNetwork(containerID string) (*ContainerNetwork, error) {
+    ip, _ := m.IPPool.Allocate()
+    mac := generateMAC(ip)
+    // ...
+}
+
+// 设置容器网络
+func (m *NetworkManager) SetupContainerNetwork(containerID string, pid int) error {
+    // 1. 创建 veth pair
+    // 2. 将一端放入容器网络命名空间
+    // 3. 配置容器端 IP 和路由
+    // 4. 将另一端连接到网桥
+}
 ```
 
 ### 4. Storage 模块
@@ -292,8 +365,9 @@ type ImageConfig struct {
 
 **核心功能**：
 - 分层存储管理
-- OverlayFS 配置
-- 容器文件系统
+- OverlayFS 挂载和卸载
+- 容器文件系统创建
+- 目录递归复制
 
 **关键技术**：
 ```go
@@ -306,10 +380,69 @@ mount -t overlay overlay \
 ┌─────────────────────────────────────┐
 │         Container Layer (可写层)      │
 ├─────────────────────────────────────┤
-│         Image Layer 2 (只读层)       │
-├─────────────────────────────────────┤
-│         Image Layer 1 (只读层)       │
+│         Image Layer (只读层)         │
 └─────────────────────────────────────┘
+         ↓ OverlayFS 合并 ↓
+┌─────────────────────────────────────┐
+│         Merged View (合并视图)        │
+└─────────────────────────────────────┘
+
+// OverlayFS 系统调用
+func overlayMount(opts, target string) error {
+    syscall.Syscall6(
+        syscall.SYS_MOUNT,
+        uintptr(unsafe.Pointer(sourcePtr)),
+        uintptr(unsafe.Pointer(targetPtr)),
+        uintptr(unsafe.Pointer(fstypePtr)),
+        0,
+        uintptr(unsafe.Pointer(optsPtr)),
+        0,
+    )
+}
+
+// 目录递归复制
+func copyDirectory(src, dst string) error {
+    entries, _ := os.ReadDir(src)
+    for _, entry := range entries {
+        if entry.IsDir() {
+            copyDirectory(srcPath, dstPath)
+        } else {
+            copyFile(srcPath, dstPath)
+        }
+    }
+}
+```
+
+## 容器启动流程详解
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    容器启动流程                               │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Parent Process (minicontainer run)                        │
+│  ├── 1. 创建 cgroup 并设置资源限制                          │
+│  ├── 2. 使用 clone() 创建新进程                             │
+│  │      Cloneflags: CLONE_NEWPID | CLONE_NEWNS | ...       │
+│  ├── 3. 等待子进程启动                                      │
+│  ├── 4. 将子进程 PID 加入 cgroup                            │
+│  └── 5. 异步等待子进程退出                                   │
+│                                                             │
+│  Child Process (/proc/self/exe child --id <id> <cmd>)      │
+│  ├── 1. 加载容器配置 (config.json)                          │
+│  ├── 2. 设置 UTS namespace (hostname)                      │
+│  ├── 3. 设置 Mount namespace:                              │
+│  │      a. 重新挂载根为私有                                 │
+│  │      b. 绑定挂载新根文件系统                              │
+│  │      c. 挂载 /proc, /sys, /dev                          │
+│  │      d. 创建设备节点                                     │
+│  │      e. pivot_root 切换根目录                            │
+│  │      f. 卸载旧根目录                                     │
+│  ├── 4. 处理卷挂载                                         │
+│  ├── 5. 设置环境变量和工作目录                               │
+│  └── 6. execve() 执行用户命令                               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## 调试技巧
@@ -357,16 +490,27 @@ nsenter -t <pid> -p -m -n
 
 ```bash
 # 查看网桥
-brctl show
+ip link show type bridge
 
 # 查看 veth pair
 ip link show type veth
 
 # 查看网络命名空间
-ip netns list
+ls -la /var/run/netns/
 
 # 进入网络命名空间
-ip netns exec <namespace> ip addr
+nsenter -t <pid> -n ip addr
+```
+
+### 6. OverlayFS 调试
+
+```bash
+# 查看挂载信息
+mount | grep overlay
+
+# 查看目录结构
+ls -la /var/lib/minicontainer/merged/<id>/
+ls -la /var/lib/minicontainer/containers/<id>/upper/
 ```
 
 ## 常见问题
@@ -423,7 +567,23 @@ sudo iptables -L -n
 mount --make-rprivate /
 
 # 检查根文件系统
-ls -la /var/lib/minicontainer/rootfs/
+ls -la /var/lib/minicontainer/merged/
+```
+
+### 5. OverlayFS 问题
+
+**问题**：OverlayFS 挂载失败
+
+**解决**：
+```bash
+# 检查内核模块
+lsmod | grep overlay
+
+# 加载模块
+sudo modprobe overlay
+
+# 检查目录权限
+ls -la /var/lib/minicontainer/
 ```
 
 ## 最佳实践
@@ -433,24 +593,28 @@ ls -la /var/lib/minicontainer/rootfs/
 - 遵循 Go 代码规范
 - 使用有意义的变量名
 - 添加清晰的注释
+- 导出函数使用大写开头
 
 ### 2. 错误处理
 
 - 检查所有错误返回
 - 提供有用的错误信息
 - 清理失败的资源
+- 使用 fmt.Errorf 包装错误
 
 ### 3. 测试策略
 
 - 单元测试覆盖核心功能
-- 集成测试验证完整流程
-- 性能测试确保性能要求
+- 使用临时目录避免副作用
+- 测试正常和异常路径
+- 验证边界条件
 
 ### 4. 文档维护
 
 - 及时更新文档
 - 添加使用示例
 - 记录设计决策
+- 保持文档和代码同步
 
 ## 扩展开发
 
@@ -478,37 +642,42 @@ func (c *Container) UseFeature() error {
 }
 ```
 
-### 2. 修改现有功能
+### 2. 添加新的 CLI 命令
 
 ```go
-// 1. 理解现有实现
-func (m *ContainerManager) Start(id string) error {
-    // 现有逻辑
-}
+// 1. 在 main.go 中添加 case
+case "newcommand":
+    newCommand(args)
 
-// 2. 添加新逻辑
-func (m *ContainerManager) Start(id string) error {
-    // 现有逻辑
-
-    // 新增逻辑
-    if err := newFeature(); err != nil {
-        return err
-    }
-
-    // 继续现有逻辑
+// 2. 实现命令函数
+func newCommand(args []string) {
+    // 解析参数
+    // 初始化管理器
+    // 执行操作
 }
 ```
 
-### 3. 调试新功能
+### 3. 添加新的资源限制
 
 ```go
-// 添加调试日志
-log.Printf("New feature: input=%v", input)
+// 1. 在 ResourceLimit 中添加字段
+type ResourceLimit struct {
+    // 现有字段...
+    NewLimit int64 `json:"new_limit"`
+}
 
-// 添加错误检查
-if err != nil {
-    log.Printf("New feature error: %v", err)
-    return err
+// 2. 在 cgroup.go 中添加设置函数
+func (m *CgroupManager) SetNewLimit(limit int64) error {
+    limitPath := filepath.Join(m.Path, "new.limit")
+    return os.WriteFile(limitPath, []byte(strconv.FormatInt(limit, 10)), 0644)
+}
+
+// 3. 在 setupCgroup 中调用
+func setupCgroup(containerID string, resources *ResourceLimit) error {
+    // 现有逻辑...
+    if resources.NewLimit > 0 {
+        mgr.SetNewLimit(resources.NewLimit)
+    }
 }
 ```
 
@@ -519,8 +688,10 @@ if err != nil {
 1. **环境搭建**：从零配置开发环境
 2. **项目结构**：理解代码组织方式
 3. **核心模块**：深入理解各模块实现
-4. **调试技巧**：快速定位和解决问题
-5. **最佳实践**：编写高质量代码
-6. **扩展开发**：添加新功能
+4. **容器启动流程**：理解容器运行的核心机制
+5. **调试技巧**：快速定位和解决问题
+6. **常见问题**：解决开发中的常见问题
+7. **最佳实践**：编写高质量代码
+8. **扩展开发**：添加新功能
 
 通过本手册，开发者可以快速上手项目开发，深入理解容器技术的实现原理。

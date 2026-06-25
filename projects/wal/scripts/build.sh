@@ -55,10 +55,22 @@ test_cover() {
     print_info "Coverage report generated: coverage.out"
 }
 
-# Run the example
+# Run the basic example
 example() {
-    print_info "Running example..."
+    print_info "Running basic example..."
     go run examples/usage.go
+}
+
+# Run the event sourcing example
+example_event_sourcing() {
+    print_info "Running event sourcing example..."
+    go run examples/event_sourcing.go
+}
+
+# Run the audit log example
+example_audit_log() {
+    print_info "Running audit log example..."
+    go run examples/audit_log.go
 }
 
 # Clean build artifacts
@@ -90,14 +102,16 @@ help() {
     echo "Usage: $0 [command]"
     echo ""
     echo "Commands:"
-    echo "  build       Build the WAL server"
-    echo "  test        Run tests"
-    echo "  test-cover  Run tests with coverage"
-    echo "  example     Run the example"
-    echo "  clean       Clean build artifacts"
-    echo "  fmt         Format code"
-    echo "  vet         Vet code"
-    echo "  help        Show this help"
+    echo "  build                  Build the WAL server"
+    echo "  test                   Run tests"
+    echo "  test-cover             Run tests with coverage"
+    echo "  example                Run the basic example"
+    echo "  example-event-sourcing Run the event sourcing example"
+    echo "  example-audit-log      Run the audit log example"
+    echo "  clean                  Clean build artifacts"
+    echo "  fmt                    Format code"
+    echo "  vet                    Vet code"
+    echo "  help                   Show this help"
 }
 
 # Main script
@@ -115,6 +129,12 @@ case "${1:-help}" in
         ;;
     example)
         example
+        ;;
+    example-event-sourcing)
+        example_event_sourcing
+        ;;
+    example-audit-log)
+        example_audit_log
         ;;
     clean)
         clean

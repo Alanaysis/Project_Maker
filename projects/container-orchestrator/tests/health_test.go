@@ -8,7 +8,6 @@ import (
 	"github.com/container-orchestrator/pkg/container"
 	"github.com/container-orchestrator/pkg/health"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewHealthMonitor(t *testing.T) {
@@ -50,9 +49,9 @@ func TestGetAllHealth(t *testing.T) {
 		monitor.AddContainer(c)
 	}
 
-	// Get all health
+	// Get all health - now includes both liveness and readiness results
 	results := monitor.GetAllHealth()
-	assert.Len(t, results, 3)
+	assert.Len(t, results, 6) // 3 liveness + 3 readiness
 }
 
 func TestGetSummary(t *testing.T) {
@@ -65,10 +64,10 @@ func TestGetSummary(t *testing.T) {
 		monitor.AddContainer(c)
 	}
 
-	// Get summary
+	// Get summary - now includes both liveness and readiness results
 	summary := monitor.GetSummary()
-	assert.Equal(t, 3, summary.Total)
-	assert.Equal(t, 3, summary.Unknown)
+	assert.Equal(t, 6, summary.Total) // 3 liveness + 3 readiness
+	assert.Equal(t, 6, summary.Unknown)
 }
 
 func TestHealthCheck(t *testing.T) {
@@ -125,6 +124,100 @@ func TestHTTPHealthChecker(t *testing.T) {
 	result, err = checker.Check(context.Background(), stoppedContainer)
 	assert.NoError(t, err)
 	assert.Equal(t, health.StateUnhealthy, result.State)
+}
+
+func TestLivenessProbe(t *testing.T) {
+	checker := health.NewHTTPHealthChecker(&mockHTTPClient{})
+	monitor := health.NewHealthMonitor(checker)
+
+	// Create running container
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+	c.SetState(container.StateRunning)
+
+	monitor.AddContainer(c)
+
+	// Start monitoring
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	monitor.Start(ctx, 50*time.Millisecond)
+
+	// Wait for health check
+	time.Sleep(200 * time.Millisecond)
+
+	// Get liveness state
+	result, err := monitor.GetLiveness(c.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, health.StateHealthy, result.State)
+	assert.Equal(t, health.ProbeLiveness, result.ProbeType)
+}
+
+func TestReadinessProbe(t *testing.T) {
+	checker := health.NewHTTPHealthChecker(&mockHTTPClient{})
+	monitor := health.NewHealthMonitor(checker)
+
+	// Create running container
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+	c.SetState(container.StateRunning)
+
+	monitor.AddContainer(c)
+
+	// Start monitoring
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	monitor.Start(ctx, 50*time.Millisecond)
+
+	// Wait for health check
+	time.Sleep(200 * time.Millisecond)
+
+	// Get readiness state
+	result, err := monitor.GetReadiness(c.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, health.StateHealthy, result.State)
+	assert.Equal(t, health.ProbeReadiness, result.ProbeType)
+}
+
+func TestReadinessNotReady(t *testing.T) {
+	checker := health.NewHTTPHealthChecker(&mockHTTPClient{})
+	monitor := health.NewHealthMonitor(checker)
+
+	// Create stopped container (not ready)
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+	c.SetState(container.StateStopped)
+
+	monitor.AddContainer(c)
+
+	// Start monitoring
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	monitor.Start(ctx, 50*time.Millisecond)
+
+	// Wait for health check
+	time.Sleep(200 * time.Millisecond)
+
+	// Container should not be ready
+	assert.False(t, monitor.IsReady(c.ID))
+}
+
+func TestIsReady(t *testing.T) {
+	checker := health.NewHTTPHealthChecker(&mockHTTPClient{})
+	monitor := health.NewHealthMonitor(checker)
+
+	// Create running container
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+	c.SetState(container.StateRunning)
+
+	monitor.AddContainer(c)
+
+	// Start monitoring
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	monitor.Start(ctx, 50*time.Millisecond)
+
+	// Wait for health check
+	time.Sleep(200 * time.Millisecond)
+
+	// Container should be ready
+	assert.True(t, monitor.IsReady(c.ID))
 }
 
 // mockHTTPClient implements HTTPClient interface

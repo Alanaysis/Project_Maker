@@ -7,10 +7,12 @@
 - 召回率 (Recall)
 - F1分数
 - 混淆矩阵
+- ROC曲线
+- AUC
 """
 
 import numpy as np
-from typing import Tuple
+from typing import Tuple, List
 
 
 def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[int, int, int, int]:
@@ -152,6 +154,165 @@ def f1_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     if p + r == 0:
         return 0.0
     return 2 * (p * r) / (p + r)
+
+
+def roc_curve(
+    y_true: np.ndarray,
+    y_scores: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    计算ROC曲线
+
+    ROC曲线展示了在不同阈值下，真正例率(TPR)和假正例率(FPR)的关系。
+
+    Parameters
+    ----------
+    y_true : ndarray of shape (n_samples,)
+        真实标签
+    y_scores : ndarray of shape (n_samples,)
+        预测概率或分数
+
+    Returns
+    -------
+    fpr : ndarray
+        假正例率
+    tpr : ndarray
+        真正例率
+    thresholds : ndarray
+        阈值
+    """
+    y_true = np.array(y_true)
+    y_scores = np.array(y_scores)
+
+    # 按分数降序排序
+    desc_score_indices = np.argsort(y_scores)[::-1]
+    y_scores_sorted = y_scores[desc_score_indices]
+    y_true_sorted = y_true[desc_score_indices]
+
+    # 获取不同的阈值
+    distinct_value_indices = np.where(np.diff(y_scores_sorted))[0]
+    threshold_idxs = np.r_[distinct_value_indices, y_true.size - 1]
+
+    # 计算TPR和FPR
+    tps = np.cumsum(y_true_sorted)[threshold_idxs]
+    fps = 1 + threshold_idxs - tps
+
+    # 添加起始点(0, 0)
+    tps = np.r_[0, tps]
+    fps = np.r_[0, fps]
+
+    # 计算TPR和FPR
+    n_pos = np.sum(y_true == 1)
+    n_neg = np.sum(y_true == 0)
+
+    if n_pos == 0 or n_neg == 0:
+        return np.array([0, 1]), np.array([0, 1]), np.array([1, 0])
+
+    fpr = fps / n_neg
+    tpr = tps / n_pos
+    thresholds = y_scores_sorted[threshold_idxs]
+
+    return fpr, tpr, thresholds
+
+
+def auc_score(fpr: np.ndarray, tpr: np.ndarray) -> float:
+    """
+    计算AUC (Area Under the ROC Curve)
+
+    AUC是ROC曲线下的面积，用于衡量分类器的整体性能。
+
+    - AUC = 1.0: 完美分类器
+    - AUC = 0.5: 随机分类器
+    - AUC < 0.5: 比随机分类器差
+
+    Parameters
+    ----------
+    fpr : ndarray
+        假正例率
+    tpr : ndarray
+        真正例率
+
+    Returns
+    -------
+    float
+        AUC分数
+    """
+    # 使用梯形法则计算面积
+    trapz = np.trapezoid if hasattr(np, 'trapezoid') else np.trapz
+    return trapz(tpr, fpr)
+
+
+def precision_recall_curve(
+    y_true: np.ndarray,
+    y_scores: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    计算精确率-召回率曲线
+
+    Parameters
+    ----------
+    y_true : ndarray of shape (n_samples,)
+        真实标签
+    y_scores : ndarray of shape (n_samples,)
+        预测概率或分数
+
+    Returns
+    -------
+    precision : ndarray
+        精确率
+    recall : ndarray
+        召回率
+    thresholds : ndarray
+        阈值
+    """
+    y_true = np.array(y_true)
+    y_scores = np.array(y_scores)
+
+    # 按分数降序排序
+    desc_score_indices = np.argsort(y_scores)[::-1]
+    y_scores_sorted = y_scores[desc_score_indices]
+    y_true_sorted = y_true[desc_score_indices]
+
+    # 获取不同的阈值
+    distinct_value_indices = np.where(np.diff(y_scores_sorted))[0]
+    threshold_idxs = np.r_[distinct_value_indices, y_true.size - 1]
+
+    # 计算精确率和召回率
+    tps = np.cumsum(y_true_sorted)[threshold_idxs]
+    fps = 1 + threshold_idxs - tps
+
+    precision = tps / (tps + fps)
+    recall = tps / np.sum(y_true == 1)
+
+    # 添加起始点
+    precision = np.r_[1, precision]
+    recall = np.r_[0, recall]
+    thresholds = y_scores_sorted[threshold_idxs]
+
+    return precision, recall, thresholds
+
+
+def average_precision_score(y_true: np.ndarray, y_scores: np.ndarray) -> float:
+    """
+    计算平均精确率 (Average Precision)
+
+    Parameters
+    ----------
+    y_true : ndarray of shape (n_samples,)
+        真实标签
+    y_scores : ndarray of shape (n_samples,)
+        预测概率或分数
+
+    Returns
+    -------
+    float
+        平均精确率
+    """
+    precision, recall, _ = precision_recall_curve(y_true, y_scores)
+
+    # 计算面积
+    trapz = np.trapezoid if hasattr(np, 'trapezoid') else np.trapz
+    return trapz(precision, recall)
 
 
 def classification_report(y_true: np.ndarray, y_pred: np.ndarray) -> str:

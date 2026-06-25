@@ -91,6 +91,65 @@ func (d *Discoverer) GetServices(name string) []*registry.Service {
 	return result
 }
 
+// GetServicesByTags returns all healthy instances of a service that match the given tags.
+// All provided tags must match (AND logic).
+func (d *Discoverer) GetServicesByTags(name string, tags map[string]string) []*registry.Service {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	instances, ok := d.services[name]
+	if !ok {
+		return nil
+	}
+
+	result := make([]*registry.Service, 0, len(instances))
+	for _, svc := range instances {
+		if svc.Status != registry.StatusUp {
+			continue
+		}
+		if matchTags(svc, tags) {
+			result = append(result, svc)
+		}
+	}
+	return result
+}
+
+// GetAllServicesByTags returns all healthy services that match the given tags.
+func (d *Discoverer) GetAllServicesByTags(tags map[string]string) map[string][]*registry.Service {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	result := make(map[string][]*registry.Service)
+	for name, instances := range d.services {
+		for _, svc := range instances {
+			if svc.Status != registry.StatusUp {
+				continue
+			}
+			if matchTags(svc, tags) {
+				result[name] = append(result[name], svc)
+			}
+		}
+	}
+	return result
+}
+
+// matchTags checks if a service has all the specified tags in its metadata.
+func matchTags(svc *registry.Service, tags map[string]string) bool {
+	if len(tags) == 0 {
+		return true
+	}
+	if svc.Metadata == nil {
+		return false
+	}
+	for k, v := range tags {
+		sv, ok := svc.Metadata[k]
+		if !ok || sv != v {
+			return false
+		}
+	}
+	return true
+}
+
 // GetAllServices returns all registered services grouped by name.
 func (d *Discoverer) GetAllServices() map[string][]*registry.Service {
 	d.mu.RLock()

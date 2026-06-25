@@ -530,3 +530,146 @@ fallback := NewCacheFallback(5 * time.Minute)
 fallback.SetCache("user:123", userData)
 breaker.SetFallback(fallback)
 ```
+
+## 11. 限流器实现 (ratelimiter.go)
+
+### 11.1 限流器接口
+
+```go
+type RateLimiter interface {
+    Allow() bool
+    AllowN(n int) bool
+    GetAvailable() int64
+}
+```
+
+统一接口设计，三种实现可互换使用。
+
+### 11.2 固定窗口限流器
+
+```go
+type FixedWindowLimiter struct {
+    mu          sync.Mutex
+    config      FixedWindowConfig
+    count       int64
+    windowStart time.Time
+}
+```
+
+**实现要点：**
+- 使用互斥锁保护计数器
+- 窗口到期时重置计数器
+- O(1) 时间复杂度
+
+### 11.3 滑动窗口限流器
+
+```go
+type SlidingWindowLimiter struct {
+    mu       sync.Mutex
+    config   SlidingWindowConfig
+    requests []time.Time
+}
+```
+
+**实现要点：**
+- 记录每个请求的时间戳
+- 每次检查时清理过期记录
+- 精确但内存开销较大
+
+### 11.4 令牌桶限流器
+
+```go
+type TokenBucketLimiter struct {
+    mu         sync.Mutex
+    config     TokenBucketConfig
+    tokens     float64
+    lastRefill time.Time
+}
+```
+
+**实现要点：**
+- 按速率补充令牌：`tokens += elapsed * rate`
+- 限制不超过桶容量：`min(tokens, burst)`
+- 支持突发流量
+
+## 12. 重试机制实现 (retry.go)
+
+### 12.1 重试配置
+
+```go
+type RetryConfig struct {
+    MaxRetries      int              // 最大重试次数
+    InitialInterval time.Duration    // 初始间隔
+    MaxInterval     time.Duration    // 最大间隔
+    Multiplier      float64          // 退避乘数
+    Jitter          bool             // 是否抖动
+    RetryableFunc   func(error) bool // 可重试判断
+}
+```
+
+### 12.2 指数退避算法
+
+```go
+func (r *Retryer) calculateInterval(attempt int) time.Duration {
+    interval := float64(r.config.InitialInterval) *
+        math.Pow(r.config.Multiplier, float64(attempt-1))
+
+    if r.config.Jitter {
+        jitter := rand.Float64() * interval
+        interval = interval/2 + jitter/2
+    }
+
+    duration := time.Duration(interval)
+    if duration > r.config.MaxInterval {
+        duration = r.config.MaxInterval
+    }
+    return duration
+}
+```
+
+### 12.3 带重试的熔断器
+
+```go
+type RetryableCircuitBreaker struct {
+    breaker *CircuitBreaker
+    retryer *Retryer
+}
+```
+
+**执行流程：**
+1. 检查熔断器状态（打开则直接降级）
+2. 使用重试器执行操作
+3. 每次重试都经过熔断器检查
+
+## 13. API 网关示例
+
+### 13.1 服务端点封装
+
+```go
+type ServiceEndpoint struct {
+    Name    string
+    Breaker *CircuitBreaker
+    Limiter RateLimiter
+    Retryer *Retryer
+}
+```
+
+每个服务端点独立配置熔断器、限流器和重试器。
+
+### 13.2 请求处理流程
+
+```
+请求 → 限流检查 → 熔断器检查 → 重试调用 → 响应
+         ↓              ↓            ↓
+       拒绝(429)    降级响应     最终失败
+```
+
+### 13.3 网关路由
+
+```go
+type APIGateway struct {
+    endpoints map[string]*ServiceEndpoint
+}
+```
+
+按服务名路由请求到对应的端点处理器。

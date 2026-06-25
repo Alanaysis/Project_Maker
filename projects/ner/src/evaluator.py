@@ -3,9 +3,10 @@
 ==========
 
 NER 评估指标:
-1. 精确率 (Precision): 预测为实体的结果中，正确比例
-2. 召回率 (Recall): 真实实体中，被正确识别的比例
-3. F1 分数: 精确率和召回率的调和平均
+1. 准确率 (Accuracy): token 级别的预测正确比例
+2. 精确率 (Precision): 预测为实体的结果中，正确比例
+3. 召回率 (Recall): 真实实体中，被正确识别的比例
+4. F1 分数: 精确率和召回率的调和平均
 
 实体级别的评估:
 - 只有当实体的边界和类型都正确时，才算正确
@@ -24,6 +25,7 @@ class Evaluator:
     使用实体级别评估:
     - 将 BIO 标签序列转换为实体
     - 计算每个实体类型的精确率、召回率和 F1
+    - 计算 token 级别的准确率
     """
 
     def __init__(self, tag_vocab):
@@ -43,8 +45,11 @@ class Evaluator:
             pred_tags: 预测标签序列列表
 
         返回:
-            metrics: 包含整体和各实体类型的 P, R, F1
+            metrics: 包含整体和各实体类型的 Accuracy, P, R, F1
         """
+        # 计算 token 级别准确率
+        accuracy = self._compute_accuracy(true_tags, pred_tags)
+
         # 提取实体
         true_entities = self._extract_entities(true_tags)
         pred_entities = self._extract_entities(pred_tags)
@@ -94,6 +99,7 @@ class Evaluator:
                     if (total_precision + total_recall) > 0 else 0.0)
 
         results["overall"] = {
+            "accuracy": accuracy,
             "precision": total_precision,
             "recall": total_recall,
             "f1": total_f1,
@@ -103,6 +109,31 @@ class Evaluator:
         }
 
         return results
+
+    def _compute_accuracy(self, true_tags: List[List[str]],
+                          pred_tags: List[List[str]]) -> float:
+        """
+        计算 token 级别的准确率
+
+        准确率 = 正确预测的 token 数 / 总 token 数
+
+        参数:
+            true_tags: 真实标签序列列表
+            pred_tags: 预测标签序列列表
+
+        返回:
+            accuracy: 准确率
+        """
+        total = 0
+        correct = 0
+
+        for true_seq, pred_seq in zip(true_tags, pred_tags):
+            for true_tag, pred_tag in zip(true_seq, pred_seq):
+                total += 1
+                if true_tag == pred_tag:
+                    correct += 1
+
+        return correct / total if total > 0 else 0.0
 
     def evaluate_from_indices(self, true_indices: List[List[int]],
                               pred_indices: List[List[int]],

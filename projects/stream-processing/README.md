@@ -1,41 +1,69 @@
 # Stream Processing Framework
 
-A minimal stream processing framework implemented in Go. This project demonstrates core concepts of stream processing including event-driven data flow, time-windowed aggregation, operator chaining, and state management.
+A complete stream processing framework implemented in Go. This project demonstrates core concepts of stream processing including event-driven data flow, time-windowed aggregation, operator chaining, state management, data sources, watermarks, and session windows.
 
-## Learning Objectives
+## Features
 
-- Understand stream processing models (dataflow, event-driven)
-- Master windowing strategies (tumbling, sliding)
-- Learn stateful operator design and state management
-- Practice Go concurrency patterns (goroutines, channels, mutexes)
+### Data Sources
+- **File Source**: Read from files with configurable parsing
+- **Socket Source**: TCP/UDP socket streaming
+- **Kafka Source**: Kafka consumer interface with mock implementation
+
+### Operators
+- **Map**: Transform each event's value
+- **Filter**: Keep events matching a predicate
+- **FlatMap**: Split one event into zero or more
+- **KeyBy**: Re-key events for partitioning
+- **ReduceByKey**: Per-key aggregation
+- **WindowedReduce**: Aggregate within time windows
+
+### Windows
+- **Tumbling**: Fixed-size, non-overlapping
+- **Sliding**: Fixed-size, overlapping
+- **Session**: Gap-based, dynamic boundaries
+
+### State Management
+- **KeyedState**: Per-key state with snapshots
+- **WindowState**: Window-scoped state with expiration
+- **CheckpointManager**: Periodic state checkpointing
+
+### Time Semantics
+- **Processing Time**: System clock
+- **Event Time**: Event timestamp
+- **Watermark**: Event-time progress tracking
+- **Late Events**: Configurable handling policies
 
 ## Architecture
 
 ```
-Data Source -> Stream -> [Pipeline: Filter -> Map -> WindowedReduce] -> Output
+Data Source -> Stream -> [Pipeline: KeyBy -> Filter -> Map -> WindowedReduce] -> Output
 ```
 
 ### Core Loop
 
 ```
-Data Flow -> Window Assignment -> Aggregation -> Output
+Data Flow -> Window Assignment -> Watermark Update -> Aggregation -> Output
 ```
 
 ## Project Structure
 
 ```
 stream-processing/
-├── cmd/pipeline/main.go        # Demo application
+├── cmd/pipeline/main.go           # Demo application
 ├── internal/
-│   ├── core/                   # Event, Stream, Window types
-│   ├── window/                 # Tumbling & Sliding window assignment
-│   ├── operator/               # Map, Filter, FlatMap, Reduce, WindowedReduce
-│   ├── state/                  # Key-value state store, Window-scoped state
-│   └── pipeline/               # Pipeline orchestrator
-├── docs/                       # Design docs (01-05)
-├── go.mod
-├── README.md
-└── LEARNING_NOTES.md
+│   ├── core/                      # Event, Stream, TimeSemantics
+│   ├── window/                    # Tumbling, Sliding, Session windows
+│   ├── operator/                  # Map, Filter, FlatMap, KeyBy, Reduce
+│   ├── source/                    # File, Socket, Kafka sources
+│   ├── state/                     # KeyedState, WindowState, Checkpoint
+│   ├── watermark/                 # Watermark tracking
+│   └── pipeline/                  # Pipeline orchestrator
+├── examples/                      # Real-world examples
+│   ├── realtime_stats.go          # Real-time statistics
+│   ├── anomaly_detection.go       # Anomaly detection
+│   └── etl_pipeline.go            # ETL pipeline
+├── docs/                          # Design docs (01-05)
+└── README.md
 ```
 
 ## Quick Start
@@ -44,6 +72,11 @@ stream-processing/
 # Run the demo
 cd projects/stream-processing
 go run cmd/pipeline/main.go
+
+# Run examples
+go run examples/realtime_stats.go
+go run examples/anomaly_detection.go
+go run examples/etl_pipeline.go
 
 # Run all tests
 go test ./...
@@ -75,20 +108,71 @@ type Event struct {
 }
 ```
 
+### Data Sources
+
+```go
+// File source
+src := source.NewFileSource("data.log",
+    source.WithKeyFunc(func(line string, num int) string { return "log" }),
+    source.WithValueFunc(func(line string) interface{} { return parse(line) }),
+)
+stream, err := src.Open()
+
+// Socket source
+src := source.NewSocketSource("tcp", "localhost:9999")
+
+// Kafka source
+consumer := source.NewMockKafkaConsumer(messages)
+src := source.NewKafkaSource(consumer, []string{"topic1"})
+```
+
 ### Operators
 
-| Operator    | Description                          |
-|-------------|--------------------------------------|
-| Map         | Transform each event's value         |
-| Filter      | Keep events matching a predicate     |
-| FlatMap     | Split one event into zero or more    |
-| ReduceByKey | Accumulate values per key            |
-| WindowedReduce | Aggregate within time windows     |
+| Operator       | Description                          |
+|----------------|--------------------------------------|
+| Map            | Transform each event's value         |
+| Filter         | Keep events matching a predicate     |
+| FlatMap        | Split one event into zero or more    |
+| KeyBy          | Re-key events for partitioning       |
+| ReduceByKey    | Accumulate values per key            |
+| WindowedReduce | Aggregate within time windows        |
 
 ### Windows
 
-- **Tumbling**: Fixed-size, non-overlapping (each event in exactly one window)
-- **Sliding**: Fixed-size, overlapping (event may be in multiple windows)
+```go
+// Tumbling: fixed-size, non-overlapping
+tw := window.NewTumblingWindow(5 * time.Second)
+
+// Sliding: fixed-size, overlapping
+sw := window.NewSlidingWindow(10*time.Second, 5*time.Second)
+
+// Session: gap-based, dynamic
+sess := window.NewSessionWindow(30 * time.Second)
+closed := sess.ProcessEvent(event)
+```
+
+### Watermark
+
+```go
+wm := watermark.NewWatermark(5 * time.Second)
+wm.Update(event.Timestamp)
+if wm.IsLate(event.Timestamp) {
+    // Handle late event
+}
+```
+
+### State Management
+
+```go
+// Keyed state
+ks := state.NewKeyedState()
+ks.Put("user1", "name", "Alice")
+
+// Checkpoint
+cm := state.NewCheckpointManager(10*time.Second, 5)
+cm.Register(ks)
+cm.Start()
+```
 
 ### Pipeline
 
@@ -97,17 +181,21 @@ p := pipeline.NewPipeline()
 p.AddOperator(operator.NewFilterOperator(...))
 p.AddOperator(operator.NewMapOperator(...))
 output := p.Execute(input)
+
+// Or parallel
+output := p.ExecuteParallel(input, 4)
 ```
 
-### State Management
+## Examples
 
-```go
-store := state.NewStateStore()
-store.Put("counter", 0)
-store.Update("counter", func(current interface{}) interface{} {
-    return current.(int) + 1
-})
-```
+### Real-time Statistics
+Demonstrates sensor aggregation, sliding window averages, and keyed state tracking.
+
+### Anomaly Detection
+Shows threshold-based, moving average, and Z-score detection methods.
+
+### ETL Pipeline
+Log parsing, data enrichment with lookup tables, and category aggregation.
 
 ## Documentation
 

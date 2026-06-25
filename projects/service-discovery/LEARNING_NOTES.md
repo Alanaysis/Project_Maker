@@ -138,6 +138,45 @@ go r.heartbeat(ctx, svc, leaseID, ttl)
 cancel() // Stop the heartbeat
 ```
 
+### 9. Tag-Based Service Filtering
+
+Services can have metadata tags that enable fine-grained filtering:
+```go
+// Register with tags
+svc := &Service{
+    ID:   "api-v2-1",
+    Name: "api-service",
+    Metadata: map[string]string{
+        "version": "2.0",
+        "env":     "prod",
+        "canary":  "true",
+    },
+}
+
+// Discover by tags (AND logic)
+services := discoverer.GetServicesByTags("api-service", map[string]string{
+    "env": "prod",
+})
+```
+
+**Key Takeaway**: Tag-based filtering enables powerful routing patterns like canary deployments, A/B testing, and environment-specific routing without changing the service discovery infrastructure.
+
+### 10. API Gateway Pattern
+
+An API gateway uses service discovery to route requests:
+```
+Client -> Gateway -> [Discover + Load Balance] -> Backend Service
+```
+
+The gateway:
+1. Receives client request
+2. Discovers healthy backend services
+3. Applies routing rules (tags, version, canary)
+4. Selects an instance via load balancer
+5. Proxies the request
+
+**Key Takeaway**: The gateway pattern centralizes cross-cutting concerns (auth, rate limiting, routing) and uses service discovery for dynamic backend selection.
+
 ## Challenges Faced
 
 ### 1. Lease Expiration in Tests

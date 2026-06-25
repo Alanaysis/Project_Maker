@@ -1,106 +1,133 @@
-# 简易区块链实现
+# Simple Blockchain - 简易区块链实现
 
-从零实现一个简易的区块链，理解区块链核心原理。
+A complete blockchain implementation in Go, featuring Proof of Work consensus, UTXO transaction model, ECDSA wallets, and P2P networking.
 
-## 项目概述
+## Features
 
-本项目是一个用 Go 语言实现的简易区块链系统，包含以下核心功能：
+### Core Blockchain
+- **Block Structure**: Version, prev hash, merkle root, timestamp, difficulty, nonce
+- **Chain Management**: Genesis block, block validation, longest chain rule
+- **Merkle Tree**: Efficient transaction verification
+- **Persistence**: Save/load blockchain to disk
 
-- 区块结构实现
-- 工作量证明（PoW）共识算法
-- 简单的 P2P 网络
-- 命令行钱包
+### Consensus
+- **Proof of Work (PoW)**: SHA-256 based mining
+- **Difficulty Adjustment**: Dynamic difficulty based on block time
+- **Target Calculation**: Leading zero bits requirement
 
-## 学习目标
+### Transactions
+- **UTXO Model**: Unspent Transaction Output tracking
+- **Coinbase Transactions**: Mining rewards
+- **Transaction Verification**: Signature validation
+- **Transaction Pool**: Mempool for pending transactions
 
-- 理解区块链数据结构
-- 掌握共识算法
-- 学会加密哈希
+### Wallet
+- **ECDSA Keys**: P-256 elliptic curve cryptography
+- **Address Generation**: SHA-256 based addresses
+- **Digital Signatures**: Transaction signing and verification
+- **Wallet Persistence**: Save/load wallets to disk
 
-## 技术栈
+### P2P Network
+- **Node Discovery**: Connect to peer nodes
+- **Message Protocol**: Version, Verack, Tx, Block, GetBlocks, Inv
+- **Block Broadcasting**: Propagate new blocks
+- **Transaction Broadcasting**: Propagate new transactions
 
-- 主语言：Go
-- 框架：无
-- 其他：crypto 库
+### Storage
+- **File-based Storage**: Block and transaction persistence
+- **Blockchain Serialization**: Custom binary format
+- **Data Directory Management**: Organized data storage
 
-## 核心循环
-
-```
-交易发起 → 交易验证 → 打包成块 → 共识确认 → 链上存储
-```
-
-## 项目结构
+## Project Structure
 
 ```
 simple-blockchain/
-├── docs/                    # 文档
-│   ├── 01-RESEARCH.md      # 市场调研
-│   ├── 02-ARCHITECTURE.md  # 架构设计
-│   ├── 03-IMPLEMENTATION.md # 实现细节
-│   ├── 04-TESTING.md       # 测试策略
-│   └── 05-DEVELOPMENT.md   # 开发指南
-├── main.go                 # 入口文件
-├── block.go                # 区块结构
-├── blockchain.go           # 区块链管理
-├── transaction.go          # 交易处理
-├── pow.go                  # 工作量证明
-├── wallet.go               # 钱包功能
-├── network.go              # P2P 网络
-├── crypto.go               # 密码学工具
-├── storage.go              # 存储引擎
-├── utils.go                # 工具函数
-├── *_test.go               # 测试文件
-├── go.mod                  # 依赖管理
-├── README.md               # 项目说明
-└── LEARNING_NOTES.md       # 学习笔记
+├── main.go                 # CLI entry point
+├── block.go                # Block structure and operations
+├── blockchain.go           # Chain management
+├── transaction.go          # Transaction processing
+├── mempool.go              # Transaction memory pool
+├── pow.go                  # Proof of Work consensus
+├── wallet.go               # Wallet and key management
+├── network.go              # P2P networking
+├── crypto.go               # Cryptographic utilities
+├── storage.go              # Storage engine
+├── utils.go                # Helper functions
+├── *_test.go               # Unit tests (68 tests)
+├── tests/
+│   └── integration_test.sh # Integration tests
+├── examples/
+│   ├── explorer.go         # Blockchain explorer
+│   └── cryptocurrency.go   # Complete cryptocurrency demo
+├── docs/
+│   ├── 01-RESEARCH.md      # Technology research
+│   ├── 02-ARCHITECTURE.md  # Architecture design
+│   ├── 03-IMPLEMENTATION.md # Implementation details
+│   ├── 04-TESTING.md       # Testing strategy
+│   └── 05-DEVELOPMENT.md   # Development guide
+├── go.mod                  # Go module definition
+├── README.md               # This file
+└── LEARNING_NOTES.md       # Learning notes
 ```
 
-## 快速开始
+## Quick Start
 
-### 环境要求
+### Prerequisites
 
 - Go 1.21+
 - Git
 
-### 安装
+### Installation
 
 ```bash
-# 克隆项目
+# Clone the repository
 git clone <repository-url>
 cd simple-blockchain
 
-# 安装依赖
-go mod tidy
-
-# 编译项目
+# Build the project
 go build -o blockchain .
 ```
 
-### 使用
+### Basic Usage
 
 ```bash
-# 创建钱包
+# Create a wallet
 ./blockchain createwallet
 
-# 查询余额
-./blockchain getbalance -address <address>
+# List wallet addresses
+./blockchain listaddresses
 
-# 发送交易
-./blockchain send -from <from> -to <to> -amount <amount>
-
-# 挖矿
+# Mine a block
 ./blockchain mine
 
-# 打印区块链
+# Check balance
+./blockchain getbalance -address <address>
+
+# Send coins
+./blockchain send -from <from> -to <to> -amount <amount>
+
+# Print the blockchain
 ./blockchain printchain
 
-# 启动节点
+# Start a P2P node
 ./blockchain startnode -port 3000
 ```
 
-## 核心功能
+### Run Examples
 
-### 1. 区块结构
+```bash
+# Blockchain explorer
+go run examples/explorer.go blocks
+go run examples/explorer.go block 0
+go run examples/explorer.go stats
+
+# Cryptocurrency demo
+go run examples/cryptocurrency.go
+```
+
+## Core Concepts
+
+### Block Structure
 
 ```go
 type Block struct {
@@ -108,19 +135,18 @@ type Block struct {
     Transactions []*Transaction
     Hash         [32]byte
 }
-```
 
-### 2. 工作量证明
-
-```go
-type ProofOfWork struct {
-    Block     *Block
-    Target    *big.Int
-    Difficulty uint32
+type BlockHeader struct {
+    Version       int32
+    PrevBlockHash [32]byte
+    MerkleRoot    [32]byte
+    Timestamp     int64
+    Difficulty    uint32
+    Nonce         uint64
 }
 ```
 
-### 3. 交易结构
+### Transaction Model (UTXO)
 
 ```go
 type Transaction struct {
@@ -129,9 +155,36 @@ type Transaction struct {
     Outputs   []*TxOutput
     Timestamp int64
 }
+
+type TxInput struct {
+    TxID      [32]byte
+    OutIndex  int
+    Signature []byte
+    PubKey    []byte
+}
+
+type TxOutput struct {
+    Value      float64
+    PubKeyHash []byte
+}
 ```
 
-### 4. 钱包功能
+### Proof of Work
+
+```go
+type ProofOfWork struct {
+    Block      *Block
+    Target     *big.Int
+    Difficulty uint32
+}
+```
+
+The mining process finds a nonce such that:
+```
+SHA256(block_header + nonce) < target
+```
+
+### Wallet
 
 ```go
 type Wallet struct {
@@ -141,25 +194,193 @@ type Wallet struct {
 }
 ```
 
-## 参考项目
+Address generation:
+1. Generate ECDSA key pair
+2. Hash public key with SHA-256
+3. Take first 20 bytes as address
+
+## Testing
+
+### Run All Tests
+
+```bash
+go test -v ./...
+```
+
+### Run Specific Tests
+
+```bash
+# Test block operations
+go test -run TestBlock ./...
+
+# Test blockchain
+go test -run TestBlockchain ./...
+
+# Test transactions
+go test -run TestTransaction ./...
+
+# Test Proof of Work
+go test -run TestProofOfWork ./...
+
+# Test wallet
+go test -run TestWallet ./...
+```
+
+### Integration Tests
+
+```bash
+bash tests/integration_test.sh
+```
+
+### Test Coverage
+
+```bash
+go test -cover ./...
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      CLI Interface                          │
+├─────────────────────────────────────────────────────────────┤
+│                      Business Logic                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │  Wallet  │  │   Tx     │  │  Block   │  │ Network  │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│                      Core Layer                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │  Crypto  │  │   PoW    │  │ Storage  │  │   P2P    │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│                      Infrastructure                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
+│  │  Config  │  │   Log    │  │  Utils   │                  │
+│  └──────────┘  └──────────┘  └──────────┘                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Data Flow
+
+### Transaction Flow
+```
+User creates transaction
+    ↓
+Wallet signs transaction
+    ↓
+Transaction verified
+    ↓
+Added to mempool
+    ↓
+Broadcast to network
+    ↓
+Miner picks from mempool
+    ↓
+Included in new block
+    ↓
+Block broadcast to network
+    ↓
+Nodes validate and add block
+```
+
+### Mining Flow
+```
+Get pending transactions
+    ↓
+Create block header
+    ↓
+Calculate merkle root
+    ↓
+Set timestamp and difficulty
+    ↓
+Loop: try different nonces
+    ↓
+Find valid hash (meets target)
+    ↓
+Create complete block
+    ↓
+Broadcast block
+```
+
+## Security Features
+
+- **Hash Integrity**: SHA-256 for all hashing
+- **Digital Signatures**: ECDSA for transaction signing
+- **Chain Validation**: Verify entire blockchain integrity
+- **Double-Spend Prevention**: UTXO model prevents spending same coins twice
+- **Proof of Work**: Computational cost prevents spam and attacks
+
+## API Reference
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `createwallet` | Create a new wallet |
+| `listaddresses` | List all wallet addresses |
+| `getbalance -address <addr>` | Get balance of an address |
+| `send -from <addr> -to <addr> -amount <amt>` | Send coins |
+| `mine` | Mine a new block |
+| `printchain` | Print the blockchain |
+| `startnode -port <port>` | Start a P2P node |
+| `reindexutxo` | Reindex UTXO set |
+
+### Explorer Commands
+
+| Command | Description |
+|---------|-------------|
+| `blocks` | List all blocks |
+| `block <height>` | Show block at height |
+| `tx <id>` | Show transaction by ID |
+| `stats` | Show chain statistics |
+| `search <query>` | Search blocks or transactions |
+
+## Development
+
+### Build
+
+```bash
+go build -o blockchain .
+```
+
+### Run Tests
+
+```bash
+go test -v ./...
+```
+
+### Code Quality
+
+```bash
+go vet ./...
+gofmt -w .
+```
+
+## Learning Resources
+
+- [Bitcoin Wiki](https://en.bitcoin.it/wiki/Main_Page)
+- [Mastering Bitcoin](https://github.com/bitcoinbook/bitcoinbook)
+- [Go Documentation](https://go.dev/doc/)
+- [Cryptography Standards](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf)
+
+## References
 
 - [go-ethereum](https://github.com/ethereum/go-ethereum)
 - [bitcoinbook](https://github.com/bitcoinbook/bitcoinbook)
 - [blockchain-tutorial](https://github.com/liuchengxu/blockchain-tutorial)
 
-## 文档
+## Documentation
 
-- [市场调研](docs/01-RESEARCH.md)
-- [架构设计](docs/02-ARCHITECTURE.md)
-- [实现细节](docs/03-IMPLEMENTATION.md)
-- [测试策略](docs/04-TESTING.md)
-- [开发指南](docs/05-DEVELOPMENT.md)
-- [学习笔记](LEARNING_NOTES.md)
+- [Technology Research](docs/01-RESEARCH.md)
+- [Architecture Design](docs/02-ARCHITECTURE.md)
+- [Implementation Details](docs/03-IMPLEMENTATION.md)
+- [Testing Strategy](docs/04-TESTING.md)
+- [Development Guide](docs/05-DEVELOPMENT.md)
+- [Learning Notes](LEARNING_NOTES.md)
 
-## 贡献
-
-欢迎提交 Issue 和 Pull Request。
-
-## 许可证
+## License
 
 MIT License

@@ -13,6 +13,6 @@ pub mod vm;
 pub mod assembler;
 
 pub use error::{VmError, VmResult};
-pub use vm::{Vm, ExecutionContext, VmConfig};
+pub use vm::{Vm, ExecutionContext, VmConfig, LogEntry};
 pub use opcodes::Opcode;
-pub use assembler::Assembler;
+pub use assembler::{Assembler, FunctionSelector};

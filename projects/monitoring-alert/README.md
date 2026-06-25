@@ -1,6 +1,6 @@
 # 监控告警系统
 
-一个学习型的监控告警系统实现，帮助理解监控指标、时序数据存储和告警规则引擎。
+一个完整的监控告警系统实现，支持阈值告警、趋势告警、组合告警，以及 HTTP API 接口。
 
 ## 项目概述
 
@@ -11,17 +11,51 @@
 - 告警规则的评估逻辑
 - 多通道通知的实现
 
+## 核心功能
+
+### 1. 指标收集
+- **系统指标**：CPU/内存/磁盘/网络
+- **自定义指标**：通过 CustomCollector 扩展
+- **采集管理**：CollectorManager 统一管理
+
+### 2. 告警规则
+- **阈值告警**：`cpu_usage > 80`
+- **趋势告警**：检测指标增长/下降趋势
+- **组合告警**：`cpu_usage > 70 AND memory_usage > 80`
+
+### 3. 告警通知
+- **日志通知**：控制台输出
+- **Webhook 通知**：HTTP 回调
+- **邮件通知**：SMTP 发送
+- **Slack 通知**：Slack Webhook
+- **多通道通知**：同时发送到多个渠道
+- **节流通知**：限制通知频率
+
+### 4. 数据存储
+- **时序数据**：内存时序数据库
+- **数据保留**：自动清理过期数据
+- **查询引擎**：简单查询 + 聚合查询
+
+### 5. HTTP API
+- **指标查询**：`GET /api/v1/metrics`
+- **告警管理**：`GET/POST /api/v1/alerts`
+- **规则管理**：`GET/POST /api/v1/alerts/rules`
+- **健康检查**：`GET /api/v1/health`
+
 ## 学习目标
 
 - **理解监控指标**：掌握 Counter、Gauge、Histogram 等指标类型
 - **掌握时序数据**：学习时序数据的存储、查询和聚合
-- **学会告警规则**：理解告警规则的定义、评估和状态管理
+- **学会告警规则**：理解阈值、趋势、组合告警规则的设计
+- **掌握通知机制**：了解多通道通知和节流策略
+- **实践 HTTP API**：学习 RESTful API 设计
 
 ## 技术栈
 
 - **主语言**：Go 1.22+
 - **测试框架**：Go testing + testify
 - **存储**：内存时序数据库
+- **HTTP**：标准库 net/http
 - **通知**：支持日志、Webhook、邮件、Slack 等多种通知方式
 
 ## 项目结构
@@ -30,7 +64,7 @@
 monitoring-alert/
 ├── cmd/
 │   └── server/
-│       └── main.go                    # 服务器入口
+│       └── main.go                    # 服务器入口（集成所有模块）
 ├── configs/
 │   └── config.toml                    # 配置文件
 ├── docs/
@@ -39,7 +73,14 @@ monitoring-alert/
 │   ├── 03-IMPLEMENTATION.md           # 实现细节
 │   ├── 04-TESTING.md                  # 测试策略
 │   └── 05-DEVELOPMENT.md             # 开发日志
+├── examples/
+│   ├── basic/
+│   │   └── main.go                    # 基本监控示例
+│   └── advanced/
+│       └── main.go                    # 高级监控示例（趋势+组合告警）
 ├── internal/
+│   ├── api/
+│   │   └── server.go                  # HTTP API 服务器
 │   ├── model/
 │   │   ├── metric.go                  # 指标模型
 │   │   └── alert.go                   # 告警模型
@@ -48,14 +89,18 @@ monitoring-alert/
 │   ├── storage/
 │   │   └── tsdb.go                    # 时序数据库
 │   ├── alert/
-│   │   └── engine.go                  # 告警规则引擎
+│   │   ├── engine.go                  # 阈值告警引擎
+│   │   ├── trend.go                   # 趋势告警引擎
+│   │   └── composite.go              # 组合告警引擎
 │   └── notifier/
 │       └── notifier.go                # 通知器
 ├── test/
 │   ├── model_test.go                  # 模型测试
 │   ├── collector_test.go              # 采集器测试
 │   ├── storage_test.go                # 存储测试
-│   ├── alert_test.go                  # 告警引擎测试
+│   ├── alert_test.go                  # 阈值告警测试
+│   ├── trend_test.go                  # 趋势告警测试
+│   ├── composite_test.go              # 组合告警测试
 │   └── notifier_test.go              # 通知器测试
 ├── go.mod                             # Go 模块定义
 ├── LEARNING_NOTES.md                  # 学习笔记
@@ -119,7 +164,7 @@ go run cmd/server/main.go
 
 ### 3. 告警规则
 
-告警规则定义了何时触发告警：
+#### 阈值告警
 
 ```
 metric_name operator threshold [for duration]
@@ -130,6 +175,19 @@ metric_name operator threshold [for duration]
 - `memory_usage >= 90 for 5m`：内存使用率持续 5 分钟超过 90% 时触发
 
 支持的操作符：`>`, `>=`, `<`, `<=`, `==`, `!=`
+
+#### 趋势告警
+
+检测指标的增长/下降趋势：
+- **Increase**：增长趋势，适合检测持续增长
+- **Decrease**：下降趋势，适合检测持续下降
+- **Spike**：突增趋势，适合检测异常波动
+
+#### 组合告警
+
+使用 AND/OR 组合多个条件：
+- `cpu_usage > 70 AND memory_usage > 80`：CPU 和内存同时过高
+- `disk_usage > 90 OR memory_usage > 85`：磁盘或内存过高
 
 ### 4. 通知机制
 
@@ -142,7 +200,58 @@ metric_name operator threshold [for duration]
 - **多通道通知**：同时发送到多个渠道
 - **节流通知**：限制通知频率
 
-## API 接口
+## HTTP API 接口
+
+启动系统后，可通过 HTTP API 访问：
+
+### 健康检查
+
+```bash
+curl http://localhost:8080/api/v1/health
+```
+
+### 指标查询
+
+```bash
+# 列出所有指标
+curl http://localhost:8080/api/v1/metrics
+
+# 查询指标
+curl "http://localhost:8080/api/v1/metrics/query?metric=cpu_usage&duration=5m"
+
+# 聚合查询
+curl "http://localhost:8080/api/v1/metrics/aggregate?metric=cpu_usage&duration=1h&aggregation=avg"
+```
+
+### 告警管理
+
+```bash
+# 获取告警列表
+curl http://localhost:8080/api/v1/alerts
+
+# 获取阈值规则
+curl http://localhost:8080/api/v1/alerts/rules
+
+# 添加阈值规则
+curl -X POST http://localhost:8080/api/v1/alerts/rules \
+  -H "Content-Type: application/json" \
+  -d '{"id":"cpu_high","name":"CPU High","expr":"cpu_usage > 80","severity":1}'
+
+# 获取趋势规则
+curl http://localhost:8080/api/v1/alerts/trend-rules
+
+# 获取组合规则
+curl http://localhost:8080/api/v1/alerts/composite-rules
+```
+
+### 采集器管理
+
+```bash
+# 列出采集器
+curl http://localhost:8080/api/v1/collectors
+```
+
+## Go API 接口
 
 ### 指标采集
 
@@ -171,6 +280,36 @@ ts, err := db.Read("cpu_usage", labels, start, end)
 
 // 获取最新值
 value, ok := db.GetLatest("cpu_usage", labels)
+```
+
+### 趋势告警
+
+```go
+// 创建趋势评估器
+trendEval := alert.NewTrendEvaluator(db)
+
+// 添加趋势规则
+rule := alert.NewTrendRule("cpu_spike", "CPU Spike", "cpu_usage",
+    alert.TrendTypeSpike, 50.0, 5*time.Minute, true, model.SeverityWarning)
+trendEval.AddRule(rule)
+
+// 评估规则
+alerts, err := trendEval.Evaluate()
+```
+
+### 组合告警
+
+```go
+// 创建组合评估器
+compositeEval := alert.NewCompositeEvaluator(db)
+
+// 添加组合规则
+rule := alert.NewCompositeRule("cpu_memory_high", "CPU and Memory High",
+    "cpu_usage > 70 AND memory_usage > 80", model.SeverityCritical)
+compositeEval.AddRule(rule)
+
+// 评估规则
+alerts, err := compositeEval.Evaluate()
 ```
 
 ### 告警规则

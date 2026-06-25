@@ -6,6 +6,8 @@
 
 - Go 1.21 or later
 - Redis 6.0+ (for integration tests)
+- ZooKeeper 3.6+ (for ZooKeeper backend)
+- etcd 3.5+ (for etcd backend)
 - Git
 
 ### Clone and Build
@@ -31,6 +33,7 @@ Recommended VS Code extensions:
 - Go (golang.go)
 - Go Test Explorer
 - Redis (for monitoring)
+- ZooKeeper (for monitoring)
 
 ## Project Structure
 
@@ -41,23 +44,30 @@ distributed-lock/
 │       └── main.go              # Demo application
 ├── internal/
 │   ├── lock/
-│   │   ├── lock.go              # Lock interface and Redis lock
-│   │   └── lock_test.go         # Lock tests
-│   ├── redlock/
+│   │   └── lock.go              # Core interfaces
+│   ├── redis/
+│   │   ├── lock.go              # Basic Redis lock
 │   │   ├── redlock.go           # Redlock algorithm
-│   │   └── redlock_test.go      # Redlock tests
-│   └── watchdog/
-│       ├── watchdog.go          # Watchdog (auto-renewal)
-│       └── watchdog_test.go     # Watchdog tests
+│   │   ├── reentrant.go         # Reentrant lock
+│   │   ├── fair.go              # Fair (FIFO) lock
+│   │   ├── rwlock.go            # Read-write lock
+│   │   └── watchdog.go          # Auto-renewal
+│   ├── zookeeper/
+│   │   └── lock.go              # ZooKeeper lock
+│   └── etcd/
+│       └── lock.go              # etcd lock
 ├── pkg/
 │   └── utils/
-│       ├── id.go                # UUID generation
-│       └── id_test.go           # Utils tests
+│       └── id.go                # ID generation
 ├── tests/
-│   ├── lock_test.go             # Integration tests
-│   └── redlock_test.go          # Redlock integration tests
+│   ├── lock_test.go             # Lock tests
+│   ├── redlock_test.go          # Redlock tests
+│   └── watchdog_test.go         # Watchdog tests
 ├── examples/
-│   └── example_test.go          # Usage examples
+│   ├── task_scheduler.go        # Task scheduling
+│   ├── inventory.go             # Inventory management
+│   ├── ratelimiter.go           # Rate limiter
+│   └── main.go                  # Usage examples
 ├── docs/                        # Documentation
 ├── go.mod
 ├── go.sum
@@ -69,10 +79,12 @@ distributed-lock/
 ### 1. Make Changes
 
 Edit the relevant files:
-- `internal/lock/`: Single-node Redis lock
-- `internal/redlock/`: Redlock algorithm
-- `internal/watchdog/`: Lock renewal
+- `internal/lock/`: Core interfaces
+- `internal/redis/`: Redis implementations
+- `internal/zookeeper/`: ZooKeeper implementation
+- `internal/etcd/`: etcd implementation
 - `pkg/utils/`: Shared utilities
+- `examples/`: Practical applications
 
 ### 2. Run Tests
 
@@ -81,7 +93,8 @@ Edit the relevant files:
 go test ./...
 
 # Specific package
-go test ./internal/lock -v
+go test ./tests/... -v
+go test ./internal/redis/... -v
 
 # With race detection
 go test ./... -race
@@ -100,7 +113,7 @@ go build -o demo ./cmd/demo
 ./demo
 
 # Run examples
-go test ./examples -v
+go run examples/main.go
 ```
 
 ### 4. Commit Changes
@@ -137,10 +150,10 @@ if err != nil {
 }
 
 // Define sentinel errors
-var ErrLockNotHeld = errors.New("lock not held by this caller")
+var ErrLockNotOwned = errors.New("lock not owned by this caller")
 
 // Wrap errors for context
-return fmt.Errorf("release lock %s: %w", lock.key, err)
+return fmt.Errorf("release lock %s: %w", lock.Key(), err)
 ```
 
 ### Testing
@@ -149,11 +162,12 @@ return fmt.Errorf("release lock %s: %w", lock.key, err)
 func TestSomething(t *testing.T) {
     // Arrange
     s := miniredis.RunT(t)
-    client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-    lock := NewRedisLock(client, "test-key", 10*time.Second)
+    client := goredis.NewClient(&goredis.Options{Addr: s.Addr()})
 
     // Act
-    acquired, err := lock.Acquire(context.Background())
+    distLock := redis.NewRedisLock(client, "test-key",
+        lock.WithTTL(10*time.Second))
+    acquired, err := distLock.Acquire(context.Background())
 
     // Assert
     if err != nil {
@@ -169,11 +183,14 @@ func TestSomething(t *testing.T) {
 
 ### Adding a New Lock Type
 
-1. Implement the `Lock` interface in `internal/lock/`:
+1. Implement the `Lock` interface in `internal/redis/`:
 
 ```go
 type MyLock struct {
-    // fields
+    client     *goredis.Client
+    key        string
+    ownerID    string
+    ttl        time.Duration
 }
 
 func (l *MyLock) Acquire(ctx context.Context) (bool, error) {
@@ -193,27 +210,73 @@ func (l *MyLock) TTL(ctx context.Context) (time.Duration, error) {
 
 ```go
 func TestMyLock_Acquire(t *testing.T) {
-    // test implementation
+    s := miniredis.RunT(t)
+    client := goredis.NewClient(&goredis.Options{Addr: s.Addr()})
+
+    distLock := NewMyLock(client, "test-key",
+        lock.WithTTL(10*time.Second))
+    acquired, _ := distLock.Acquire(context.Background())
+
+    if !acquired {
+        t.Error("expected to acquire lock")
+    }
 }
 ```
 
 3. Update documentation
+
+### Adding a New Backend
+
+1. Create package in `internal/`:
+
+```
+internal/
+└── mybackend/
+    └── lock.go
+```
+
+2. Implement the `Lock` interface:
+
+```go
+package mybackend
+
+import "github.com/example/distributed-lock/internal/lock"
+
+type MyBackendLock struct {
+    // fields
+}
+
+func (l *MyBackendLock) Acquire(ctx context.Context) (bool, error) {
+    // implementation
+}
+
+func (l *MyBackendLock) Release(ctx context.Context) error {
+    // implementation
+}
+
+func (l *MyBackendLock) TTL(ctx context.Context) (time.Duration, error) {
+    // implementation
+}
+```
+
+3. Add tests
+4. Update documentation
 
 ### Adding a New Lua Script
 
 1. Define the script:
 
 ```go
-const myScript = `
--- Lua script logic here
-return redis.call('GET', KEYS[1])
-`
+var myScript = goredis.NewScript(`
+    -- Lua script logic here
+    return redis.call('GET', KEYS[1])
+`)
 ```
 
 2. Use the script:
 
 ```go
-result, err := client.Eval(ctx, myScript, []string{key}, args...).Result()
+result, err := myScript.Run(ctx, client, []string{key}, args...).Result()
 ```
 
 3. Add tests for the script
@@ -224,8 +287,8 @@ result, err := client.Eval(ctx, myScript, []string{key}, args...).Result()
 
 ```go
 func WithRetryStrategy(strategy RetryStrategy) Option {
-    return func(o *Options) {
-        o.retryStrategy = strategy
+    return func(c *Config) {
+        c.RetryStrategy = strategy
     }
 }
 ```
@@ -234,8 +297,8 @@ func WithRetryStrategy(strategy RetryStrategy) Option {
 
 ```go
 type ExponentialBackoff struct {
-    BaseDelay time.Duration
-    MaxDelay  time.Duration
+    BaseDelay  time.Duration
+    MaxDelay   time.Duration
     MaxRetries int
 }
 
@@ -272,12 +335,38 @@ func (l *RedisLock) Acquire(ctx context.Context) (bool, error) {
 redis-cli MONITOR
 
 # Check specific key
-redis-cli GET resource-1
-redis-cli TTL resource-1
-redis-cli TYPE resource-1
+redis-cli GET lock:my-resource
+redis-cli TTL lock:my-resource
+redis-cli TYPE lock:my-resource
 
 # List all keys
 redis-cli KEYS "*lock*"
+```
+
+### ZooKeeper Monitoring
+
+```bash
+# List lock nodes
+zkCli.sh ls /locks
+
+# Check node data
+zkCli.sh get /locks/my-resource/lock-0000000001
+
+# Watch for changes
+zkCli.sh watch /locks/my-resource
+```
+
+### etcd Monitoring
+
+```bash
+# List lock keys
+etcdctl get /lock/ --prefix
+
+# Check lease
+etcdctl lease list
+
+# Watch for changes
+etcdctl watch /lock/
 ```
 
 ### Delve Debugger
@@ -290,7 +379,7 @@ go install github.com/go-delve/delve/cmd/dlv@latest
 dlv debug ./cmd/demo
 
 # Debug tests
-dlv test ./internal/lock
+dlv test ./tests
 
 # Set breakpoint
 (dlv) break lock.go:42
@@ -340,11 +429,11 @@ tail -f /var/log/redis/redis-server.log
 
 ```bash
 # Check lock state
-redis-cli GET resource-1
-redis-cli TTL resource-1
+redis-cli GET lock:my-resource
+redis-cli TTL lock:my-resource
 
 # Manually release (emergency)
-redis-cli DEL resource-1
+redis-cli DEL lock:my-resource
 ```
 
 ### Race Conditions
@@ -392,5 +481,9 @@ func TestSomething(t *testing.T) {
 - [Go Documentation](https://go.dev/doc/)
 - [Effective Go](https://go.dev/doc/effective_go)
 - [go-redis Documentation](https://redis.uptrace.dev/)
+- [go-zookeeper Documentation](https://github.com/go-zookeeper/zk)
+- [etcd Client Documentation](https://etcd.io/docs/latest/dev-guide/)
 - [Distributed locks with Redis](https://redis.io/docs/manual/patterns/distributed-locks/)
 - [Redlock Algorithm](https://redis.io/topics/distlock)
+- [Apache ZooKeeper Recipes](https://zookeeper.apache.org/doc/current/recipes.html)
+- [etcd Concurrency Primitives](https://etcd.io/docs/latest/dev-guide/api_concurrency_reference_v3/)

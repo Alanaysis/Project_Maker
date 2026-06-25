@@ -1,6 +1,6 @@
 # Exactly-Once Semantics
 
-A Go implementation of exactly-once message processing semantics, built for understanding message delivery guarantees, idempotency, and transactional processing.
+A Go implementation of exactly-once message processing semantics, built for understanding message delivery guarantees, idempotency, transactional processing, and consumption acknowledgment.
 
 ## Overview
 
@@ -10,32 +10,42 @@ This project implements the core building blocks for exactly-once message proces
 - **Idempotent Processing**: Ensure the same message produces the same result regardless of delivery count
 - **Transactional Operations**: Group multiple operations into atomic units with rollback support
 - **State Tracking**: Complete audit trail of message lifecycle events
+- **Consumption Acknowledgment**: Manual ack, batch ack, and automatic retry with backoff
+- **Transactional Outbox**: Atomic business logic + message publishing via the outbox pattern
+- **Practical Examples**: Payment system, order system, and message queue demos
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Exactly-Once Pipeline                      │
-│                                                             │
-│  ┌──────────┐    ┌──────────┐    ┌──────────────────────┐  │
-│  │  Message  │───▶│  Dedup   │───▶│     Processor        │  │
-│  │  Input    │    │  Layer   │    │  ┌────────────────┐  │  │
-│  └──────────┘    └──────────┘    │  │   Handler(s)   │  │  │
-│                                  │  └────────────────┘  │  │
-│  ┌──────────┐                    │  ┌────────────────┐  │  │
-│  │  Tracker  │◀──────────────────│  │  Transaction   │  │  │
-│  │  (Audit)  │                   │  │  (Atomic Ops)  │  │  │
-│  └──────────┘                    │  └────────────────┘  │  │
-│                                  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        Exactly-Once Pipeline                              │
+│                                                                          │
+│  ┌──────────┐    ┌──────────┐    ┌──────────────────────┐               │
+│  │  Message  │───▶│  Dedup   │───▶│     Processor        │               │
+│  │  Input    │    │  Layer   │    │  ┌────────────────┐  │               │
+│  └──────────┘    └──────────┘    │  │   Handler(s)   │  │               │
+│                                  │  └────────────────┘  │               │
+│  ┌──────────┐    ┌──────────┐    │  ┌────────────────┐  │               │
+│  │  Tracker  │◀──│ Consume  │◀───│  │  Transaction   │  │               │
+│  │  (Audit)  │   │  (Ack)   │    │  │  (Atomic Ops)  │  │               │
+│  └──────────┘    └──────────┘    │  └────────────────┘  │               │
+│                                  │  ┌────────────────┐  │               │
+│  ┌──────────┐                    │  │    Outbox      │  │               │
+│  │  Outbox  │◀───────────────────│  │ (Transactional)│  │               │
+│  │ (Relay)  │                    │  └────────────────┘  │               │
+│  └──────────┘                    └──────────────────────┘               │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Flow
 
 ```
-Message → Dedup Check → [NEW] → Process → Track → Complete
-                     → [DUP] → Skip (return cached result)
-                     → [IN_PROGRESS] → Wait or Error
+Message --> Dedup Check --> [NEW]       --> Process --> Track --> Ack --> Complete
+                       --> [DUP]       --> Skip (return cached result)
+                       --> [IN_PROGRESS] --> Wait or Error
+
+Failure --> Retry (with backoff) --> [Success] --> Ack
+                               --> [Exhausted] --> Reject (Dead Letter)
 ```
 
 ## Project Structure
@@ -45,6 +55,13 @@ exactly-once/
 ├── cmd/
 │   └── demo/
 │       └── main.go              # Demo program
+├── examples/
+│   ├── payment/
+│   │   └── main.go              # Payment system example
+│   ├── order/
+│   │   └── main.go              # Order system example
+│   └── mq/
+│       └── main.go              # Message queue example
 ├── internal/
 │   ├── message/
 │   │   ├── message.go           # Core message types
@@ -58,9 +75,20 @@ exactly-once/
 │   ├── transaction/
 │   │   ├── transaction.go       # Two-phase commit
 │   │   └── transaction_test.go
+│   ├── consume/
+│   │   ├── consume.go           # Consumption acknowledgment
+│   │   ├── batch.go             # Batch acknowledgment
+│   │   ├── consume_test.go
+│   │   └── batch_test.go
+│   ├── outbox/
+│   │   ├── outbox.go            # Transactional outbox pattern
+│   │   └── outbox_test.go
 │   └── tracker/
 │       ├── tracker.go           # State tracking
 │       └── tracker_test.go
+├── tests/
+│   ├── semantics_test.go        # Exactly-once semantics tests
+│   └── pipeline_test.go         # Full pipeline integration tests
 ├── docs/                        # Documentation
 ├── go.mod                       # Go module file
 ├── README.md                    # This file
@@ -76,11 +104,17 @@ exactly-once/
 ### Build and Run
 
 ```bash
-# Build
-go build -o demo ./cmd/demo
+# Build and run demo
+go run ./cmd/demo
 
-# Run demo
-./demo
+# Run payment example
+go run ./examples/payment
+
+# Run order example
+go run ./examples/order
+
+# Run message queue example
+go run ./examples/mq
 ```
 
 ### Run Tests
@@ -94,9 +128,14 @@ go test ./... -v
 
 # Run tests for a specific package
 go test ./internal/dedup -v
+go test ./internal/consume -v
+go test ./internal/outbox -v
 
 # Run with race detection
 go test ./... -race
+
+# Run with coverage
+go test ./... -cover
 ```
 
 ## Message Delivery Semantics
@@ -134,6 +173,43 @@ Each logical operation has a unique idempotency key. Messages with the same key 
 key := sha256(messageID + payload)
 ```
 
+### Consumption Acknowledgment
+
+Three acknowledgment modes for message consumers:
+
+1. **Manual Ack**: Caller explicitly calls `Ack`/`Nack` after processing
+2. **Batch Ack**: Multiple messages are acknowledged together atomically
+3. **Auto-retry**: Failed messages are automatically retried with exponential backoff
+
+```go
+// Manual acknowledgment
+consumer := consume.New(handler)
+msg := message.New("msg-001", []byte("data"))
+consumer.Process(msg) // auto-acks on success, retries on failure
+
+// Batch acknowledgment
+batch := consume.NewBatchConsumer(handler, consume.WithBatchSize(10))
+batch.Receive(msg1)
+batch.Receive(msg2)
+batch.ProcessBatch() // acks entire batch
+```
+
+### Transactional Outbox
+
+The outbox pattern ensures atomic business logic + message publishing:
+
+1. BEGIN transaction
+2. Execute business logic (e.g., update order)
+3. Write message to outbox (same transaction)
+4. COMMIT transaction
+5. Relay publishes outbox entries to message broker
+
+```go
+outbox := outbox.New(outbox.WithPublisher(publishFunc))
+outbox.Save("entry-001", "orders", msg, "txn-001")
+outbox.Publish("entry-001") // or outbox.PublishPending()
+```
+
 ### Two-Phase Commit
 
 Transactions use two phases:
@@ -148,49 +224,41 @@ Before processing any message:
 3. If seen and in progress: wait or error
 4. If not seen: process the message
 
-## Example Usage
+## Practical Examples
 
-```go
-// Create processor
-p := processor.New()
+### Payment System (`examples/payment`)
 
-// Register idempotent handler
-p.Register("transfer", func(msg *message.Message) ([]byte, error) {
-    // This handler MUST be idempotent
-    return performTransfer(msg.Payload)
-})
+Demonstrates:
+- Idempotent payment processing (same order charged only once)
+- Transactional balance updates with rollback
+- Outbox pattern for payment events
 
-// Process message (guaranteed exactly-once)
-msg := message.New("msg-001", []byte(`{"from":"A","to":"B","amount":100}`))
-err := p.Process(msg, "transfer")
+### Order System (`examples/order`)
 
-// Even if the same message is delivered again, it won't be processed twice
-msg2 := message.New("msg-002", []byte(`{"from":"A","to":"B","amount":100}`))
-msg2.IdempotencyKey = msg.IdempotencyKey // Same logical operation
-p.Process(msg2, "transfer") // Detected as duplicate, skipped
-```
+Demonstrates:
+- Idempotent order creation
+- Atomic inventory reservation + order creation
+- Batch message processing
+- Dead letter queue for failed messages
 
-## Key Concepts
+### Message Queue (`examples/mq`)
 
-### Exactly-Once Semantics
+Demonstrates:
+- Producer with idempotency keys
+- Consumer with manual acknowledgment
+- Batch message processing
+- Transactional outbox for reliable publishing
 
-Exactly-once semantics means that a message is processed exactly one time, producing the same result as if it were processed a single time -- even in the presence of network failures, retries, and crashes.
+## Key Concepts Summary
 
-### Idempotency
-
-An operation is idempotent if applying it multiple times has the same effect as applying it once. Examples:
-- `SET x = 5` (idempotent)
-- `x = x + 1` (not idempotent)
-
-### Deduplication
-
-Before processing a message, check if an equivalent operation has already been processed. If so, return the cached result instead of re-processing.
-
-### Two-Phase Commit
-
-A protocol for atomic transactions:
-1. **Prepare**: Execute all operations
-2. **Commit/Rollback**: If all succeed, commit. If any fail, rollback.
+| Concept | Purpose | Implementation |
+|---------|---------|----------------|
+| Idempotency Key | Identify "same operation" | SHA-256 of ID + payload |
+| Deduplication | Skip already-processed messages | In-memory map with TTL |
+| Transaction | Atomic multi-step operations | Two-phase commit |
+| Outbox | Atomic DB + message publish | Outbox table + relay |
+| Ack/Nack | Consumer confirmation | Manual + batch + auto-retry |
+| Tracker | Audit trail | Event log per message |
 
 ## Learning Resources
 
@@ -198,6 +266,7 @@ A protocol for atomic transactions:
 - [Two Generals Problem](https://en.wikipedia.org/wiki/Two_Generals%27_Problem)
 - [Idempotency in Distributed Systems](https://blog.danslimmon.com/2019/07/15/do-nothing-scaffolding-the-key-to-idempotency/)
 - [Jepsen: Consistency Models](https://jepsen.io/consistency)
+- [Transactional Outbox Pattern](https://microservices.io/patterns/data/transactional-outbox.html)
 
 ## License
 

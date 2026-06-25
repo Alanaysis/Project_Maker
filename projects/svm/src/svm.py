@@ -16,7 +16,7 @@ SVM (Support Vector Machine) 的核心思想:
 import numpy as np
 from typing import Callable, Optional, Literal
 
-from .kernel import linear_kernel, rbf_kernel, polynomial_kernel, precompute_kernel_matrix
+from .kernel import linear_kernel, rbf_kernel, polynomial_kernel, sigmoid_kernel, precompute_kernel_matrix
 from .smo import SMO
 
 
@@ -46,7 +46,7 @@ class SVM:
 
     def __init__(
         self,
-        kernel: Literal["linear", "rbf", "polynomial"] = "rbf",
+        kernel: Literal["linear", "rbf", "polynomial", "sigmoid"] = "rbf",
         C: float = 1.0,
         gamma: float = 1.0,
         degree: int = 3,
@@ -94,6 +94,8 @@ class SVM:
             return rbf_kernel(self.gamma)
         elif self.kernel_type == "polynomial":
             return polynomial_kernel(self.degree, self.coef0)
+        elif self.kernel_type == "sigmoid":
+            return sigmoid_kernel(self.gamma, self.coef0)
         else:
             raise ValueError(f"不支持的核函数类型: {self.kernel_type}")
 

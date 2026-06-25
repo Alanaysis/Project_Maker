@@ -141,6 +141,66 @@ type StateMachine interface {
 3. 编写测试策略文档
 4. 编写学习笔记
 
+### 阶段八：快照机制 (第8天)
+
+**目标**：实现日志压缩的快照机制
+
+**完成工作**：
+1. 实现快照管理器
+2. 实现快照创建和恢复
+3. 实现快照传输
+4. 编写快照测试
+
+**关键实现**：
+```go
+type SnapshotManager struct {
+    state           *RaftState
+    peers           map[int64]*Peer
+    lastIncludedIdx int64
+    lastIncludedTerm int64
+    data            []byte
+}
+```
+
+### 阶段九：成员变更 (第9天)
+
+**目标**：实现集群成员动态调整
+
+**完成工作**：
+1. 实现成员变更管理器
+2. 实现添加节点
+3. 实现移除节点
+4. 编写成员变更测试
+
+**关键实现**：
+```go
+type MembershipManager struct {
+    state      *RaftState
+    peers      *map[int64]*Peer
+    pendingCh  chan MembershipChange
+}
+```
+
+### 阶段十：客户端交互 (第10天)
+
+**目标**：实现客户端接口
+
+**完成工作**：
+1. 实现客户端管理器
+2. 实现命令提交
+3. 实现线性一致性读
+4. 实现命令转发
+
+**关键实现**：
+```go
+type ClientManager struct {
+    state          *RaftState
+    peers          map[int64]*Peer
+    requestCh      chan ClientRequest
+    pendingRequests map[int64]ClientRequest
+}
+```
+
 ## 技术难点
 
 ### 1. 并发控制
@@ -203,9 +263,10 @@ type StateMachine interface {
 
 ### 1. 功能扩展
 
-- 实现快照机制
-- 实现成员变更
-- 实现日志压缩
+- 实现领导者租约
+- 实现优先级选举
+- 实现只读查询优化
+- 实现批量快照传输
 
 ### 2. 性能优化
 

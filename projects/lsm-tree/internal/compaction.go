@@ -15,15 +15,27 @@ import (
 // This process removes tombstones and obsolete versions of keys,
 // reclaiming disk space and improving read performance.
 //
-// Leveled Compaction Strategy:
+// Two compaction strategies are implemented:
+//
+// 1. Leveled Compaction (default):
 //   - Level 0: SSTables flushed from MemTable (may have overlapping key ranges)
 //   - Level 1+: Non-overlapping SSTables sorted by key range
 //   - When a level is full, its SSTables are merged into the next level
+//
+// 2. Size-Tiered Compaction:
+//   - Groups SSTables of similar size into tiers
+//   - When a tier has enough tables (minThreshold), they are merged
+//   - Better write amplification, worse read amplification
+//   - Suitable for write-heavy workloads
 
 const (
-	maxLevelCount    = 7
-	level0MaxTables  = 4
+	maxLevelCount     = 7
+	level0MaxTables   = 4
 	levelSizeMultiple = 10
+
+	// Size-Tiered Compaction constants
+	stMinThreshold = 4  // minimum number of tables to trigger compaction
+	stMaxThreshold = 32 // maximum number of tables in a tier
 )
 
 // Compactor handles the compaction process.
@@ -277,10 +289,10 @@ func readSSTableEntries(filePath string) ([]*Entry, error) {
 		return nil, err
 	}
 	fileSize := fileInfo.Size()
-	if fileSize < 32 {
+	if fileSize < 40 {
 		return nil, nil
 	}
-	if _, err := f.Seek(fileSize-32, io.SeekStart); err != nil {
+	if _, err := f.Seek(fileSize-40, io.SeekStart); err != nil {
 		return nil, err
 	}
 	var indexBlockOffset uint64
@@ -317,6 +329,9 @@ func writeSSTableEntries(filePath string, entries []*Entry, level int) error {
 
 	var dataOffset uint64
 	var indexEntries []*indexEntry
+
+	// Build Bloom filter
+	bloom := OptimalBloomFilter(uint64(len(entries)), 0.01)
 
 	for i, entry := range entries {
 		// Write key
@@ -360,6 +375,11 @@ func writeSSTableEntries(filePath string, entries []*Entry, level int) error {
 			return err
 		}
 
+		// Add to Bloom filter
+		if !entry.Deleted {
+			bloom.Add(entry.Key)
+		}
+
 		if i%indexInterval == 0 {
 			indexEntries = append(indexEntries, &indexEntry{
 				key:    entry.Key,
@@ -369,7 +389,7 @@ func writeSSTableEntries(filePath string, entries []*Entry, level int) error {
 		dataOffset += 4 + uint64(len(entry.Key)) + 4 + uint64(len(entry.Value)) + 1 + 4
 	}
 
-	// Index block offset
+	// Index block
 	indexBlockOffset := dataOffset
 	for _, ie := range indexEntries {
 		if err := binary.Write(writer, binary.LittleEndian, uint32(len(ie.key))); err != nil {
@@ -386,8 +406,29 @@ func writeSSTableEntries(filePath string, entries []*Entry, level int) error {
 		}
 	}
 
-	// Footer
+	// Bloom filter
+	bloomData := bloom.MarshalBinary()
+	bloomOffset := indexBlockOffset
+	for _, ie := range indexEntries {
+		bloomOffset += 4 + uint64(len(ie.key)) + 8
+	}
+	bloomLen := uint64(len(bloomData))
+
+	if _, err := writer.Write(bloomData); err != nil {
+		f.Close()
+		return err
+	}
+
+	// Footer (40 bytes)
 	if err := binary.Write(writer, binary.LittleEndian, indexBlockOffset); err != nil {
+		f.Close()
+		return err
+	}
+	if err := binary.Write(writer, binary.LittleEndian, bloomOffset); err != nil {
+		f.Close()
+		return err
+	}
+	if err := binary.Write(writer, binary.LittleEndian, bloomLen); err != nil {
 		f.Close()
 		return err
 	}
@@ -395,11 +436,11 @@ func writeSSTableEntries(filePath string, entries []*Entry, level int) error {
 		f.Close()
 		return err
 	}
-	if err := binary.Write(writer, binary.LittleEndian, uint64(len(indexEntries))); err != nil {
+	if err := binary.Write(writer, binary.LittleEndian, uint32(len(indexEntries))); err != nil {
 		f.Close()
 		return err
 	}
-	if err := binary.Write(writer, binary.LittleEndian, uint64(level)); err != nil {
+	if err := binary.Write(writer, binary.LittleEndian, uint32(level)); err != nil {
 		f.Close()
 		return err
 	}
@@ -413,4 +454,208 @@ func writeSSTableEntries(filePath string, entries []*Entry, level int) error {
 		return err
 	}
 	return f.Close()
+}
+
+// SizeTieredCompactionStrategy implements Size-Tiered Compaction.
+//
+// Size-Tiered groups SSTables of similar size into "tiers".
+// When a tier accumulates enough tables (minThreshold), they are merged
+// into a single larger table in the next tier.
+//
+// Advantages:
+//   - Lower write amplification than Leveled
+//   - Good for write-heavy workloads
+//
+// Disadvantages:
+//   - Higher read amplification (more SSTables to check)
+//   - Temporary space overhead during compaction (up to 2x)
+type SizeTieredCompactionStrategy struct {
+	dataDir       string
+	minThreshold  int
+	maxThreshold  int
+	nextID        *int
+}
+
+// NewSizeTieredCompactionStrategy creates a new Size-Tiered compaction strategy.
+func NewSizeTieredCompactionStrategy(dataDir string, nextID *int) *SizeTieredCompactionStrategy {
+	return &SizeTieredCompactionStrategy{
+		dataDir:      dataDir,
+		minThreshold: stMinThreshold,
+		maxThreshold: stMaxThreshold,
+		nextID:       nextID,
+	}
+}
+
+// tierInfo groups SSTables by approximate size into tiers.
+type tierInfo struct {
+	sizeRange [2]uint64 // [minSize, maxSize] for this tier
+	tables    []*SSTable
+}
+
+// Compact performs Size-Tiered compaction on the given SSTables.
+//
+// Algorithm:
+// 1. Group SSTables into tiers by size (each tier covers a size range)
+// 2. If a tier has >= minThreshold tables, merge them all
+// 3. The merged table goes to the next tier
+func (st *SizeTieredCompactionStrategy) Compact(sstables []*SSTable) ([]*SSTable, error) {
+	if len(sstables) == 0 {
+		return sstables, nil
+	}
+
+	// Group tables by size into tiers
+	tiers := st.groupBySize(sstables)
+
+	var result []*SSTable
+	var tablesToCompact []*SSTable
+
+	for _, tier := range tiers {
+		if len(tier.tables) >= st.minThreshold {
+			// This tier has enough tables to compact
+			tablesToCompact = append(tablesToCompact, tier.tables...)
+		} else {
+			// Keep tables as-is
+			result = append(result, tier.tables...)
+		}
+	}
+
+	if len(tablesToCompact) == 0 {
+		return result, nil
+	}
+
+	// Merge all tables to compact
+	merged, err := st.mergeTables(tablesToCompact)
+	if err != nil {
+		return nil, err
+	}
+
+	result = append(result, merged...)
+	return result, nil
+}
+
+// groupBySize groups SSTables into tiers based on their file size.
+// Each tier covers a doubling size range: [1KB, 2KB), [2KB, 4KB), etc.
+func (st *SizeTieredCompactionStrategy) groupBySize(sstables []*SSTable) []*tierInfo {
+	// Calculate file sizes
+	type tableInfo struct {
+		table *SSTable
+		size  uint64
+	}
+
+	tables := make([]tableInfo, 0, len(sstables))
+	for _, table := range sstables {
+		info, err := os.Stat(table.FilePath())
+		if err != nil {
+			continue
+		}
+		tables = append(tables, tableInfo{
+			table: table,
+			size:  uint64(info.Size()),
+		})
+	}
+
+	// Sort by size
+	sort.Slice(tables, func(i, j int) bool {
+		return tables[i].size < tables[j].size
+	})
+
+	// Group into tiers
+	var tiers []*tierInfo
+	var currentTier *tierInfo
+
+	for _, ti := range tables {
+		if currentTier == nil || ti.size > currentTier.sizeRange[1] {
+			// Start a new tier
+			tierSize := ti.size
+			if tierSize == 0 {
+				tierSize = 1
+			}
+			// Find the power of 2 range
+			power := uint64(1)
+			for power <= tierSize {
+				power *= 2
+			}
+			currentTier = &tierInfo{
+				sizeRange: [2]uint64{power / 2, power - 1},
+			}
+			tiers = append(tiers, currentTier)
+		}
+		currentTier.tables = append(currentTier.tables, ti.table)
+	}
+
+	return tiers
+}
+
+// mergeTables merges multiple SSTables into fewer tables.
+func (st *SizeTieredCompactionStrategy) mergeTables(tables []*SSTable) ([]*SSTable, error) {
+	if len(tables) == 0 {
+		return nil, nil
+	}
+
+	// Collect all entries
+	merged := make(map[string]*Entry)
+	for _, table := range tables {
+		iter, err := table.NewIterator()
+		if err != nil {
+			return nil, fmt.Errorf("size-tiered compaction: iterator error: %w", err)
+		}
+		for iter.Valid() {
+			key := string(iter.Key())
+			// Last writer wins (newer tables come later in the slice)
+			merged[key] = &Entry{
+				Key:     iter.Key(),
+				Value:   iter.Value(),
+				Deleted: iter.IsDeleted(),
+			}
+			iter.Next()
+		}
+	}
+
+	// Sort entries
+	entries := make([]*Entry, 0, len(merged))
+	for _, entry := range merged {
+		entries = append(entries, entry)
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return bytes.Compare(entries[i].Key, entries[j].Key) < 0
+	})
+
+	// Build new SSTable
+	outputPath := fmt.Sprintf("%s/sstable_st_%d.sst", st.dataDir, *st.nextID)
+	*st.nextID++
+
+	builder := NewSSTableBuilder()
+	for _, entry := range entries {
+		builder.Add(entry.Key, entry.Value, entry.Deleted)
+	}
+
+	newTable, err := builder.Build(outputPath, 0) // Size-Tiered uses level 0
+	if err != nil {
+		return nil, fmt.Errorf("size-tiered compaction: build error: %w", err)
+	}
+
+	// Close and remove old tables
+	for _, table := range tables {
+		table.Close()
+		os.Remove(table.FilePath())
+	}
+
+	return []*SSTable{newTable}, nil
+}
+
+// ShouldCompact returns true if the given set of SSTables should be compacted.
+func (st *SizeTieredCompactionStrategy) ShouldCompact(sstables []*SSTable) bool {
+	if len(sstables) < st.minThreshold {
+		return false
+	}
+
+	// Check if we have enough tables in any size tier
+	tiers := st.groupBySize(sstables)
+	for _, tier := range tiers {
+		if len(tier.tables) >= st.minThreshold {
+			return true
+		}
+	}
+
+	return false
 }

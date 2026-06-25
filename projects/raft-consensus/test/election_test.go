@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/raft-consensus/internal/raft"
+	pb "github.com/raft-consensus/internal/pb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -86,7 +87,7 @@ func TestHandleRequestVote(t *testing.T) {
 	em := raft.NewElectionManager(state, peers, config)
 
 	// 测试投票请求
-	req := &raft.RequestVoteRequest{
+	req := &pb.RequestVoteRequest{
 		Term:         1,
 		CandidateId:  2,
 		LastLogIndex: 0,
@@ -98,7 +99,7 @@ func TestHandleRequestVote(t *testing.T) {
 	assert.Equal(t, int64(1), resp.Term)
 
 	// 再次请求应该被拒绝（已经投票）
-	req2 := &raft.RequestVoteRequest{
+	req2 := &pb.RequestVoteRequest{
 		Term:         1,
 		CandidateId:  3,
 		LastLogIndex: 0,
@@ -124,7 +125,7 @@ func TestRequestVoteHigherTerm(t *testing.T) {
 	state.SetCurrentTerm(1)
 
 	// 请求更高任期
-	req := &raft.RequestVoteRequest{
+	req := &pb.RequestVoteRequest{
 		Term:         2,
 		CandidateId:  2,
 		LastLogIndex: 0,
@@ -151,7 +152,7 @@ func TestRequestVoteLowerTerm(t *testing.T) {
 	state.SetCurrentTerm(2)
 
 	// 请求更低任期
-	req := &raft.RequestVoteRequest{
+	req := &pb.RequestVoteRequest{
 		Term:         1,
 		CandidateId:  2,
 		LastLogIndex: 0,

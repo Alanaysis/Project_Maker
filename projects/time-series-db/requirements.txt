@@ -1,0 +1,13 @@
+# Core dependencies
+aiohttp>=3.9.0
+lz4>=4.3.0
+sortedcontainers>=2.4.0
+msgpack>=1.0.0
+
+# Development dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0

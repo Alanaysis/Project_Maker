@@ -1,31 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
 # Binaries
 bin/
 *.exe
 *.exe~
 *.dll
-*.so
 *.dylib
-chat-server
-chat-client
 
 # Database
 data/
 *.db
 *.sqlite
+*.sqlite3
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 
 # Test
+.pytest_cache/
+.coverage
+htmlcov/
 coverage.out
 *.test
+.tox/
+.nox/
 
 # Environment
 .env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
+
+# Uploads
+uploads/
+static/uploads/

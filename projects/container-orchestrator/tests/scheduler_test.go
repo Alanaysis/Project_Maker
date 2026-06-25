@@ -280,3 +280,103 @@ func TestGetContainersByNode(t *testing.T) {
 	assert.Len(t, containers1, 3) // Bin packing packs to first node
 	assert.Len(t, containers2, 0)
 }
+
+func TestRandomStrategy(t *testing.T) {
+	s := scheduler.NewScheduler(scheduler.StrategyRandom)
+
+	// Add nodes with large resources
+	node1 := container.NewNode("node-1", "192.168.1.1", container.Resources{
+		CPU:    50.0,
+		Memory: 100 * 1024 * 1024 * 1024,
+		Disk:   1000 * 1024 * 1024 * 1024,
+	})
+	node2 := container.NewNode("node-2", "192.168.1.2", container.Resources{
+		CPU:    50.0,
+		Memory: 100 * 1024 * 1024 * 1024,
+		Disk:   1000 * 1024 * 1024 * 1024,
+	})
+
+	s.AddNode(node1)
+	s.AddNode(node2)
+
+	// Schedule multiple containers - should distribute randomly
+	scheduled := make(map[string]int)
+	for i := 0; i < 20; i++ {
+		c := container.NewContainer("test", "nginx:latest", container.Resources{
+			CPU:    1.0,
+			Memory: 1 * 1024 * 1024 * 1024,
+			Disk:   10 * 1024 * 1024 * 1024,
+		})
+		node, err := s.Schedule(c)
+		require.NoError(t, err)
+		scheduled[node.ID]++
+	}
+
+	// Both nodes should have some containers (with high probability)
+	assert.True(t, scheduled[node1.ID] > 0, "node1 should have some containers")
+	assert.True(t, scheduled[node2.ID] > 0, "node2 should have some containers")
+}
+
+func TestResourceAwareStrategy(t *testing.T) {
+	s := scheduler.NewScheduler(scheduler.StrategyResourceAware)
+
+	// Add nodes with different resources
+	node1 := container.NewNode("node-1", "192.168.1.1", container.Resources{
+		CPU:    2.0,
+		Memory: 4 * 1024 * 1024 * 1024,
+		Disk:   50 * 1024 * 1024 * 1024,
+	})
+	node2 := container.NewNode("node-2", "192.168.1.2", container.Resources{
+		CPU:    8.0,
+		Memory: 16 * 1024 * 1024 * 1024,
+		Disk:   200 * 1024 * 1024 * 1024,
+	})
+
+	s.AddNode(node1)
+	s.AddNode(node2)
+
+	// Schedule a container - should prefer node2 (more resources)
+	c := container.NewContainer("test", "nginx:latest", container.Resources{
+		CPU:    1.0,
+		Memory: 2 * 1024 * 1024 * 1024,
+		Disk:   10 * 1024 * 1024 * 1024,
+	})
+
+	node, err := s.Schedule(c)
+	require.NoError(t, err)
+	assert.Equal(t, node2.ID, node.ID)
+}
+
+func TestAffinityStrategy(t *testing.T) {
+	s := scheduler.NewScheduler(scheduler.StrategyAffinity)
+
+	// Add nodes with labels
+	node1 := container.NewNode("node-1", "192.168.1.1", container.Resources{
+		CPU:    4.0,
+		Memory: 8 * 1024 * 1024 * 1024,
+		Disk:   100 * 1024 * 1024 * 1024,
+	})
+	node1.Labels = map[string]string{"zone": "us-east-1a", "tier": "frontend"}
+
+	node2 := container.NewNode("node-2", "192.168.1.2", container.Resources{
+		CPU:    4.0,
+		Memory: 8 * 1024 * 1024 * 1024,
+		Disk:   100 * 1024 * 1024 * 1024,
+	})
+	node2.Labels = map[string]string{"zone": "us-east-1b", "tier": "backend"}
+
+	s.AddNode(node1)
+	s.AddNode(node2)
+
+	// Schedule container with matching labels
+	c := container.NewContainer("test", "nginx:latest", container.Resources{
+		CPU:    1.0,
+		Memory: 1024 * 1024 * 1024,
+		Disk:   10 * 1024 * 1024 * 1024,
+	})
+	c.Labels = map[string]string{"zone": "us-east-1a"}
+
+	node, err := s.Schedule(c)
+	require.NoError(t, err)
+	assert.Equal(t, node1.ID, node.ID)
+}

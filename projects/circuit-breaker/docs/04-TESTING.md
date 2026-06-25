@@ -21,7 +21,9 @@
 tests/
 ├── circuit_breaker_test.go  # 熔断器核心测试
 ├── states_test.go          # 状态测试
-└── metrics_test.go         # 指标测试
+├── metrics_test.go         # 指标测试
+├── ratelimiter_test.go     # 限流器测试
+└── retry_test.go           # 重试机制测试
 ```
 
 ## 3. 单元测试
@@ -119,6 +121,59 @@ tests/
    - 设置失败率阈值
    - 发送多个请求
    - 验证失败率达到阈值后触发熔断
+
+### 3.4 限流器测试 (ratelimiter_test.go)
+
+**测试用例：**
+
+1. **TestFixedWindowLimiter_Allow**
+   - 验证固定窗口限流器的基本限流功能
+   - 超过配额后拒绝请求
+
+2. **TestFixedWindowLimiter_WindowReset**
+   - 验证窗口重置后恢复限流
+
+3. **TestSlidingWindowLimiter_SlidingBehavior**
+   - 验证滑动窗口的精确限流行为
+   - 窗口滑过后的请求恢复
+
+4. **TestTokenBucketLimiter_Refill**
+   - 验证令牌桶的自动补充机制
+
+5. **TestTokenBucketLimiter_BurstLimit**
+   - 验证桶容量限制突发流量
+
+6. **TestRateLimiter_Interface**
+   - 验证所有限流器实现 RateLimiter 接口
+
+7. **并发测试**
+   - 多goroutine并发访问限流器
+   - 验证限流器在并发下的正确性
+
+### 3.5 重试机制测试 (retry_test.go)
+
+**测试用例：**
+
+1. **TestRetryer_SuccessOnFirstAttempt**
+   - 验证首次成功时不重试
+
+2. **TestRetryer_SuccessAfterRetries**
+   - 验证失败后重试成功
+
+3. **TestRetryer_MaxRetriesExceeded**
+   - 验证超过最大重试次数后返回错误
+
+4. **TestRetryer_RetryableFunc**
+   - 验证自定义可重试判断函数
+
+5. **TestRetryer_ExponentialBackoff**
+   - 验证指数退避间隔正确递增
+
+6. **TestRetryer_MaxInterval**
+   - 验证最大间隔限制
+
+7. **TestRetryableCircuitBreaker_CircuitOpen**
+   - 验证熔断器打开时直接返回降级结果
 
 ## 4. 测试用例详解
 

@@ -1,0 +1,31 @@
+{
+  "name": "code-editor",
+  "version": "1.0.0",
+  "description": "基于 Canvas 的简单代码编辑器",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "editor",
+    "code-editor",
+    "canvas",
+    "typescript",
+    "syntax-highlighting"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^30.4.1",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

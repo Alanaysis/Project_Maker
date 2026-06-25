@@ -6,7 +6,6 @@ import (
 
 	"github.com/container-orchestrator/pkg/container"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewContainer(t *testing.T) {
@@ -167,4 +166,85 @@ func TestNewService(t *testing.T) {
 	assert.NotNil(t, service.Labels)
 	assert.NotNil(t, service.Selector)
 	assert.Equal(t, container.StrategyRollingUpdate, service.Strategy.Type)
+}
+
+func TestContainerStart(t *testing.T) {
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+
+	// Start from pending state
+	err := c.Start()
+	assert.NoError(t, err)
+	assert.Equal(t, container.StateRunning, c.GetState())
+	assert.True(t, c.IsRunning())
+	assert.NotNil(t, c.StartedAt)
+}
+
+func TestContainerStartFromStopped(t *testing.T) {
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+
+	// Start, stop, then start again
+	c.SetState(container.StateRunning)
+	c.SetState(container.StateStopped)
+
+	err := c.Start()
+	assert.NoError(t, err)
+	assert.Equal(t, container.StateRunning, c.GetState())
+}
+
+func TestContainerStartInvalidState(t *testing.T) {
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+	c.SetState(container.StateRunning)
+
+	// Cannot start a running container
+	err := c.Start()
+	assert.Error(t, err)
+}
+
+func TestContainerStop(t *testing.T) {
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+	c.SetState(container.StateRunning)
+
+	err := c.Stop()
+	assert.NoError(t, err)
+	assert.Equal(t, container.StateStopped, c.GetState())
+	assert.NotNil(t, c.StoppedAt)
+}
+
+func TestContainerStopInvalidState(t *testing.T) {
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+
+	// Cannot stop a pending container
+	err := c.Stop()
+	assert.Error(t, err)
+}
+
+func TestContainerRestart(t *testing.T) {
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+	c.SetState(container.StateRunning)
+
+	err := c.Restart()
+	assert.NoError(t, err)
+	assert.Equal(t, container.StateRunning, c.GetState())
+	assert.Equal(t, 1, c.RestartCount)
+}
+
+func TestContainerRestartFromFailed(t *testing.T) {
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+	c.SetState(container.StateFailed)
+
+	err := c.Restart()
+	assert.NoError(t, err)
+	assert.Equal(t, container.StateRunning, c.GetState())
+}
+
+func TestContainerIsRunning(t *testing.T) {
+	c := container.NewContainer("test", "nginx:latest", container.Resources{})
+
+	assert.False(t, c.IsRunning())
+
+	c.SetState(container.StateRunning)
+	assert.True(t, c.IsRunning())
+
+	c.SetState(container.StateStopped)
+	assert.False(t, c.IsRunning())
 }

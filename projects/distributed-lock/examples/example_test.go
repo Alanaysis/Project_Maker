@@ -6,30 +6,33 @@ import (
 	"log"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	goredis "github.com/redis/go-redis/v9"
+
+	"github.com/example/distributed-lock/internal/lock"
+	"github.com/example/distributed-lock/internal/redis"
 )
 
-// ExampleBasicLock demonstrates basic distributed lock usage
+// Example_basicLock demonstrates basic distributed lock usage
 func Example_basicLock() {
 	// Create Redis client
-	client := redis.NewClient(&redis.Options{
+	client := goredis.NewClient(&goredis.Options{
 		Addr: "localhost:6379",
 	})
 	defer client.Close()
 
 	ctx := context.Background()
 
-	// Define lock key and unique value
-	lockKey := "my-resource-lock"
-	lockValue := "unique-client-id"
-	lockTTL := 10 * time.Second
+	// Create distributed lock
+	distLock := redis.NewRedisLock(client, "my-resource-lock",
+		lock.WithTTL(10*time.Second),
+		lock.WithOwnerID("unique-client-id"))
 
-	// Acquire lock using SET NX EX
-	ok, err := client.SetNX(ctx, lockKey, lockValue, lockTTL).Result()
+	// Acquire lock
+	acquired, err := distLock.Acquire(ctx)
 	if err != nil {
 		log.Fatalf("Failed to acquire lock: %v", err)
 	}
-	if !ok {
+	if !acquired {
 		log.Fatal("Lock is already held by another client")
 	}
 	fmt.Println("Lock acquired successfully")
@@ -38,31 +41,21 @@ func Example_basicLock() {
 	fmt.Println("Executing business logic...")
 	time.Sleep(1 * time.Second)
 
-	// Release lock using Lua script for atomicity
-	releaseScript := `
-		if redis.call("GET", KEYS[1]) == ARGV[1] then
-			return redis.call("DEL", KEYS[1])
-		else
-			return 0
-		end
-	`
-	result, err := client.Eval(ctx, releaseScript, []string{lockKey}, lockValue).Int64()
+	// Release lock
+	err = distLock.Release(ctx)
 	if err != nil {
 		log.Fatalf("Failed to release lock: %v", err)
-	}
-	if result == 0 {
-		log.Fatal("Lock was not held by this client")
 	}
 	fmt.Println("Lock released successfully")
 }
 
-// ExampleRedlock demonstrates Redlock algorithm usage
+// Example_redlock demonstrates Redlock algorithm usage
 func Example_redlock() {
 	// Create multiple Redis clients (typically on different machines)
-	clients := []*redis.Client{
-		redis.NewClient(&redis.Options{Addr: "redis1:6379"}),
-		redis.NewClient(&redis.Options{Addr: "redis2:6379"}),
-		redis.NewClient(&redis.Options{Addr: "redis3:6379"}),
+	clients := []*goredis.Client{
+		goredis.NewClient(&goredis.Options{Addr: "redis1:6379"}),
+		goredis.NewClient(&goredis.Options{Addr: "redis2:6379"}),
+		goredis.NewClient(&goredis.Options{Addr: "redis3:6379"}),
 	}
 	defer func() {
 		for _, c := range clients {
@@ -71,249 +64,166 @@ func Example_redlock() {
 	}()
 
 	ctx := context.Background()
-	lockKey := "distributed-resource"
-	lockValue := "client-uuid-123"
-	lockTTL := 10 * time.Second
 
-	// Calculate quorum (majority)
-	quorum := len(clients)/2 + 1
+	// Create Redlock
+	rl := redis.NewRedLock(clients, "distributed-resource",
+		lock.WithTTL(10*time.Second),
+		lock.WithOwnerID("client-uuid-123"))
 
-	// Try to acquire lock on each node
-	acquired := 0
-	startTime := time.Now()
-
-	for _, client := range clients {
-		ok, err := client.SetNX(ctx, lockKey, lockValue, lockTTL).Result()
-		if err != nil {
-			continue
-		}
-		if ok {
-			acquired++
-		}
+	// Acquire lock (requires majority of nodes)
+	acquired, err := rl.Acquire(ctx)
+	if err != nil {
+		log.Fatalf("Failed to acquire lock: %v", err)
 	}
-
-	elapsed := time.Since(startTime)
-
-	// Check if we got quorum and within time budget
-	if acquired >= quorum && elapsed < lockTTL {
-		effectiveTTL := lockTTL - elapsed
-		fmt.Printf("Lock acquired on %d/%d nodes, effective TTL: %v\n",
-			acquired, len(clients), effectiveTTL)
-
-		// Execute business logic
-		fmt.Println("Executing business logic...")
-
-		// Release lock on all nodes
-		releaseScript := `
-			if redis.call("GET", KEYS[1]) == ARGV[1] then
-				return redis.call("DEL", KEYS[1])
-			else
-				return 0
-			end
-		`
-		for _, client := range clients {
-			client.Eval(ctx, releaseScript, []string{lockKey}, lockValue)
-		}
-		fmt.Println("Lock released on all nodes")
-	} else {
-		// Release any acquired locks
-		releaseScript := `
-			if redis.call("GET", KEYS[1]) == ARGV[1] then
-				return redis.call("DEL", KEYS[1])
-			else
-				return 0
-			end
-		`
-		for _, client := range clients {
-			client.Eval(ctx, releaseScript, []string{lockKey}, lockValue)
-		}
-		fmt.Println("Failed to acquire lock (quorum not reached)")
+	if !acquired {
+		log.Fatal("Failed to acquire lock (quorum not reached)")
 	}
+	fmt.Println("Lock acquired using Redlock")
+
+	// Execute business logic
+	fmt.Println("Executing business logic...")
+
+	// Release lock on all nodes
+	err = rl.Release(ctx)
+	if err != nil {
+		log.Fatalf("Failed to release lock: %v", err)
+	}
+	fmt.Println("Lock released on all nodes")
 }
 
-// ExampleWatchdog demonstrates lock renewal with watchdog
+// Example_watchdog demonstrates lock renewal with watchdog
 func Example_watchdog() {
-	client := redis.NewClient(&redis.Options{
+	client := goredis.NewClient(&goredis.Options{
 		Addr: "localhost:6379",
 	})
 	defer client.Close()
 
 	ctx := context.Background()
-	lockKey := "long-running-task"
-	lockValue := "client-id"
-	lockTTL := 10 * time.Second
+
+	// Create lock
+	distLock := redis.NewRedisLock(client, "long-running-task",
+		lock.WithTTL(10*time.Second),
+		lock.WithOwnerID("client-id"))
 
 	// Acquire lock
-	ok, _ := client.SetNX(ctx, lockKey, lockValue, lockTTL).Result()
-	if !ok {
+	acquired, _ := distLock.Acquire(ctx)
+	if !acquired {
 		log.Fatal("Failed to acquire lock")
 	}
 	fmt.Println("Lock acquired")
 
-	// Start watchdog goroutine
-	stopCh := make(chan struct{})
-	doneCh := make(chan struct{})
-
-	go func() {
-		defer close(doneCh)
-		ticker := time.NewTicker(lockTTL / 3)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-stopCh:
-				return
-			case <-ticker.C:
-				// Renew lock
-				renewScript := `
-					if redis.call("GET", KEYS[1]) == ARGV[1] then
-						return redis.call("EXPIRE", KEYS[1], ARGV[2])
-					else
-						return 0
-					end
-				`
-				result, _ := client.Eval(ctx, renewScript,
-					[]string{lockKey}, lockValue, int(lockTTL.Seconds())).Int64()
-				if result == 0 {
-					fmt.Println("Failed to renew lock")
-					return
-				}
-				fmt.Println("Lock renewed")
-			}
-		}
-	}()
+	// Create and start watchdog
+	wd := redis.NewWatchdog(distLock, 10*time.Second, 3*time.Second)
+	wd.Start(ctx)
 
 	// Simulate long-running task
 	fmt.Println("Executing long-running task...")
 	time.Sleep(25 * time.Second)
 
 	// Stop watchdog
-	close(stopCh)
-	<-doneCh
+	wd.Stop()
 
 	// Release lock
-	releaseScript := `
-		if redis.call("GET", KEYS[1]) == ARGV[1] then
-			return redis.call("DEL", KEYS[1])
-		else
-			return 0
-		end
-	`
-	client.Eval(ctx, releaseScript, []string{lockKey}, lockValue)
+	err := distLock.Release(ctx)
+	if err != nil {
+		log.Fatalf("Failed to release lock: %v", err)
+	}
 	fmt.Println("Lock released")
 }
 
-// ExampleReentrantLock demonstrates reentrant lock usage
+// Example_reentrantLock demonstrates reentrant lock usage
 func Example_reentrantLock() {
-	client := redis.NewClient(&redis.Options{
+	client := goredis.NewClient(&goredis.Options{
 		Addr: "localhost:6379",
 	})
 	defer client.Close()
 
 	ctx := context.Background()
-	lockKey := "reentrant-resource"
-	clientID := "client-1"
-	lockTTL := 10 * time.Second
 
-	// Lua script for reentrant lock
-	acquireScript := `
-		local key = KEYS[1]
-		local owner = ARGV[1]
-		local ttl = ARGV[2]
-
-		local current = redis.call('HGET', key, 'owner')
-		if current == owner then
-			redis.call('HINCRBY', key, 'count', 1)
-			redis.call('EXPIRE', key, ttl)
-			return 1
-		elseif current == false then
-			redis.call('HSET', key, 'owner', owner, 'count', 1)
-			redis.call('EXPIRE', key, ttl)
-			return 1
-		else
-			return 0
-		end
-	`
+	// Create reentrant lock
+	distLock := redis.NewReentrantRedisLock(client, "reentrant-resource",
+		lock.WithTTL(10*time.Second),
+		lock.WithOwnerID("client-1"))
 
 	// First acquisition
-	result, _ := client.Eval(ctx, acquireScript,
-		[]string{lockKey}, clientID, int(lockTTL.Seconds())).Int64()
-	fmt.Printf("First acquire: %d\n", result)
+	acquired, _ := distLock.Acquire(ctx)
+	fmt.Printf("First acquire: %v\n", acquired)
 
 	// Second acquisition (reentrant)
-	result, _ = client.Eval(ctx, acquireScript,
-		[]string{lockKey}, clientID, int(lockTTL.Seconds())).Int64()
-	fmt.Printf("Second acquire (reentrant): %d\n", result)
+	acquired, _ = distLock.Acquire(ctx)
+	fmt.Printf("Second acquire (reentrant): %v\n", acquired)
 
-	// Release script
-	releaseScript := `
-		local key = KEYS[1]
-		local owner = ARGV[1]
-
-		local current = redis.call('HGET', key, 'owner')
-		if current == owner then
-			local count = redis.call('HINCRBY', key, 'count', -1)
-			if count <= 0 then
-				redis.call('DEL', key)
-				return 1
-			end
-			return count
-		else
-			return 0
-		end
-	`
+	// Check count
+	count, _ := distLock.Count(ctx)
+	fmt.Printf("Reentrant count: %d\n", count)
 
 	// First release (count decreases)
-	result, _ = client.Eval(ctx, releaseScript,
-		[]string{lockKey}, clientID).Int64()
-	fmt.Printf("First release, remaining count: %d\n", result)
+	distLock.Release(ctx)
+	count, _ = distLock.Count(ctx)
+	fmt.Printf("After first release, count: %d\n", count)
 
 	// Second release (lock fully released)
-	result, _ = client.Eval(ctx, releaseScript,
-		[]string{lockKey}, clientID).Int64()
-	fmt.Printf("Second release, lock released: %d\n", result)
+	distLock.Release(ctx)
+	count, _ = distLock.Count(ctx)
+	fmt.Printf("After second release, count: %d\n", count)
 }
 
-// ExampleFairLock demonstrates fair lock with waiting queue
+// Example_fairLock demonstrates fair lock with waiting queue
 func Example_fairLock() {
-	client := redis.NewClient(&redis.Options{
+	client := goredis.NewClient(&goredis.Options{
 		Addr: "localhost:6379",
 	})
 	defer client.Close()
 
 	ctx := context.Background()
-	lockKey := "fair-resource"
-	queueKey := "fair-resource:queue"
-	clientID := "client-1"
-	lockTTL := 10 * time.Second
 
-	// Join queue
-	client.RPush(ctx, queueKey, clientID)
-	fmt.Printf("Joined queue, position: %d\n", client.LLen(ctx, queueKey).Val())
+	// Create fair lock
+	distLock := redis.NewFairRedisLock(client, "fair-resource",
+		lock.WithTTL(10*time.Second),
+		lock.WithOwnerID("client-1"))
 
-	// Check if first in queue
-	first, _ := client.LIndex(ctx, queueKey, 0).Result()
-	if first == clientID {
-		// Try to acquire lock
-		ok, _ := client.SetNX(ctx, lockKey, clientID, lockTTL).Result()
-		if ok {
-			fmt.Println("Lock acquired (first in queue)")
+	// Acquire lock (FIFO ordering)
+	acquired, _ := distLock.Acquire(ctx)
+	if acquired {
+		fmt.Println("Lock acquired (FIFO order)")
 
-			// Execute business logic
-			fmt.Println("Executing business logic...")
+		// Execute business logic
+		fmt.Println("Executing business logic...")
 
-			// Release lock and leave queue
-			releaseScript := `
-				if redis.call("GET", KEYS[1]) == ARGV[1] then
-					redis.call("DEL", KEYS[1])
-					redis.call("LPOP", KEYS[2])
-					return 1
-				else
-					return 0
-				end
-			`
-			client.Eval(ctx, releaseScript, []string{lockKey, queueKey}, clientID)
-			fmt.Println("Lock released, left queue")
-		}
+		// Release lock
+		distLock.Release(ctx)
+		fmt.Println("Lock released")
+	}
+}
+
+// Example_readWriteLock demonstrates reader-writer lock usage
+func Example_readWriteLock() {
+	client := goredis.NewClient(&goredis.Options{
+		Addr: "localhost:6379",
+	})
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// Create read-write lock
+	rwLock := redis.NewReadWriteRedisLock(client, "rw-resource",
+		lock.WithTTL(10*time.Second))
+
+	// Multiple readers can acquire simultaneously
+	acquired, _ := rwLock.AcquireRead(ctx)
+	if acquired {
+		fmt.Println("Read lock acquired")
+		// Read data...
+		rwLock.ReleaseRead(ctx)
+		fmt.Println("Read lock released")
+	}
+
+	// Writer has exclusive access
+	acquired, _ = rwLock.AcquireWrite(ctx)
+	if acquired {
+		fmt.Println("Write lock acquired")
+		// Write data...
+		rwLock.ReleaseWrite(ctx)
+		fmt.Println("Write lock released")
 	}
 }

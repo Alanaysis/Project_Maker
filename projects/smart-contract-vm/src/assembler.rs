@@ -42,6 +42,12 @@ impl Assembler {
         self
     }
 
+    /// 添加取模指令
+    pub fn modulo(mut self) -> Self {
+        self.code.push(Opcode::Mod as u8);
+        self
+    }
+
     /// 添加比较指令
     pub fn lt(mut self) -> Self {
         self.code.push(Opcode::Lt as u8);
@@ -81,6 +87,37 @@ impl Assembler {
 
     pub fn not(mut self) -> Self {
         self.code.push(Opcode::Not as u8);
+        self
+    }
+
+    /// 添加环境操作指令
+    pub fn address(mut self) -> Self {
+        self.code.push(Opcode::Address as u8);
+        self
+    }
+
+    pub fn caller(mut self) -> Self {
+        self.code.push(Opcode::Caller as u8);
+        self
+    }
+
+    pub fn callvalue(mut self) -> Self {
+        self.code.push(Opcode::CallValue as u8);
+        self
+    }
+
+    pub fn calldataload(mut self) -> Self {
+        self.code.push(Opcode::CallDataLoad as u8);
+        self
+    }
+
+    pub fn calldatasize(mut self) -> Self {
+        self.code.push(Opcode::CallDataSize as u8);
+        self
+    }
+
+    pub fn calldatacopy(mut self) -> Self {
+        self.code.push(Opcode::CallDataCopy as u8);
         self
     }
 
@@ -173,6 +210,32 @@ impl Assembler {
         self
     }
 
+    /// 添加日志指令
+    pub fn log0(mut self) -> Self {
+        self.code.push(Opcode::Log0 as u8);
+        self
+    }
+
+    pub fn log1(mut self) -> Self {
+        self.code.push(Opcode::Log1 as u8);
+        self
+    }
+
+    pub fn log2(mut self) -> Self {
+        self.code.push(Opcode::Log2 as u8);
+        self
+    }
+
+    pub fn log3(mut self) -> Self {
+        self.code.push(Opcode::Log3 as u8);
+        self
+    }
+
+    pub fn log4(mut self) -> Self {
+        self.code.push(Opcode::Log4 as u8);
+        self
+    }
+
     /// 添加 PUSH 指令
     pub fn push1(mut self, value: u8) -> Self {
         self.code.push(Opcode::Push1 as u8);
@@ -232,6 +295,23 @@ impl Default for Assembler {
     }
 }
 
+/// 函数选择器工具
+/// 计算 Solidity 风格的函数选择器（简化版：使用 u32）
+pub struct FunctionSelector;
+
+impl FunctionSelector {
+    /// 简化的函数选择器计算
+    /// 实际 EVM 使用 keccak256(sig)[0:4]
+    /// 这里使用简单的哈希作为演示
+    pub fn from_name(name: &str) -> u32 {
+        let mut hash: u32 = 0;
+        for byte in name.bytes() {
+            hash = hash.wrapping_mul(31).wrapping_add(byte as u32);
+        }
+        hash
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,5 +356,13 @@ mod tests {
         assert_eq!(code[0], Opcode::Push2 as u8);
         assert_eq!(code[1], 0x12);
         assert_eq!(code[2], 0x34);
+    }
+
+    #[test]
+    fn test_function_selector() {
+        let selector = FunctionSelector::from_name("transfer(address,uint256)");
+        assert_ne!(selector, 0);
+        // 同样的名字应该产生同样的选择器
+        assert_eq!(selector, FunctionSelector::from_name("transfer(address,uint256)"));
     }
 }

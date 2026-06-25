@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>折线图示例</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    #chart {
+      width: 100%;
+    }
+    .controls {
+      margin-top: 20px;
+    }
+    button {
+      padding: 8px 16px;
+      margin-right: 10px;
+      background: #4e79a7;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #3d6290;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>折线图示例</h1>
+    <div id="chart"></div>
+    <div class="controls">
+      <button onclick="updateData()">更新数据</button>
+      <button onclick="toggleSmooth()">切换平滑</button>
+    </div>
+  </div>
+
+  <script type="module">
+    // 模拟导入（实际使用时从 dist 导入）
+    class LinearScale {
+      constructor(domain, range) {
+        this.domain = domain;
+        this.range = range;
+      }
+      scale(value) {
+        const [d0, d1] = this.domain;
+        const [r0, r1] = this.range;
+        return r0 + ((value - d0) / (d1 - d0)) * (r1 - r0);
+      }
+    }
+
+    class CategoryScale {
+      constructor(domain, range) {
+        this.domain = domain;
+        this.range = range;
+      }
+      scale(index) {
+        const [r0, r1] = this.range;
+        const step = (r1 - r0) / this.domain.length;
+        return r0 + step * (index + 0.5);
+      }
+    }
+
+    class LineChart {
+      constructor(container, data, options = {}) {
+        this.container = typeof container === 'string'
+          ? document.querySelector(container)
+          : container;
+        this.data = data;
+        this.options = {
+          width: options.width || 700,
+          height: options.height || 400,
+          padding: options.padding || { top: 40, right: 40, bottom: 60, left: 60 },
+          backgroundColor: options.backgroundColor || '#ffffff',
+          smooth: options.smooth || false,
+        };
+
+        this.canvas = document.createElement('canvas');
+        this.setupCanvas();
+        this.container.appendChild(this.canvas);
+        this.ctx = this.canvas.getContext('2d');
+
+        this.render();
+      }
+
+      setupCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = this.options.width * dpr;
+        this.canvas.height = this.options.height * dpr;
+        this.canvas.style.width = `${this.options.width}px`;
+        this.canvas.style.height = `${this.options.height}px`;
+        this.ctx.scale(dpr, dpr);
+      }
+
+      render() {
+        this.ctx.fillStyle = this.options.backgroundColor;
+        this.ctx.fillRect(0, 0, this.options.width, this.options.height);
+
+        const plot = {
+          x: this.options.padding.left,
+          y: this.options.padding.top,
+          width: this.options.width - this.options.padding.left - this.options.padding.right,
+          height: this.options.height - this.options.padding.top - this.options.padding.bottom,
+        };
+
+        // 计算比例尺
+        const allValues = this.data.datasets.flatMap(ds => ds.data);
+        const min = Math.min(...allValues);
+        const max = Math.max(...allValues);
+        const yPadding = (max - min) * 0.1;
+
+        this.xScale = new CategoryScale(this.data.labels, [plot.x, plot.x + plot.width]);
+        this.yScale = new LinearScale(
+          [Math.min(0, min - yPadding), max + yPadding],
+          [plot.y + plot.height, plot.y]
+        );
+
+        // 绘制网格
+        this.drawGrid(plot);
+
+        // 绘制坐标轴
+        this.drawAxes(plot);
+
+        // 绘制数据
+        this.drawLines();
+
+        // 绘制图例
+        this.drawLegend();
+      }
+
+      drawGrid(plot) {
+        const ticks = this.getYTicks(5);
+        ticks.forEach(tick => {
+          const y = this.yScale.scale(tick);
+          this.ctx.beginPath();
+          this.ctx.strokeStyle = '#e0e0e0';
+          this.ctx.lineWidth = 0.5;
+          this.ctx.moveTo(plot.x, y);
+          this.ctx.lineTo(plot.x + plot.width, y);
+          this.ctx.stroke();
+
+          this.ctx.fillStyle = '#666';
+          this.ctx.font = '11px sans-serif';
+          this.ctx.textAlign = 'right';
+          this.ctx.fillText(tick.toString(), plot.x - 10, y + 4);
+        });
+      }
+
+      drawAxes(plot) {
+        // X 轴
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = '#333';
+        this.ctx.lineWidth = 1;
+        this.ctx.moveTo(plot.x, plot.y + plot.height);
+        this.ctx.lineTo(plot.x + plot.width, plot.y + plot.height);
+        this.ctx.stroke();
+
+        // Y 轴
+        this.ctx.beginPath();
+        this.ctx.moveTo(plot.x, plot.y);
+        this.ctx.lineTo(plot.x, plot.y + plot.height);
+        this.ctx.stroke();
+
+        // X 轴标签
+        this.data.labels.forEach((label, index) => {
+          const x = this.xScale.scale(index);
+          this.ctx.fillStyle = '#666';
+          this.ctx.font = '11px sans-serif';
+          this.ctx.textAlign = 'center';
+          this.ctx.fillText(label, x, plot.y + plot.height + 20);
+        });
+      }
+
+      drawLines() {
+        this.data.datasets.forEach((dataset, datasetIndex) => {
+          const color = dataset.color || this.getDefaultColor(datasetIndex);
+          const points = [];
+
+          dataset.data.forEach((value, index) => {
+            const x = this.xScale.scale(index);
+            const y = this.yScale.scale(value);
+            points.push({ x, y });
+          });
+
+          // 绘制填充
+          this.ctx.beginPath();
+          this.ctx.moveTo(points[0].x, points[0].y);
+          points.forEach(p => this.ctx.lineTo(p.x, p.y));
+          this.ctx.lineTo(points[points.length - 1].x, this.options.height - this.options.padding.bottom);
+          this.ctx.lineTo(points[0].x, this.options.height - this.options.padding.bottom);
+          this.ctx.closePath();
+          this.ctx.fillStyle = this.hexToRgba(color, 0.1);
+          this.ctx.fill();
+
+          // 绘制线条
+          this.ctx.beginPath();
+          this.ctx.strokeStyle = color;
+          this.ctx.lineWidth = 2;
+          this.ctx.lineJoin = 'round';
+          this.ctx.lineCap = 'round';
+
+          if (this.options.smooth) {
+            this.drawSmoothLine(points);
+          } else {
+            this.ctx.moveTo(points[0].x, points[0].y);
+            points.forEach(p => this.ctx.lineTo(p.x, p.y));
+          }
+          this.ctx.stroke();
+
+          // 绘制点
+          points.forEach(p => {
+            this.ctx.beginPath();
+            this.ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            this.ctx.fillStyle = '#fff';
+            this.ctx.fill();
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
+          });
+        });
+      }
+
+      drawSmoothLine(points) {
+        this.ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 0; i < points.length - 1; i++) {
+          const cp1x = (points[i].x + points[i + 1].x) / 2;
+          const cp1y = points[i].y;
+          const cp2x = (points[i].x + points[i + 1].x) / 2;
+          const cp2y = points[i + 1].y;
+          this.ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].x, points[i + 1].y);
+        }
+      }
+
+      drawLegend() {
+        if (this.data.datasets.length <= 1) return;
+
+        const legendY = this.options.height - 15;
+        let legendX = this.options.width / 2 - (this.data.datasets.length * 80) / 2;
+
+        this.data.datasets.forEach((dataset, index) => {
+          const color = dataset.color || this.getDefaultColor(index);
+          this.ctx.fillStyle = color;
+          this.ctx.fillRect(legendX, legendY - 5, 12, 12);
+          this.ctx.fillStyle = '#666';
+          this.ctx.font = '11px sans-serif';
+          this.ctx.textAlign = 'left';
+          this.ctx.fillText(dataset.label, legendX + 16, legendY + 1);
+          legendX += 80;
+        });
+      }
+
+      getYTicks(count) {
+        const [min, max] = this.yScale.domain;
+        const range = max - min;
+        const step = range / count;
+        const ticks = [];
+        for (let i = 0; i <= count; i++) {
+          ticks.push(Math.round((min + step * i) * 10) / 10);
+        }
+        return ticks;
+      }
+
+      getDefaultColor(index) {
+        const colors = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f'];
+        return colors[index % colors.length];
+      }
+
+      hexToRgba(hex, alpha) {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+
+      update(data) {
+        this.data = data;
+        this.render();
+      }
+    }
+
+    // 使用示例
+    const data = {
+      labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月'],
+      datasets: [
+        {
+          label: '销售额',
+          data: [120, 190, 300, 250, 280, 350, 400],
+          color: '#4e79a7',
+        },
+        {
+          label: '利润',
+          data: [80, 120, 200, 180, 220, 280, 320],
+          color: '#e15759',
+        },
+      ],
+    };
+
+    const chart = new LineChart('#chart', data, {
+      width: 700,
+      height: 400,
+      smooth: false,
+    });
+
+    // 交互功能
+    window.updateData = function() {
+      const newData = {
+        ...data,
+        datasets: data.datasets.map(ds => ({
+          ...ds,
+          data: ds.data.map(() => Math.floor(Math.random() * 400) + 50),
+        })),
+      };
+      chart.update(newData);
+    };
+
+    window.toggleSmooth = function() {
+      chart.options.smooth = !chart.options.smooth;
+      chart.render();
+    };
+  </script>
+</body>
+</html>

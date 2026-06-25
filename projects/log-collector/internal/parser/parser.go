@@ -81,12 +81,14 @@ const (
 	FormatJSON                 // JSON format
 	FormatLogfmt               // Logfmt (key=value) format
 	FormatCommon               // Common log format: "2024-01-01 12:00:00 [INFO] message"
+	FormatRegex                // User-defined regex format
 )
 
 // Parser parses raw log lines into structured entries.
 type Parser struct {
 	format      Format
 	timeFormats []string
+	regexParser *RegexParser // Used when format is FormatRegex
 }
 
 // New creates a new Parser with the given format.
@@ -103,6 +105,26 @@ func New(format Format) *Parser {
 			"Jan 02 15:04:05",
 		},
 	}
+}
+
+// NewWithRegex creates a new Parser with a custom regex pattern.
+// The format is automatically set to FormatRegex.
+func NewWithRegex(pattern string) (*Parser, error) {
+	rp, err := NewRegexParser(pattern)
+	if err != nil {
+		return nil, err
+	}
+	return &Parser{
+		format:      FormatRegex,
+		regexParser: rp,
+		timeFormats: []string{
+			time.RFC3339,
+			time.RFC3339Nano,
+			"2006-01-02T15:04:05",
+			"2006-01-02 15:04:05",
+			"2006-01-02 15:04:05.000",
+		},
+	}, nil
 }
 
 // Parse parses a raw log line into an Entry.
@@ -122,6 +144,14 @@ func (p *Parser) Parse(rawLine string, source string, lineNum int) (*Entry, erro
 		entry, err = p.parseLogfmt(rawLine)
 	case FormatCommon:
 		entry, err = p.parseCommon(rawLine)
+	case FormatRegex:
+		if p.regexParser == nil {
+			return nil, fmt.Errorf("regex parser not configured")
+		}
+		entry, err = p.regexParser.Parse(rawLine, source, lineNum)
+		if err == nil {
+			return entry, nil // RegexParser already sets Source, LineNum, Raw
+		}
 	case FormatAuto:
 		entry, err = p.parseAuto(rawLine)
 	default:

@@ -1,630 +1,158 @@
 # Learning Notes: VPN Software
 
-This document serves as a template for documenting your learning journey while building the VPN software.
+## Key Concepts Learned
 
-## Table of Contents
+### 1. TUN/TAP Devices
 
-1. [VPN Fundamentals](#vpn-fundamentals)
-2. [Cryptography](#cryptography)
-3. [Network Programming](#network-programming)
-4. [Rust Concepts](#rust-concepts)
-5. [Project Architecture](#project-architecture)
-6. [Challenges and Solutions](#challenges-and-solutions)
-7. [Key Takeaways](#key-takeaways)
+TUN (network TUNnel) devices are virtual network interfaces that operate at Layer 3 (IP packets). They are the foundation of most VPN implementations.
 
----
+**How it works**:
+- The OS creates a virtual network interface (`tun0`)
+- Applications see it as a real network interface
+- When the OS sends a packet to `tun0`, it appears in the TUN file descriptor
+- When we write a packet to the TUN file descriptor, the OS receives it as if it came from the network
 
-## VPN Fundamentals
-
-### What is a VPN?
-
-**Definition**: A Virtual Private Network creates a secure, encrypted connection over a less secure network, such as the internet.
-
-**Key Concepts**:
-- [ ] Tunnel: Encrypted channel between two endpoints
-- [ ] Encryption: Protecting data from eavesdropping
-- [ ] Authentication: Verifying peer identity
-- [ ] Routing: Directing traffic through the tunnel
-
-**Notes**:
-```
-[Your notes here]
+**Linux implementation**:
+```python
+fd = os.open("/dev/net/tun", os.O_RDWR)
+ifr = struct.pack("16sH", b"tun0", IFF_TUN | IFF_NO_PI)
+fcntl.ioctl(fd, TUNSETIFF, ifr)
+# Now fd reads/writes IP packets
 ```
 
----
+### 2. ECDH Key Exchange
 
-### VPN Protocols
+Elliptic Curve Diffie-Hellman allows two parties to establish a shared secret over an insecure channel.
 
-**WireGuard**:
-- [ ] Noise Protocol Framework
-- [ ] Cryptokey routing
-- [ ] UDP transport
-- [ ] 1-RTT handshake
+**The math**:
+- Alice has private key `a`, public key `A = a*G`
+- Bob has private key `b`, public key `B = b*G`
+- Shared secret: `S = a*B = b*A = a*b*G`
 
-**OpenVPN**:
-- [ ] TLS/SSL encryption
-- [ ] TUN/TAP devices
-- [ ] TCP/UDP transport
-- [ ] Complex configuration
+**Why P-256?**
+- 128-bit security level
+- Fast computation
+- Widely supported and standardized
 
-**Notes**:
+### 3. AES-256-GCM
+
+AES-GCM (Galois/Counter Mode) is an Authenticated Encryption with Associated Data (AEAD) cipher.
+
+**Properties**:
+- **Confidentiality**: AES-CTR encrypts the plaintext
+- **Integrity**: GHASH provides authentication tag
+- **AEAD**: Can authenticate additional data without encrypting it
+
+**Encryption format**:
 ```
-[Your notes here]
-```
-
----
-
-### TUN/TAP Devices
-
-**TUN (Layer 3)**:
-- [ ] Handles IP packets
-- [ ] Used for routing
-- [ ] Simpler implementation
-
-**TAP (Layer 2)**:
-- [ ] Handles Ethernet frames
-- [ ] Used for bridging
-- [ ] More complex
-
-**Notes**:
-```
-[Your notes here]
+[12-byte nonce] [ciphertext] [16-byte authentication tag]
 ```
 
----
+**Key insight**: The authentication tag means we can detect any tampering with the ciphertext.
 
-## Cryptography
+### 4. HKDF Key Derivation
 
-### Key Exchange (X25519)
+HKDF (HMAC-based Key Derivation Function) derives one or more cryptographic keys from a shared secret.
 
-**What I Learned**:
-- [ ] Elliptic curve Diffie-Hellman
-- [ ] Curve25519 properties
-- [ ] Shared secret derivation
-- [ ] Forward secrecy
+**Two-step process**:
+1. **Extract**: `PRK = HMAC-Hash(salt, input_key_material)`
+2. **Expand**: `OKM = HMAC-Hash(PRK, info || counter)`
 
-**Key Insight**:
+**Why not use the shared secret directly?**
+- The raw ECDH output may not be uniformly random
+- HKDF produces keys of the desired length
+- Different `info` strings produce different keys from the same secret
+
+### 5. PBKDF2 Password Hashing
+
+PBKDF2 (Password-Based Key Derivation Function 2) turns a password into a cryptographic key.
+
+**Why not SHA-256(password)?**
+- SHA-256 is fast -> attackers can try billions of passwords per second
+- PBKDF2 uses many iterations (600,000) to slow down brute-force attacks
+- Random salt prevents rainbow table attacks
+
+### 6. VPN Protocol Design
+
+**Handshake flow**:
 ```
-[Your insight here]
-```
-
-**Resources**:
-- [Curve25519 Paper](https://cr.yp.to/ecdh/curve25519-20060209.pdf)
-- [RFC 7748](https://datatracker.ietf.org/doc/html/rfc7748)
-
----
-
-### Symmetric Encryption (ChaCha20-Poly1305)
-
-**What I Learned**:
-- [ ] Stream cipher vs block cipher
-- [ ] AEAD encryption
-- [ ] Nonce management
-- [ ] Authentication tags
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
-**Resources**:
-- [RFC 7539](https://datatracker.ietf.org/doc/html/rfc7539)
-- [ChaCha20 Paper](https://cr.yp.to/chacha/chacha-20080128.pdf)
-
----
-
-### Key Derivation (HKDF)
-
-**What I Learned**:
-- [ ] Extract-and-expand paradigm
-- [ ] Salt and info parameters
-- [ ] Deriving multiple keys
-- [ ] Security properties
-
-**Key Insight**:
-```
-[Your insight here]
+Client -> Server: HandshakeInit (public key, ephemeral key)
+Server -> Client: HandshakeResponse (public key, ephemeral key)
+Both sides: Derive shared secret via ECDH
+Both sides: Derive encryption key via HKDF
+Client -> Server: AuthRequest (credentials)
+Server -> Client: AuthResponse (success/failure)
+Both sides: Encrypted transport begins
 ```
 
-**Resources**:
-- [RFC 5869](https://datatracker.ietf.org/doc/html/rfc5869)
+**Key design decisions**:
+- Include ephemeral keys for forward secrecy
+- Authentication after key exchange (credentials are encrypted)
+- Keepalive packets to detect dead peers
+- Nonce counter to prevent replay attacks
 
----
+### 7. asyncio for Network I/O
 
-### Hashing (BLAKE2s)
+Python's asyncio provides non-blocking I/O, essential for a VPN that must simultaneously:
+- Read packets from the TUN device
+- Receive packets from the network
+- Send keepalives
+- Check for timeouts
 
-**What I Learned**:
-- [ ] BLAKE2 vs SHA-256
-- [ ] Performance characteristics
-- [ ] Security properties
-- [ ] Use cases
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
-**Resources**:
-- [BLAKE2 Paper](https://blake2.net/blake2.pdf)
-
----
-
-## Network Programming
-
-### UDP Sockets
-
-**What I Learned**:
-- [ ] Connectionless protocol
-- [ ] sendto/recvfrom
-- [ ] Bind and listen
-- [ ] Error handling
-
-**Key Insight**:
-```
-[Your insight here]
+**Pattern**:
+```python
+async def main():
+    asyncio.create_task(tun_read_loop())
+    asyncio.create_task(network_read_loop())
+    asyncio.create_task(maintenance_loop())
+    await run_forever()
 ```
 
-**Code Snippet**:
-```rust
-// [Your code snippet here]
+### 8. X.509 Certificates
+
+Certificates bind a public key to an identity (Common Name).
+
+**Chain of trust**:
+```
+CA Certificate (self-signed)
+    |
+    +-- Server Certificate (signed by CA)
+    +-- Client Certificate (signed by CA)
 ```
 
----
+**Verification**: Check that the certificate's signature was made by the CA's private key.
 
-### Packet Parsing
+## Architecture Lessons
 
-**What I Learned**:
-- [ ] Network byte order (big-endian)
-- [ ] Bit manipulation
-- [ ] Header parsing
-- [ ] Checksum calculation
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
-**Code Snippet**:
-```rust
-// [Your code snippet here]
-```
-
----
-
-### Async I/O with Tokio
-
-**What I Learned**:
-- [ ] Async/await syntax
-- [ ] Task spawning
-- [ ] Channel communication
-- [ ] Error handling
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
-**Code Snippet**:
-```rust
-// [Your code snippet here]
-```
-
----
-
-## Rust Concepts
-
-### Ownership and Borrowing
-
-**What I Learned**:
-- [ ] Ownership rules
-- [ ] Borrowing and references
-- [ ] Lifetime annotations
-- [ ] Move semantics
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
-**Example**:
-```rust
-// [Your example here]
-```
-
----
+### Separation of Concerns
+Each module has a single responsibility:
+- `crypto.py` knows nothing about networks
+- `tun_device.py` knows nothing about encryption
+- `tunnel.py` orchestrates everything
 
 ### Error Handling
-
-**What I Learned**:
-- [ ] Result type
-- [ ] Error propagation with ?
-- [ ] Custom error types
-- [ ] thiserror crate
-
-**Key Insight**:
-```
-[Your insight here]
+Custom exception hierarchy makes errors clear:
+```python
+VpnError (base)
+  +-- CryptoError
+  +-- NetworkError
+  +-- ProtocolError
+  +-- TunDeviceError
+  +-- AuthError
 ```
 
-**Example**:
-```rust
-// [Your example here]
+### Configuration
+YAML with sensible defaults means the simplest case requires zero configuration:
+```python
+config = VPNConfig()  # Works with defaults
+config.server.port = 8080  # Override specific values
 ```
 
----
-
-### Concurrency
-
-**What I Learned**:
-- [ ] Arc<Mutex<>>
-- [ ] Send and Sync traits
-- [ ] Channel patterns
-- [ ] Deadlock prevention
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
-**Example**:
-```rust
-// [Your example here]
-```
-
----
-
-### Trait System
-
-**What I Learned**:
-- [ ] Trait definitions
-- [ ] Trait implementations
-- [ ] Trait objects
-- [ ] Generic constraints
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
-**Example**:
-```rust
-// [Your example here]
-```
-
----
-
-## Project Architecture
-
-### Module Organization
-
-**What I Learned**:
-- [ ] Separation of concerns
-- [ ] Module boundaries
-- [ ] Public API design
-- [ ] Dependency management
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
-**Diagram**:
-```
-[Your diagram here]
-```
-
----
-
-### Design Patterns
-
-**Patterns Used**:
-- [ ] Builder pattern (configuration)
-- [ ] State machine (peer states)
-- [ ] Observer pattern (event handling)
-- [ ] Strategy pattern (encryption)
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
----
-
-### API Design
-
-**What I Learned**:
-- [ ] Clean API surface
-- [ ] Error handling consistency
-- [ ] Documentation
-- [ ] Backward compatibility
-
-**Key Insight**:
-```
-[Your insight here]
-```
-
----
-
-## Challenges and Solutions
-
-### Challenge 1: [Title]
-
-**Problem**:
-```
-[Describe the problem]
-```
-
-**Solution**:
-```
-[Describe the solution]
-```
-
-**What I Learned**:
-```
-[Your learning]
-```
-
----
-
-### Challenge 2: [Title]
-
-**Problem**:
-```
-[Describe the problem]
-```
-
-**Solution**:
-```
-[Describe the solution]
-```
-
-**What I Learned**:
-```
-[Your learning]
-```
-
----
-
-### Challenge 3: [Title]
-
-**Problem**:
-```
-[Describe the problem]
-```
-
-**Solution**:
-```
-[Describe the solution]
-```
-
-**What I Learned**:
-```
-[Your learning]
-```
-
----
-
-## Key Takeaways
-
-### Technical Takeaways
-
-1. **VPN Architecture**:
-   ```
-   [Your takeaway]
-   ```
-
-2. **Cryptography**:
-   ```
-   [Your takeaway]
-   ```
-
-3. **Network Programming**:
-   ```
-   [Your takeaway]
-   ```
-
-4. **Rust**:
-   ```
-   [Your takeaway]
-   ```
-
----
-
-### Project Takeaways
-
-1. **Design**:
-   ```
-   [Your takeaway]
-   ```
-
-2. **Implementation**:
-   ```
-   [Your takeaway]
-   ```
-
-3. **Testing**:
-   ```
-   [Your takeaway]
-   ```
-
-4. **Documentation**:
-   ```
-   [Your takeaway]
-   ```
-
----
-
-### Personal Takeaways
-
-1. **Learning Process**:
-   ```
-   [Your takeaway]
-   ```
-
-2. **Problem Solving**:
-   ```
-   [Your takeaway]
-   ```
-
-3. **Time Management**:
-   ```
-   [Your takeaway]
-   ```
-
----
-
-## Future Learning
-
-### Topics to Explore
-
-- [ ] Complete WireGuard protocol implementation
-- [ ] NAT traversal techniques
-- [ ] Performance optimization
-- [ ] Security auditing
-- [ ] IPv6 support
-- [ ] TCP fallback mechanisms
-
-### Resources to Read
-
-- [ ] WireGuard whitepaper
-- [ ] Noise Protocol Framework specification
-- [ ] Rust async programming guide
-- [ ] Network programming books
-
-### Projects to Build
-
-- [ ] Add NAT traversal
-- [ ] Implement TCP fallback
-- [ ] Build monitoring dashboard
-- [ ] Create web UI
-
----
-
-## References
-
-### Books
-
-- [ ] Cryptography Engineering
-- [ ] TCP/IP Illustrated
-- [ ] The Rust Programming Language
-- [ ] Network Programming with Rust
-
-### Online Resources
-
-- [ ] [WireGuard Protocol](https://www.wireguard.com/protocol/)
-- [ ] [Noise Protocol Framework](https://noiseprotocol.org/)
-- [ ] [Rust Documentation](https://doc.rust-lang.org/)
-- [ ] [Tokio Documentation](https://tokio.rs/)
-
-### Research Papers
-
-- [ ] Curve25519
-- [ ] ChaCha20-Poly1305
-- [ ] BLAKE2
-- [ ] WireGuard
-
----
-
-## Progress Log
-
-### Week 1
-
-**Goals**:
-- [ ] Set up development environment
-- [ ] Implement basic crypto module
-- [ ] Create TUN device management
-
-**Accomplishments**:
-```
-[Your accomplishments]
-```
-
-**Challenges**:
-```
-[Your challenges]
-```
-
----
-
-### Week 2
-
-**Goals**:
-- [ ] Implement protocol messages
-- [ ] Add packet parsing
-- [ ] Create peer management
-
-**Accomplishments**:
-```
-[Your accomplishments]
-```
-
-**Challenges**:
-```
-[Your challenges]
-```
-
----
-
-### Week 3
-
-**Goals**:
-- [ ] Implement tunnel manager
-- [ ] Add encryption/decryption
-- [ ] Create CLI interface
-
-**Accomplishments**:
-```
-[Your accomplishments]
-```
-
-**Challenges**:
-```
-[Your challenges]
-```
-
----
-
-### Week 4
-
-**Goals**:
-- [ ] Write tests
-- [ ] Create documentation
-- [ ] Performance optimization
-
-**Accomplishments**:
-```
-[Your accomplishments]
-```
-
-**Challenges**:
-```
-[Your challenges]
-```
-
----
-
-## Summary
-
-### What I Built
-
-```
-[Summary of what you built]
-```
-
-### What I Learned
-
-```
-[Summary of what you learned]
-```
-
-### What I Would Do Differently
-
-```
-[Your reflection]
-```
-
-### Next Steps
-
-```
-[Your plans]
-```
+## Security Lessons
+
+1. **Never roll your own crypto**: Use well-tested libraries
+2. **Always authenticate encryption**: Use AEAD modes (GCM, Poly1305)
+3. **Use unique nonces**: Counter-based nonces are simple and safe
+4. **Hash passwords slowly**: PBKDF2/bcrypt/scrypt, never raw SHA-256
+5. **Protect private keys**: Restrictive file permissions (0600)
+6. **Forward secrecy**: Use ephemeral keys so past sessions can't be decrypted

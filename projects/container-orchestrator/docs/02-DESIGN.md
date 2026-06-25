@@ -44,24 +44,31 @@
 - 定义容器的基本属性
 - 管理容器状态
 - 资源需求规格
+- 容器生命周期管理（启动、停止、重启）
 
 #### 2. Scheduler（调度器）
 - 实现多种调度策略
 - 管理节点和容器映射
 - 资源分配和回收
+- 支持随机、资源感知、亲和性调度
 
 #### 3. Discovery（服务发现）
 - 服务注册与注销
 - 端点管理
 - 服务解析
+- 负载均衡
 
 #### 4. Health Monitor（健康监控）
 - 健康检查执行
+- 存活探针（Liveness Probe）
+- 就绪探针（Readiness Probe）
 - 健康状态管理
 - 事件通知
 
 #### 5. Scaler（扩缩容）
 - 自动扩缩容策略
+- 基于 CPU/内存阈值
+- 基于自定义指标
 - 指标收集
 - 手动扩缩容
 
@@ -157,6 +164,32 @@ func (s *Scheduler) roundRobin(nodes []*Node) *Node {
 }
 ```
 
+### Random 算法
+```go
+func (s *Scheduler) randomSelect(nodes []*Node) *Node {
+    // 随机选择
+    return nodes[rand.Intn(len(nodes))]
+}
+```
+
+### Resource Aware 算法
+```go
+func (s *Scheduler) resourceAware(nodes []*Node, container *Container) *Node {
+    // 评分每个节点的资源匹配度
+    // CPU 比率 + 内存比率的平均值
+    // 选择得分最高的节点
+}
+```
+
+### Affinity 算法
+```go
+func (s *Scheduler) affinity(nodes []*Node, container *Container) *Node {
+    // 基于标签匹配评分
+    // 选择标签匹配度最高的节点
+    // 如果没有匹配，回退到 Spread 策略
+}
+```
+
 ## 服务发现设计
 
 ### 服务注册流程
@@ -200,13 +233,20 @@ type HealthCheck struct {
 ### 自动扩缩容策略
 ```go
 type ScalingPolicy struct {
-    MinReplicas     int
-    MaxReplicas     int
-    ScaleUpCPU      float64  // CPU 使用率阈值（扩）
-    ScaleDownCPU    float64  // CPU 使用率阈值（缩）
-    ScaleUpMemory   float64  // 内存使用率阈值（扩）
-    ScaleDownMemory float64  // 内存使用率阈值（缩）
-    Cooldown        time.Duration  // 冷却时间
+    MinReplicas          int
+    MaxReplicas          int
+    ScaleUpCPU           float64  // CPU 使用率阈值（扩）
+    ScaleDownCPU         float64  // CPU 使用率阈值（缩）
+    ScaleUpMemory        float64  // 内存使用率阈值（扩）
+    ScaleDownMemory      float64  // 内存使用率阈值（缩）
+    Cooldown             time.Duration  // 冷却时间
+    CustomMetricRules    []CustomMetricRule  // 自定义指标规则
+}
+
+type CustomMetricRule struct {
+    MetricName         string  // 指标名称
+    ScaleUpThreshold   float64 // 扩容阈值
+    ScaleDownThreshold float64 // 缩容阈值
 }
 ```
 
@@ -242,6 +282,12 @@ func (s *Scaler) evaluateService(serviceID string) *ScaleDecision {
 - `GET /api/services/{id}` - 获取服务
 - `DELETE /api/services/{id}` - 删除服务
 - `PUT /api/services/{id}` - 扩缩容服务
+
+### 容器生命周期管理
+- `POST /api/containers/{id}/start` - 启动容器
+- `POST /api/containers/{id}/stop` - 停止容器
+- `POST /api/containers/{id}/restart` - 重启容器
+- `POST /api/containers/{id}/delete` - 删除容器
 
 ### 服务发现
 - `GET /api/resolve/{name}` - 解析服务

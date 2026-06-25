@@ -1,10 +1,11 @@
 """
 工具函数模块
 
-提供 K-Means 聚类相关的辅助功能。
+提供 K-Means 聚类相关的辅助功能，包括评估指标和数据生成。
 """
 
 import numpy as np
+from .distance import pairwise_distances
 
 
 def generate_clustered_data(n_samples=300, n_clusters=4, n_features=2,
@@ -271,3 +272,160 @@ def cluster_statistics(X, labels, centroids):
             stats['total_wcss'] += float(np.sum(distances ** 2))
 
     return stats
+
+
+def compute_calinski_harabasz(X, labels):
+    """
+    计算 Calinski-Harabasz 指数（方差比准则）
+
+    该指标衡量簇间分散度与簇内分散度的比值，值越大表示聚类效果越好。
+
+    公式:
+        CH = (B(k) / (k-1)) / (W(k) / (n-k))
+
+    其中:
+        B(k) = 簇间离散度（between-cluster dispersion）
+        W(k) = 簇内离散度（within-cluster dispersion）
+        k = 簇的数量
+        n = 样本数量
+
+    参数:
+        X: 数据矩阵，形状 (n_samples, n_features)
+        labels: 簇标签数组
+
+    返回:
+        ch_score: Calinski-Harabasz 指数值（越大越好）
+    """
+    X = np.asarray(X, dtype=np.float64)
+    labels = np.asarray(labels)
+
+    n_samples = X.shape[0]
+    n_features = X.shape[1]
+    unique_labels = np.unique(labels)
+    n_clusters = len(unique_labels)
+
+    # 边界情况
+    if n_clusters <= 1 or n_clusters >= n_samples:
+        return 0.0
+
+    # 计算全局中心
+    global_center = np.mean(X, axis=0)
+
+    # 计算簇间离散度 (Between-Cluster Dispersion)
+    between_dispersion = 0.0
+    for k in unique_labels:
+        cluster_points = X[labels == k]
+        n_k = len(cluster_points)
+        if n_k > 0:
+            cluster_center = np.mean(cluster_points, axis=0)
+            # 簇中心到全局中心的距离平方乘以簇大小
+            between_dispersion += n_k * np.sum((cluster_center - global_center) ** 2)
+
+    # 计算簇内离散度 (Within-Cluster Dispersion)
+    within_dispersion = 0.0
+    for k in unique_labels:
+        cluster_points = X[labels == k]
+        if len(cluster_points) > 0:
+            cluster_center = np.mean(cluster_points, axis=0)
+            # 簇内各点到簇中心的距离平方和
+            within_dispersion += np.sum((cluster_points - cluster_center) ** 2)
+
+    # 计算 Calinski-Harabasz 指数
+    if within_dispersion == 0:
+        return 0.0
+
+    ch_score = (between_dispersion / (n_clusters - 1)) / (within_dispersion / (n_samples - n_clusters))
+
+    return ch_score
+
+
+def compute_silhouette_score_fast(X, labels):
+    """
+    计算轮廓系数（优化版本）
+
+    轮廓系数衡量样本与自身簇和其他簇的相似度，值范围 [-1, 1]，
+    值越大表示聚类效果越好。
+
+    参数:
+        X: 数据矩阵，形状 (n_samples, n_features)
+        labels: 簇标签数组
+
+    返回:
+        silhouette_score: 平均轮廓系数
+    """
+    X = np.asarray(X, dtype=np.float64)
+    labels = np.asarray(labels)
+    n_samples = X.shape[0]
+
+    unique_labels = np.unique(labels)
+    n_clusters = len(unique_labels)
+
+    if n_clusters <= 1 or n_clusters >= n_samples:
+        return 0.0
+
+    # 预计算距离矩阵
+    distances = pairwise_distances(X, metric='euclidean')
+
+    silhouette_values = np.zeros(n_samples)
+
+    for i in range(n_samples):
+        current_label = labels[i]
+
+        # 计算 a(i): 同簇内其他样本的平均距离
+        same_cluster_mask = (labels == current_label)
+        same_cluster_mask[i] = False
+
+        if np.any(same_cluster_mask):
+            a_i = np.mean(distances[i, same_cluster_mask])
+        else:
+            a_i = 0.0
+
+        # 计算 b(i): 最近簇中所有样本的平均距离
+        b_i = np.inf
+
+        for label in unique_labels:
+            if label == current_label:
+                continue
+
+            other_cluster_mask = (labels == label)
+            if np.any(other_cluster_mask):
+                avg_distance = np.mean(distances[i, other_cluster_mask])
+                b_i = min(b_i, avg_distance)
+
+        # 计算轮廓系数
+        if max(a_i, b_i) > 0:
+            silhouette_values[i] = (b_i - a_i) / max(a_i, b_i)
+        else:
+            silhouette_values[i] = 0.0
+
+    return np.mean(silhouette_values)
+
+
+def evaluate_clustering(X, labels, method='all'):
+    """
+    综合评估聚类结果
+
+    参数:
+        X: 数据矩阵
+        labels: 簇标签数组
+        method: 评估方法，'all', 'silhouette', 'calinski_harabasz'
+
+    返回:
+        metrics: 评估指标字典
+    """
+    X = np.asarray(X, dtype=np.float64)
+    labels = np.asarray(labels)
+
+    metrics = {}
+
+    if method in ['all', 'silhouette']:
+        metrics['silhouette_score'] = compute_silhouette_score_fast(X, labels)
+
+    if method in ['all', 'calinski_harabasz']:
+        metrics['calinski_harabasz'] = compute_calinski_harabasz(X, labels)
+
+    if method == 'all':
+        metrics['n_clusters'] = len(np.unique(labels))
+        metrics['n_samples'] = X.shape[0]
+
+    return metrics

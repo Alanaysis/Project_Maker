@@ -1,5 +1,7 @@
 """
 K-Means 核心算法测试
+
+包括标准 K-Means 和 Mini-Batch K-Means 的测试。
 """
 
 import unittest
@@ -10,8 +12,13 @@ import os
 # 添加项目路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.kmeans import KMeans
-from src.utils import generate_clustered_data
+from src.kmeans import KMeans, MiniBatchKMeans
+from src.utils import (
+    generate_clustered_data,
+    compute_silhouette_score_fast,
+    compute_calinski_harabasz,
+    evaluate_clustering
+)
 
 
 class TestKMeans(unittest.TestCase):
@@ -243,6 +250,219 @@ class TestKMeansEdgeCases(unittest.TestCase):
 
         self.assertEqual(kmeans.cluster_centers_.shape, (5, 10))
         self.assertEqual(len(np.unique(kmeans.labels_)), 5)
+
+
+class TestMiniBatchKMeans(unittest.TestCase):
+    """Mini-Batch K-Means 算法测试类"""
+
+    def setUp(self):
+        """测试前准备"""
+        self.X, self.y = generate_clustered_data(
+            n_samples=300, n_clusters=4, n_features=2, random_state=42
+        )
+
+    def test_basic_clustering(self):
+        """测试基本聚类功能"""
+        minibatch = MiniBatchKMeans(n_clusters=4, batch_size=50, random_state=42)
+        labels = minibatch.fit_predict(self.X)
+
+        # 检查返回的标签形状
+        self.assertEqual(labels.shape, (300,))
+
+        # 检查簇的数量
+        unique_labels = np.unique(labels)
+        self.assertEqual(len(unique_labels), 4)
+
+    def test_fit_predict_consistency(self):
+        """测试 fit 和 predict 的一致性"""
+        minibatch = MiniBatchKMeans(n_clusters=4, batch_size=50, random_state=42)
+
+        # 先 fit 再 predict
+        minibatch.fit(self.X)
+        labels1 = minibatch.labels_
+        labels2 = minibatch.predict(self.X)
+
+        # 结果应该一致
+        np.testing.assert_array_equal(labels1, labels2)
+
+    def test_cluster_centers_shape(self):
+        """测试簇中心的形状"""
+        minibatch = MiniBatchKMeans(n_clusters=4, batch_size=50, random_state=42)
+        minibatch.fit(self.X)
+
+        self.assertEqual(minibatch.cluster_centers_.shape, (4, 2))
+
+    def test_inertia_calculation(self):
+        """测试 WCSS 计算"""
+        minibatch = MiniBatchKMeans(n_clusters=4, batch_size=50, random_state=42)
+        minibatch.fit(self.X)
+
+        # WCSS 应该是正数
+        self.assertGreater(minibatch.inertia_, 0)
+
+    def test_different_batch_sizes(self):
+        """测试不同的批次大小"""
+        for batch_size in [10, 50, 100, 200]:
+            minibatch = MiniBatchKMeans(
+                n_clusters=4, batch_size=batch_size, random_state=42
+            )
+            minibatch.fit(self.X)
+
+            # 检查结果
+            self.assertEqual(minibatch.cluster_centers_.shape, (4, 2))
+            self.assertEqual(len(np.unique(minibatch.labels_)), 4)
+
+    def test_init_methods(self):
+        """测试不同的初始化方法"""
+        for init in ['random', 'kmeans++']:
+            minibatch = MiniBatchKMeans(
+                n_clusters=4, batch_size=50, init=init, random_state=42
+            )
+            minibatch.fit(self.X)
+
+            # 检查结果
+            self.assertEqual(minibatch.cluster_centers_.shape, (4, 2))
+            self.assertEqual(len(np.unique(minibatch.labels_)), 4)
+
+    def test_random_state_reproducibility(self):
+        """测试随机种子的可重复性"""
+        minibatch1 = MiniBatchKMeans(n_clusters=4, batch_size=50, random_state=42)
+        labels1 = minibatch1.fit_predict(self.X)
+
+        minibatch2 = MiniBatchKMeans(n_clusters=4, batch_size=50, random_state=42)
+        labels2 = minibatch2.fit_predict(self.X)
+
+        # 结果应该完全一致
+        np.testing.assert_array_equal(labels1, labels2)
+        np.testing.assert_array_equal(minibatch1.cluster_centers_, minibatch2.cluster_centers_)
+
+    def test_input_validation(self):
+        """测试输入验证"""
+        # 测试无效的 K 值
+        with self.assertRaises(ValueError):
+            minibatch = MiniBatchKMeans(n_clusters=0, random_state=42)
+            minibatch.fit(self.X)
+
+        # 测试 K 值大于样本数
+        with self.assertRaises(ValueError):
+            minibatch = MiniBatchKMeans(n_clusters=400, random_state=42)
+            minibatch.fit(self.X)
+
+    def test_get_set_params(self):
+        """测试参数获取和设置"""
+        minibatch = MiniBatchKMeans(n_clusters=4, batch_size=50, random_state=42)
+
+        # 获取参数
+        params = minibatch.get_params()
+        self.assertEqual(params['n_clusters'], 4)
+        self.assertEqual(params['batch_size'], 50)
+        self.assertEqual(params['random_state'], 42)
+
+        # 设置参数
+        minibatch.set_params(n_clusters=5)
+        self.assertEqual(minibatch.n_clusters, 5)
+
+    def test_large_dataset(self):
+        """测试大数据集"""
+        # 生成大数据集
+        X_large = np.random.randn(10000, 5)
+
+        minibatch = MiniBatchKMeans(
+            n_clusters=10, batch_size=100, random_state=42
+        )
+        minibatch.fit(X_large)
+
+        # 检查结果
+        self.assertEqual(minibatch.cluster_centers_.shape, (10, 5))
+        self.assertEqual(len(np.unique(minibatch.labels_)), 10)
+
+    def test_convergence(self):
+        """测试收敛性"""
+        minibatch = MiniBatchKMeans(
+            n_clusters=4, batch_size=50, max_iter=100, random_state=42
+        )
+        minibatch.fit(self.X)
+
+        # 应该在最大迭代次数内收敛或达到最大迭代次数
+        self.assertLessEqual(minibatch.n_iter_, 100)
+
+
+class TestEvaluationMetrics(unittest.TestCase):
+    """评估指标测试类"""
+
+    def setUp(self):
+        """测试前准备"""
+        self.X, self.y = generate_clustered_data(
+            n_samples=300, n_clusters=4, n_features=2, random_state=42
+        )
+
+    def test_silhouette_score(self):
+        """测试轮廓系数计算"""
+        kmeans = KMeans(n_clusters=4, random_state=42)
+        labels = kmeans.fit_predict(self.X)
+
+        score = compute_silhouette_score_fast(self.X, labels)
+
+        # 轮廓系数应该在 [-1, 1] 范围内
+        self.assertGreaterEqual(score, -1)
+        self.assertLessEqual(score, 1)
+
+        # 对于明显的聚类，轮廓系数应该为正
+        self.assertGreater(score, 0)
+
+    def test_calinski_harabasz(self):
+        """测试 Calinski-Harabasz 指数计算"""
+        kmeans = KMeans(n_clusters=4, random_state=42)
+        labels = kmeans.fit_predict(self.X)
+
+        score = compute_calinski_harabasz(self.X, labels)
+
+        # Calinski-Harabasz 指数应该为正
+        self.assertGreater(score, 0)
+
+    def test_evaluate_clustering(self):
+        """测试综合评估函数"""
+        kmeans = KMeans(n_clusters=4, random_state=42)
+        labels = kmeans.fit_predict(self.X)
+
+        metrics = evaluate_clustering(self.X, labels)
+
+        # 检查返回的指标
+        self.assertIn('silhouette_score', metrics)
+        self.assertIn('calinski_harabasz', metrics)
+        self.assertIn('n_clusters', metrics)
+        self.assertIn('n_samples', metrics)
+
+        # 检查指标值
+        self.assertEqual(metrics['n_clusters'], 4)
+        self.assertEqual(metrics['n_samples'], 300)
+
+    def test_silhouette_score_single_cluster(self):
+        """测试单个簇的轮廓系数"""
+        labels = np.zeros(100)
+        score = compute_silhouette_score_fast(self.X[:100], labels)
+        self.assertEqual(score, 0.0)
+
+    def test_calinski_harabasz_single_cluster(self):
+        """测试单个簇的 Calinski-Harabasz 指数"""
+        labels = np.zeros(100)
+        score = compute_calinski_harabasz(self.X[:100], labels)
+        self.assertEqual(score, 0.0)
+
+    def test_metrics_comparison(self):
+        """测试不同 K 值的指标比较"""
+        scores = {}
+        for k in [2, 3, 4, 5]:
+            kmeans = KMeans(n_clusters=k, random_state=42)
+            labels = kmeans.fit_predict(self.X)
+
+            metrics = evaluate_clustering(self.X, labels)
+            scores[k] = metrics
+
+        # 检查不同 K 值的指标
+        for k, metrics in scores.items():
+            self.assertIn('silhouette_score', metrics)
+            self.assertIn('calinski_harabasz', metrics)
 
 
 if __name__ == '__main__':

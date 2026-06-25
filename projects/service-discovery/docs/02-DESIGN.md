@@ -162,6 +162,7 @@ type Config struct {
 - Watch the store for service changes
 - Maintain a local cache of available services
 - Notify listeners of changes
+- Support tag-based service filtering
 
 ### Design
 
@@ -179,6 +180,23 @@ type Discoverer struct {
 2. **Watch loop**: Process events to update local cache
 3. **Change callback**: Optional callback for service list changes
 4. **Status filtering**: Only return StatusUp services
+5. **Tag filtering**: Filter services by metadata tags (AND logic)
+
+### Tag-Based Filtering
+
+Services can be filtered by metadata tags:
+```go
+// Get services with matching tags
+services := d.GetServicesByTags("web", map[string]string{
+    "env": "prod",
+    "version": "2.0",
+})
+```
+
+All specified tags must match (AND logic). This enables:
+- Environment routing (prod vs staging)
+- Version routing (v1 vs v2)
+- Canary deployments (canary=true)
 
 ## Load Balancer Package
 
@@ -226,7 +244,9 @@ type WeightedRoundRobinBalancer struct {
 | GET | /services | List all services |
 | GET | /services/{name} | Get services by name |
 | GET | /discover?name=X | Discover services |
+| GET | /discover/tags?name=X&tag=value | Discover services by tags |
 | GET | /choose?name=X | Choose a service (load balanced) |
+| GET | /choose/tags?name=X&tag=value | Choose a service by tags |
 | GET | /health | Server health check |
 
 ### Request/Response Examples

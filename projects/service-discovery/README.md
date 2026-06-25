@@ -60,7 +60,7 @@ service-discovery/
 │   │   ├── healthcheck.go       # Health checking
 │   │   └── healthcheck_test.go
 │   ├── discovery/
-│   │   ├── discovery.go         # Service discovery
+│   │   ├── discovery.go         # Service discovery with tag filtering
 │   │   └── discovery_test.go
 │   ├── loadbalancer/
 │   │   ├── balancer.go          # Load balancing strategies
@@ -68,7 +68,12 @@ service-discovery/
 │   └── server/
 │       ├── server.go            # HTTP API
 │       └── server_test.go
+├── examples/
+│   ├── microservice_example.go  # Microservice architecture demo
+│   └── api_gateway_example.go   # API gateway pattern demo
 ├── docs/                        # Documentation
+├── tests/
+│   └── integration_test.go      # Integration tests
 ├── go.mod
 ├── README.md
 └── LEARNING_NOTES.md
@@ -107,7 +112,7 @@ curl -X POST http://localhost:8500/register \
     "name": "user-service",
     "address": "10.0.0.1",
     "port": 8080,
-    "metadata": {"version": "1.0", "weight": "3"}
+    "metadata": {"version": "1.0", "weight": "3", "env": "prod"}
   }'
 
 # Register another instance
@@ -118,14 +123,20 @@ curl -X POST http://localhost:8500/register \
     "name": "user-service",
     "address": "10.0.0.2",
     "port": 8080,
-    "metadata": {"version": "1.0", "weight": "1"}
+    "metadata": {"version": "1.0", "weight": "1", "env": "prod"}
   }'
 
 # Discover services
 curl http://localhost:8500/discover?name=user-service
 
+# Discover services by tags
+curl "http://localhost:8500/discover/tags?name=user-service&env=prod"
+
 # Choose a service (load balanced)
 curl http://localhost:8500/choose?name=user-service
+
+# Choose a service by tags (load balanced)
+curl "http://localhost:8500/choose/tags?name=user-service&env=prod"
 
 # List all services
 curl http://localhost:8500/services
@@ -165,7 +176,9 @@ go test ./... -cover
 | GET | /services | List all services |
 | GET | /services/{name} | Get services by name |
 | GET | /discover?name=X | Discover services by name |
+| GET | /discover/tags?name=X&tag=value | Discover services by name and tags |
 | GET | /choose?name=X | Choose a service (load balanced) |
+| GET | /choose/tags?name=X&tag=value | Choose a service by tags (load balanced) |
 | GET | /health | Server health check |
 
 ## Command Line Flags
@@ -187,6 +200,68 @@ Selects a random instance for each request.
 ### Weighted Round Robin
 
 Distributes requests based on weights from service metadata. A service with weight 3 receives 3x more requests than one with weight 1.
+
+## Tag-Based Filtering
+
+Services can have metadata tags that enable fine-grained discovery and routing:
+
+```bash
+# Register with tags
+curl -X POST http://localhost:8500/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "api-v2-canary",
+    "name": "api-service",
+    "address": "10.0.0.5",
+    "port": 8005,
+    "metadata": {"version": "2.0", "env": "prod", "canary": "true"}
+  }'
+
+# Discover by single tag
+curl "http://localhost:8500/discover/tags?name=api-service&env=prod"
+
+# Discover by multiple tags (AND logic)
+curl "http://localhost:8500/discover/tags?name=api-service&env=prod&version=2.0"
+
+# Load-balanced selection with tag filtering
+curl "http://localhost:8500/choose/tags?name=api-service&canary=true"
+```
+
+Use cases:
+- **Environment routing**: `env=prod` vs `env=staging`
+- **Version routing**: `version=2.0` for API versioning
+- **Canary deployments**: `canary=true` for testing new releases
+- **Regional routing**: `region=us-east` for geo-aware routing
+
+## Examples
+
+### Microservice Architecture
+
+Run the microservice example to see service registration and discovery in action:
+
+```bash
+go run ./examples/microservice_example.go
+```
+
+This demonstrates:
+- Registering multiple service instances
+- Service discovery with watch-based updates
+- Load-balanced request routing
+- Service deregistration
+
+### API Gateway Pattern
+
+Run the API gateway example to see a complete gateway implementation:
+
+```bash
+go run ./examples/api_gateway_example.go
+```
+
+This demonstrates:
+- Weighted load balancing
+- Tag-based routing for canary deployments
+- Version-based routing (v1 vs v2)
+- Health-aware service selection
 
 ## Key Concepts
 

@@ -701,3 +701,140 @@ func TestIntegrationHealthEndpoint(t *testing.T) {
 		t.Errorf("expected status=ok, got %s", resp["status"])
 	}
 }
+
+// --- Integration: Tag-Based Discovery ---
+
+func TestIntegrationTagBasedDiscovery(t *testing.T) {
+	s := store.NewMemStore()
+	defer s.Close()
+	ctx := context.Background()
+
+	// Register services with different metadata
+	services := []struct {
+		id       string
+		name     string
+		port     int
+		metadata map[string]string
+	}{
+		{"web-1", "web", 8001, map[string]string{"env": "prod", "version": "1.0"}},
+		{"web-2", "web", 8002, map[string]string{"env": "prod", "version": "2.0"}},
+		{"web-3", "web", 8003, map[string]string{"env": "staging", "version": "1.0"}},
+		{"api-1", "api", 9001, map[string]string{"env": "prod", "region": "us-east"}},
+		{"api-2", "api", 9002, map[string]string{"env": "prod", "region": "eu-west"}},
+	}
+
+	for _, svcDef := range services {
+		svc := &registry.Service{
+			ID:       svcDef.id,
+			Name:     svcDef.name,
+			Address:  "127.0.0.1",
+			Port:     svcDef.port,
+			Status:   registry.StatusUp,
+			Metadata: svcDef.metadata,
+		}
+		putServiceDirect(t, s, ctx, svc)
+	}
+
+	disc := discovery.New(s)
+	defer disc.Stop()
+	disc.Start(ctx)
+	time.Sleep(100 * time.Millisecond)
+
+	// Test single tag filter
+	prodWeb := disc.GetServicesByTags("web", map[string]string{"env": "prod"})
+	if len(prodWeb) != 2 {
+		t.Errorf("expected 2 prod web services, got %d", len(prodWeb))
+	}
+
+	// Test multiple tag filters
+	prodV1Web := disc.GetServicesByTags("web", map[string]string{"env": "prod", "version": "1.0"})
+	if len(prodV1Web) != 1 {
+		t.Errorf("expected 1 prod v1.0 web service, got %d", len(prodV1Web))
+	}
+
+	// Test GetServicesByTags for different service
+	usEastApi := disc.GetServicesByTags("api", map[string]string{"region": "us-east"})
+	if len(usEastApi) != 1 {
+		t.Errorf("expected 1 us-east api service, got %d", len(usEastApi))
+	}
+
+	// Test GetAllServicesByTags
+	allProd := disc.GetAllServicesByTags(map[string]string{"env": "prod"})
+	if len(allProd) != 2 {
+		t.Errorf("expected 2 service names, got %d", len(allProd))
+	}
+	if len(allProd["web"]) != 2 {
+		t.Errorf("expected 2 prod web services, got %d", len(allProd["web"]))
+	}
+	if len(allProd["api"]) != 2 {
+		t.Errorf("expected 2 prod api services, got %d", len(allProd["api"]))
+	}
+}
+
+func TestIntegrationTagBasedAPI(t *testing.T) {
+	srv, s := setupAPIServer(t)
+	defer s.Close()
+
+	ctx := context.Background()
+	srv.Discoverer().Start(ctx)
+	defer srv.Discoverer().Stop()
+
+	// Register services with metadata
+	for i := 1; i <= 3; i++ {
+		env := "prod"
+		if i == 3 {
+			env = "staging"
+		}
+		body := fmt.Sprintf(`{"id":"svc-%d","name":"web","address":"10.0.0.%d","port":800%d,"metadata":{"env":"%s"}}`,
+			i, i, i, env)
+		req := httptest.NewRequest("POST", "/register", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.handleRegister(w, req)
+
+		if w.Code != http.StatusCreated {
+			t.Fatalf("register svc-%d: expected 201, got %d", i, w.Code)
+		}
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Discover by tag
+	req := httptest.NewRequest("GET", "/discover/tags?name=web&env=prod", nil)
+	w := httptest.NewRecorder()
+	srv.handleDiscoverByTags(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("discover/tags: expected 200, got %d", w.Code)
+	}
+
+	var services []*registry.Service
+	json.NewDecoder(w.Body).Decode(&services)
+	if len(services) != 2 {
+		t.Errorf("expected 2 prod services, got %d", len(services))
+	}
+
+	// Choose by tag
+	selected := make(map[string]bool)
+	for i := 0; i < 10; i++ {
+		req := httptest.NewRequest("GET", "/choose/tags?name=web&env=prod", nil)
+		w := httptest.NewRecorder()
+		srv.handleChooseByTags(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("choose/tags: expected 200, got %d", w.Code)
+		}
+
+		var svc registry.Service
+		json.NewDecoder(w.Body).Decode(&svc)
+		selected[svc.ID] = true
+	}
+
+	// Only prod services should be selected
+	if selected["svc-3"] {
+		t.Error("staging service svc-3 should not be selected")
+	}
+	if len(selected) != 2 {
+		t.Errorf("expected 2 services to be selected, got %d", len(selected))
+	}
+}

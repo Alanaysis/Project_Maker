@@ -1,0 +1,28 @@
+{
+  "name": "form-engine",
+  "version": "1.0.0",
+  "description": "动态表单引擎 - 支持验证和渲染",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "npx ts-node tests/run.ts",
+    "example:login": "npx ts-node examples/login-form.ts",
+    "example:registration": "npx ts-node examples/registration-form.ts",
+    "example:survey": "npx ts-node examples/survey-form.ts",
+    "example:conditional": "npx ts-node examples/conditional-fields.ts"
+  },
+  "keywords": [
+    "form-engine",
+    "validation",
+    "dynamic-form",
+    "renderer",
+    "typescript"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.0.0"
+  }
+}

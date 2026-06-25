@@ -17,4 +17,16 @@ var (
 	ErrAlreadyAcknowledged = errors.New("message already acknowledged")
 	// ErrSubscriptionExists is returned for duplicate subscription attempts.
 	ErrSubscriptionExists = errors.New("subscription already exists")
+	// ErrConsumerGroupNotFound is returned when a consumer group does not exist.
+	ErrConsumerGroupNotFound = errors.New("consumer group not found")
+	// ErrConsumerGroupExists is returned when trying to create a duplicate group.
+	ErrConsumerGroupExists = errors.New("consumer group already exists")
+	// ErrNoAvailableConsumer is returned when no consumer in a group is available.
+	ErrNoAvailableConsumer = errors.New("no available consumer in group")
+	// ErrMessageNotReady is returned when a delayed message is not yet ready.
+	ErrMessageNotReady = errors.New("message not ready for delivery")
+	// ErrInvalidPriority is returned for an invalid priority value.
+	ErrInvalidPriority = errors.New("invalid priority value")
+	// ErrMaxRetriesExceeded is returned when a message exceeds max retries.
+	ErrMaxRetriesExceeded = errors.New("max retries exceeded")
 )

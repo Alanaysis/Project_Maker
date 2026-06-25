@@ -38,6 +38,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/services", s.handleServices)
 	s.mux.HandleFunc("/api/services/", s.handleService)
 
+	// Container lifecycle endpoints
+	s.mux.HandleFunc("/api/containers/", s.handleContainer)
+
 	// Discovery endpoints
 	s.mux.HandleFunc("/api/resolve/", s.handleResolve)
 
@@ -176,6 +179,50 @@ func (s *Server) handleService(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+// handleContainer handles /api/containers/{id}/{action}
+func (s *Server) handleContainer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/containers/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		writeError(w, http.StatusBadRequest, "container ID and action required")
+		return
+	}
+
+	containerID := parts[0]
+	action := parts[1]
+
+	var err error
+	switch action {
+	case "start":
+		err = s.manager.StartContainer(containerID)
+	case "stop":
+		err = s.manager.StopContainer(containerID)
+	case "restart":
+		err = s.manager.RestartContainer(containerID)
+	case "delete":
+		err = s.manager.DeleteContainer(containerID)
+	default:
+		writeError(w, http.StatusBadRequest, "unknown action: "+action)
+		return
+	}
+
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":      "success",
+		"container_id": containerID,
+		"action":      action,
+	})
 }
 
 // handleResolve handles /api/resolve/{serviceName}

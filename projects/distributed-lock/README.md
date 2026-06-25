@@ -1,68 +1,86 @@
-# 分布式锁 (Distributed Lock)
+# Distributed Lock
 
-基于 Redis 的分布式锁实现，包含 Redlock 算法和自动续期机制。
+A comprehensive distributed lock library supporting multiple backends (Redis, ZooKeeper, etcd) with various lock types (basic, reentrant, fair, read-write).
 
-## 项目简介
+## Features
 
-本项目实现了一个生产级的分布式锁系统，用于在分布式环境中协调多个进程对共享资源的访问。
+### Backend Support
+- **Redis**: Single-node and Redlock algorithm
+- **ZooKeeper**: Ephemeral sequential nodes with Watch mechanism
+- **etcd**: Lease-based with Revision comparison
 
-### 核心特性
+### Lock Types
+- **Basic Lock**: Simple mutex with TTL expiration
+- **Reentrant Lock**: Same client can acquire multiple times
+- **Fair Lock**: FIFO ordering guarantees
+- **Read-Write Lock**: Multiple readers or single writer
 
-- **单节点 Redis 锁**：基于 SET NX EX 的基本分布式锁
-- **Redlock 算法**：基于多个独立 Redis 节点的分布式锁算法
-- **锁续期（Watchdog）**：自动延长锁的过期时间，防止业务未完成时锁被释放
-- **可重入锁**：支持同一客户端多次获取同一把锁
-- **公平等待队列**：基于 Redis List 的公平锁实现
+### Advanced Features
+- **Watchdog**: Automatic lock renewal for long-running tasks
+- **Retry Logic**: Configurable retry count and delay
+- **Ownership Verification**: Only lock holder can release
+- **Atomic Operations**: Lua scripts for Redis, transactions for others
 
-## 项目结构
+## Project Structure
 
 ```
 distributed-lock/
-├── README.md                    # 项目说明
-├── docs/                        # 文档目录
-│   ├── 01-RESEARCH.md          # 调研报告
-│   ├── 02-DESIGN.md            # 设计文档
-│   ├── 03-IMPLEMENTATION.md    # 实现细节
-│   ├── 04-TESTING.md           # 测试文档
-│   └── 05-DEVELOPMENT.md       # 开发指南
-├── LEARNING_NOTES.md            # 学习笔记
-├── go.mod                       # Go 模块定义
-├── go.sum                       # 依赖校验
+├── README.md
+├── go.mod
+├── go.sum
 ├── internal/
-│   ├── lock/                    # 基础分布式锁实现
-│   │   ├── lock.go             # 锁接口和基础实现
-│   │   └── lock_test.go        # 基础锁测试
-│   ├── redlock/                 # Redlock 算法实现
-│   │   ├── redlock.go          # Redlock 实现
-│   │   └── redlock_test.go     # Redlock 测试
-│   └── watchdog/                # 锁续期机制
-│       ├── watchdog.go         # Watchdog 实现
-│       └── watchdog_test.go    # Watchdog 测试
+│   ├── lock/
+│   │   └── lock.go              # Core interfaces
+│   ├── redis/
+│   │   ├── lock.go              # Basic Redis lock
+│   │   ├── redlock.go           # Redlock algorithm
+│   │   ├── reentrant.go         # Reentrant lock
+│   │   ├── fair.go              # Fair (FIFO) lock
+│   │   ├── rwlock.go            # Read-write lock
+│   │   └── watchdog.go          # Auto-renewal
+│   ├── zookeeper/
+│   │   └── lock.go              # ZooKeeper lock
+│   └── etcd/
+│       └── lock.go              # etcd lock
 ├── pkg/
-│   └── utils/                   # 工具函数
-│       ├── id.go               # 唯一标识生成
-│       └── id_test.go          # 工具函数测试
+│   └── utils/
+│       └── id.go                # ID generation
 ├── cmd/
-│   └── demo/                    # 演示程序
-│       └── main.go
-└── examples/                    # 使用示例
-    └── example_test.go
+│   └── demo/
+│       └── main.go              # Demo application
+├── examples/
+│   ├── task_scheduler.go        # Task scheduling example
+│   ├── inventory.go             # Inventory management example
+│   ├── ratelimiter.go           # Rate limiter example
+│   └── main.go                  # Usage examples
+├── tests/
+│   ├── lock_test.go             # Lock tests
+│   ├── redlock_test.go          # Redlock tests
+│   └── watchdog_test.go         # Watchdog tests
+└── docs/
+    ├── 01-RESEARCH.md
+    ├── 02-DESIGN.md
+    ├── 03-IMPLEMENTATION.md
+    ├── 04-TESTING.md
+    └── 05-DEVELOPMENT.md
 ```
 
-## 快速开始
+## Quick Start
 
-### 前置条件
+### Prerequisites
 
 - Go 1.21+
-- Redis 6.0+（单节点或多节点）
+- Redis 6.0+ (for Redis backend)
+- ZooKeeper 3.6+ (for ZooKeeper backend)
+- etcd 3.5+ (for etcd backend)
 
-### 安装
+### Installation
 
 ```bash
 go mod tidy
 ```
 
-### 基本使用
+### Basic Usage
 
 ```go
 package main
@@ -73,120 +91,258 @@ import (
     "time"
 
     "github.com/example/distributed-lock/internal/lock"
-    "github.com/redis/go-redis/v9"
+    "github.com/example/distributed-lock/internal/redis"
+    goredis "github.com/redis/go-redis/v9"
 )
 
 func main() {
-    // 创建 Redis 客户端
-    client := redis.NewClient(&redis.Options{
+    // Create Redis client
+    client := goredis.NewClient(&goredis.Options{
         Addr: "localhost:6379",
     })
     defer client.Close()
 
-    // 创建分布式锁
+    // Create distributed lock
     ctx := context.Background()
-    distLock := lock.NewRedisLock(client, "my-resource", 10*time.Second)
+    distLock := redis.NewRedisLock(client, "my-resource",
+        lock.WithTTL(10*time.Second),
+        lock.WithOwnerID("my-client-id"))
 
-    // 获取锁
+    // Acquire lock
     acquired, err := distLock.Acquire(ctx)
     if err != nil {
         panic(err)
     }
     if !acquired {
-        fmt.Println("无法获取锁")
+        fmt.Println("Could not acquire lock")
         return
     }
     defer distLock.Release(ctx)
 
-    // 执行业务逻辑
-    fmt.Println("获取锁成功，执行业务逻辑...")
+    // Execute business logic
+    fmt.Println("Lock acquired, executing business logic...")
 }
 ```
 
-### 使用 Redlock
+### Using Redlock
 
 ```go
-// 创建多个 Redis 客户端
-clients := []*redis.Client{
-    redis.NewClient(&redis.Options{Addr: "redis1:6379"}),
-    redis.NewClient(&redis.Options{Addr: "redis2:6379"}),
-    redis.NewClient(&redis.Options{Addr: "redis3:6379"}),
+// Create multiple Redis clients
+clients := []*goredis.Client{
+    goredis.NewClient(&goredis.Options{Addr: "redis1:6379"}),
+    goredis.NewClient(&goredis.Options{Addr: "redis2:6379"}),
+    goredis.NewClient(&goredis.Options{Addr: "redis3:6379"}),
 }
 
-// 创建 Redlock
-rl := redlock.NewRedLock(clients, "my-resource", 10*time.Second)
+// Create Redlock
+rl := redis.NewRedLock(clients, "my-resource",
+    lock.WithTTL(10*time.Second))
 
-// 获取锁（需要大多数节点成功）
+// Acquire lock (requires majority of nodes)
 acquired, err := rl.Acquire(ctx)
 ```
 
-### 使用 Watchdog 自动续期
+### Using Reentrant Lock
 
 ```go
-// 创建带 Watchdog 的锁
-distLock := lock.NewRedisLock(client, "my-resource", 10*time.Second)
-wd := watchdog.NewWatchdog(distLock, 3*time.Second)
+// Create reentrant lock
+distLock := redis.NewReentrantRedisLock(client, "my-resource",
+    lock.WithTTL(10*time.Second))
 
-// 启动 Watchdog
+// First acquisition
+acquired, _ := distLock.Acquire(ctx) // true
+
+// Second acquisition (reentrant)
+acquired, _ = distLock.Acquire(ctx) // true
+
+// Check count
+count, _ := distLock.Count(ctx) // 2
+
+// Release (decrements count)
+distLock.Release(ctx)
+count, _ = distLock.Count(ctx) // 1
+
+// Final release (actually releases lock)
+distLock.Release(ctx)
+count, _ = distLock.Count(ctx) // 0
+```
+
+### Using Fair Lock
+
+```go
+// Create fair lock with FIFO ordering
+distLock := redis.NewFairRedisLock(client, "my-resource",
+    lock.WithTTL(10*time.Second),
+    lock.WithRetryCount(10),
+    lock.WithRetryDelay(100*time.Millisecond))
+
+// Acquire lock (waits for turn in queue)
+acquired, _ := distLock.Acquire(ctx)
+```
+
+### Using Read-Write Lock
+
+```go
+// Create read-write lock
+rwLock := redis.NewReadWriteRedisLock(client, "my-resource",
+    lock.WithTTL(10*time.Second))
+
+// Multiple readers can acquire simultaneously
+acquired, _ := rwLock.AcquireRead(ctx)
+
+// Writer has exclusive access
+acquired, _ = rwLock.AcquireWrite(ctx)
+```
+
+### Using Watchdog for Auto-Renewal
+
+```go
+// Create lock
+distLock := redis.NewRedisLock(client, "long-task",
+    lock.WithTTL(10*time.Second))
+
+// Acquire lock
+acquired, _ := distLock.Acquire(ctx)
+
+// Start watchdog (renews lock every 3 seconds)
+wd := redis.NewWatchdog(distLock, 10*time.Second, 3*time.Second)
 wd.Start(ctx)
-defer wd.Stop()
 
-// 获取锁并自动续期
-acquired, err := distLock.Acquire(ctx)
-if acquired {
-    // 执行长时间任务，锁会自动续期
-    time.Sleep(5 * time.Minute)
+// Execute long-running task
+time.Sleep(5 * time.Minute)
+
+// Stop watchdog and release lock
+wd.Stop()
+distLock.Release(ctx)
+```
+
+## Practical Applications
+
+### Distributed Task Scheduler
+
+```go
+// Create scheduler with distributed lock
+scheduler := NewTaskScheduler(distLock, "daily-report", 1*time.Hour)
+
+// Start scheduler with task function
+scheduler.Start(ctx, func(ctx context.Context) error {
+    return generateDailyReport()
+})
+```
+
+### Inventory Management
+
+```go
+// Create inventory manager with distributed lock
+manager := NewInventoryManager(distLock)
+manager.SetStock("SKU001", 100)
+
+// Deduct stock atomically
+err := manager.DeductStock(ctx, "SKU001", 1)
+if err == ErrInsufficientStock {
+    return errors.New("out of stock")
 }
 ```
 
-## 运行测试
+### Rate Limiter
+
+```go
+// Create rate limiter: 100 requests per minute
+limiter := NewRateLimiter(distLock, "api:user123", 100, 1*time.Minute)
+
+// Check if request is allowed
+allowed, _ := limiter.Allow(ctx)
+if !allowed {
+    return errors.New("rate limit exceeded")
+}
+```
+
+## Running Tests
 
 ```bash
-# 运行所有测试
+# Run all tests
 go test ./...
 
-# 运行特定包的测试
-go test ./internal/lock/...
-go test ./internal/redlock/...
-go test ./internal/watchdog/...
+# Run specific package tests
+go test ./tests/...
+go test ./internal/redis/...
 
-# 运行带竞态检测的测试
+# Run with race detection
 go test -race ./...
+
+# Run with verbose output
+go test -v ./...
 ```
 
-## 核心设计
+## Architecture
 
-### 锁的生命周期
-
-```
-锁请求 → 锁获取 → 业务执行 → 锁释放
-   │         │          │          │
-   │         │          │          └─ 删除锁（带校验）
-   │         │          └─ 执行业务逻辑
-   │         └─ SET NX EX（原子操作）
-   └─ 准备锁标识和过期时间
-```
-
-### Redlock 算法流程
-
-1. 获取当前时间 T1
-2. 依次向 N 个 Redis 节点请求加锁
-3. 计算获取锁耗时 T2 - T1
-4. 如果在 N/2+1 个以上节点获取成功，且耗时小于锁过期时间，则获取成功
-5. 锁的有效时间 = 过期时间 - 获取锁耗时
-
-### 锁续期机制
+### Lock Lifecycle
 
 ```
-Watchdog 定时器 → 检查锁是否存在 → 续期锁 → 重置定时器
-      │                                    │
-      └─ 业务完成，停止 Watchdog            └─ 继续监控
+Acquire Request → Try Acquire → Success/Fail
+       ↓              ↓
+   Wait/Retry    Execute Business Logic
+       ↓              ↓
+   Try Again      Release Lock
 ```
 
-## 参考资料
+### Redlock Algorithm
+
+1. Get current timestamp T1
+2. Try to acquire lock on N Redis nodes sequentially
+3. Calculate time spent: T2 - T1
+4. Lock is acquired if:
+   - Acquired on majority (N/2 + 1) of nodes
+   - Total time < lock TTL
+5. Effective TTL = TTL - (T2 - T1)
+
+### ZooKeeper Lock
+
+1. Create ephemeral sequential node under /lock/
+2. List all children of /lock/
+3. If created node is smallest, acquire lock
+4. Otherwise, watch the node just before ours
+5. When watched node is deleted, retry
+
+### etcd Lock
+
+1. Create a lease with TTL
+2. Create key with lease using transaction
+3. If key was created (revision check), acquire lock
+4. Keep lease alive with KeepAlive
+5. On release, delete key and revoke lease
+
+## Design Decisions
+
+### Interface-Based Design
+
+```go
+type Lock interface {
+    Acquire(ctx context.Context) (bool, error)
+    Release(ctx context.Context) error
+    TTL(ctx context.Context) (time.Duration, error)
+}
+```
+
+### Functional Options Pattern
+
+```go
+func WithTTL(ttl time.Duration) Option
+func WithRetryCount(count int) Option
+func WithRetryDelay(delay time.Duration) Option
+func WithOwnerID(id string) Option
+```
+
+### Lua Scripts for Atomicity
+
+All multi-step Redis operations are implemented as Lua scripts to ensure atomicity.
+
+## References
 
 - [Distributed locks with Redis](https://redis.io/docs/manual/patterns/distributed-locks/)
 - [Redlock Algorithm](https://redis.io/topics/distlock)
+- [Apache ZooKeeper Recipes - Locks](https://zookeeper.apache.org/doc/current/recipes.html#sc_recipes_Locks)
+- [etcd Concurrency Primitives](https://etcd.io/docs/latest/dev-guide/api_concurrency_reference_v3/)
 - Martin Kleppmann: [How to do distributed locking](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html)
 
 ## License

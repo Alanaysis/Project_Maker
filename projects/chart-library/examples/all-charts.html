@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图表库完整示例</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+      gap: 20px;
+    }
+    .chart-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .chart-card h2 {
+      color: #4e79a7;
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+    .chart-container {
+      width: 100%;
+    }
+    .description {
+      color: #666;
+      font-size: 14px;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>图表库完整示例</h1>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h2>折线图 - 月度趋势</h2>
+        <div id="line-chart" class="chart-container"></div>
+        <div class="description">
+          折线图适合展示数据随时间的变化趋势，支持多数据系列对比。
+        </div>
+      </div>
+      <div class="chart-card">
+        <h2>柱状图 - 城市对比</h2>
+        <div id="bar-chart" class="chart-container"></div>
+        <div class="description">
+          柱状图适合对比不同类别的数据，支持分组和堆叠模式。
+        </div>
+      </div>
+      <div class="chart-card">
+        <h2>饼图 - 占比分析</h2>
+        <div id="pie-chart" class="chart-container"></div>
+        <div class="description">
+          饼图适合展示各部分占整体的比例关系。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 简化的图表实现（用于演示）
+    const COLORS = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f'];
+
+    // 通用 Canvas 工具
+    function setupCanvas(container, width, height) {
+      const canvas = document.createElement('canvas');
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      container.appendChild(canvas);
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      return { canvas, ctx };
+    }
+
+    // 绘制折线图
+    function drawLineChart(containerId, data) {
+      const container = document.getElementById(containerId);
+      const width = container.offsetWidth;
+      const height = 300;
+      const { ctx } = setupCanvas(container, width, height);
+
+      const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+      const plotWidth = width - padding.left - padding.right;
+      const plotHeight = height - padding.top - padding.bottom;
+
+      // 背景
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      // 计算比例尺
+      const allValues = data.datasets.flatMap(ds => ds.data);
+      const max = Math.max(...allValues);
+      const min = Math.min(...allValues);
+      const yPadding = (max - min) * 0.1;
+
+      const xScale = (i) => padding.left + (i / (data.labels.length - 1)) * plotWidth;
+      const yScale = (v) => padding.top + plotHeight - ((v - (min - yPadding)) / (max - min + 2 * yPadding)) * plotHeight;
+
+      // 网格
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= 5; i++) {
+        const y = padding.top + (i / 5) * plotHeight;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(width - padding.right, y);
+        ctx.stroke();
+      }
+
+      // 数据线
+      data.datasets.forEach((dataset, di) => {
+        const color = COLORS[di];
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        dataset.data.forEach((v, i) => {
+          const x = xScale(i);
+          const y = yScale(v);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // 点
+        dataset.data.forEach((v, i) => {
+          ctx.beginPath();
+          ctx.arc(xScale(i), yScale(v), 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#fff';
+          ctx.fill();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+      });
+
+      // X 轴标签
+      ctx.fillStyle = '#666';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      data.labels.forEach((label, i) => {
+        ctx.fillText(label, xScale(i), height - 10);
+      });
+    }
+
+    // 绘制柱状图
+    function drawBarChart(containerId, data) {
+      const container = document.getElementById(containerId);
+      const width = container.offsetWidth;
+      const height = 300;
+      const { ctx } = setupCanvas(container, width, height);
+
+      const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+      const plotWidth = width - padding.left - padding.right;
+      const plotHeight = height - padding.top - padding.bottom;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      const max = Math.max(...data.datasets.flatMap(ds => ds.data));
+      const barGroupWidth = plotWidth / data.labels.length;
+      const barWidth = barGroupWidth * 0.6 / data.datasets.length;
+
+      const yScale = (v) => padding.top + plotHeight - (v / (max * 1.1)) * plotHeight;
+
+      // 网格
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= 5; i++) {
+        const y = padding.top + (i / 5) * plotHeight;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(width - padding.right, y);
+        ctx.stroke();
+      }
+
+      // 柱子
+      data.datasets.forEach((dataset, di) => {
+        const color = COLORS[di];
+        dataset.data.forEach((v, i) => {
+          const x = padding.left + i * barGroupWidth + (barGroupWidth - barWidth * data.datasets.length) / 2 + di * barWidth;
+          const y = yScale(v);
+          const h = yScale(0) - y;
+
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.roundRect(x, y, barWidth - 2, h, [3, 3, 0, 0]);
+          ctx.fill();
+        });
+      });
+
+      // X 轴标签
+      ctx.fillStyle = '#666';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      data.labels.forEach((label, i) => {
+        const x = padding.left + (i + 0.5) * barGroupWidth;
+        ctx.fillText(label, x, height - 10);
+      });
+    }
+
+    // 绘制饼图
+    function drawPieChart(containerId, data) {
+      const container = document.getElementById(containerId);
+      const width = container.offsetWidth;
+      const height = 300;
+      const { ctx } = setupCanvas(container, width, height);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      const centerX = width / 2;
+      const centerY = height / 2 - 10;
+      const radius = Math.min(width, height) / 2 - 40;
+
+      const values = data.datasets[0].data;
+      const total = values.reduce((a, b) => a + b, 0);
+      let startAngle = -Math.PI / 2;
+
+      values.forEach((v, i) => {
+        const sliceAngle = (v / total) * Math.PI * 2;
+        const color = data.datasets[0].colors?.[i] || COLORS[i];
+
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 标签
+        const midAngle = startAngle + sliceAngle / 2;
+        const labelR = radius * 0.7;
+        const lx = centerX + Math.cos(midAngle) * labelR;
+        const ly = centerY + Math.sin(midAngle) * labelR;
+        const pct = ((v / total) * 100).toFixed(0);
+
+        if (v / total > 0.05) {
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${pct}%`, lx, ly);
+        }
+
+        startAngle += sliceAngle;
+      });
+
+      // 图例
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      let legendX = 10;
+      data.labels.forEach((label, i) => {
+        const color = data.datasets[0].colors?.[i] || COLORS[i];
+        ctx.fillStyle = color;
+        ctx.fillRect(legendX, height - 25, 12, 12);
+        ctx.fillStyle = '#666';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(label, legendX + 16, height - 19);
+        legendX += ctx.measureText(label).width + 30;
+      });
+    }
+
+    // 数据
+    const lineData = {
+      labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+      datasets: [
+        { label: '产品A', data: [120, 190, 300, 250, 280, 350] },
+        { label: '产品B', data: [80, 120, 200, 180, 220, 280] },
+      ],
+    };
+
+    const barData = {
+      labels: ['北京', '上海', '广州', '深圳', '杭州'],
+      datasets: [
+        { label: '2023', data: [1200, 1500, 900, 1100, 800] },
+        { label: '2024', data: [1400, 1600, 1000, 1300, 950] },
+      ],
+    };
+
+    const pieData = {
+      labels: ['Chrome', 'Safari', 'Firefox', 'Edge', '其他'],
+      datasets: [{
+        label: '浏览器',
+        data: [65, 18, 8, 5, 4],
+        colors: ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f'],
+      }],
+    };
+
+    // 渲染
+    drawLineChart('line-chart', lineData);
+    drawBarChart('bar-chart', barData);
+    drawPieChart('pie-chart', pieData);
+  </script>
+</body>
+</html>

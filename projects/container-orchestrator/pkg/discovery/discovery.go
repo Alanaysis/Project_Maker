@@ -161,7 +161,10 @@ func (d *Discovery) RegisterEndpoint(endpoint *Endpoint) error {
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
 
-	endpoint.LastSeen = time.Now()
+	// Only update LastSeen if not already set (to allow tests to set custom times)
+	if endpoint.LastSeen.IsZero() {
+		endpoint.LastSeen = time.Now()
+	}
 	entry.Endpoints[endpoint.ID] = endpoint
 
 	d.notifyWatchers(&ServiceEvent{

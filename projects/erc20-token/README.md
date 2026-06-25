@@ -11,6 +11,8 @@
 
 ## 技术栈
 
+### Solidity 实现 (区块链部署)
+
 | 技术 | 用途 | 学习难度 | 官方文档 |
 |------|------|----------|----------|
 | Solidity 0.8.28 | 智能合约语言 | ⭐⭐⭐ | [docs](https://docs.soliditylang.org/) |
@@ -18,6 +20,13 @@
 | ethers.js 6.x | 以太坊交互库 | ⭐⭐ | [docs](https://docs.ethers.org/) |
 | OpenZeppelin | 合约库 | ⭐⭐ | [docs](https://docs.openzeppelin.com/) |
 | Chai | 测试断言库 | ⭐ | [docs](https://www.chaijs.com/) |
+
+### Python 实现 (本地模拟)
+
+| 技术 | 用途 | 学习难度 | 官方文档 |
+|------|------|----------|----------|
+| Python 3.8+ | 实现语言 | ⭐ | [docs](https://docs.python.org/3/) |
+| pytest | 测试框架 | ⭐ | [docs](https://docs.pytest.org/) |
 
 ## 重点难点
 
@@ -67,59 +76,80 @@
 ## 快速开始
 
 ### 环境要求
-- Node.js 18+
+- Node.js 18+ (Solidity 实现)
+- Python 3.8+ (Python 实现)
 - npm 或 yarn
 
-### 安装
+### Solidity 实现
+
 ```bash
 cd projects/erc20-token
 
 # 安装依赖
 npm install
-```
 
-### 编译合约
-```bash
+# 编译合约
 npx hardhat compile
-```
 
-### 运行测试
-```bash
+# 运行测试
 npx hardhat test
-```
 
-### 运行示例
-```bash
+# 运行示例
 npx hardhat run examples/basic-usage.js
+
+# 部署合约
+npx hardhat run scripts/deploy-learning-token.js
 ```
 
-### 部署合约
-```bash
-# 部署 LearningToken（自定义实现）
-npx hardhat run scripts/deploy-learning-token.js
+### Python 实现
 
-# 部署 MyToken（OpenZeppelin 实现）
-npx hardhat run scripts/deploy-my-token.js
+```bash
+cd projects/erc20-token/python
+
+# 创建虚拟环境
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 运行测试
+python3 -m pytest tests/ -v
+
+# 运行示例
+python3 examples/basic_usage.py
 ```
 
 ## 项目结构
 
 ```
 erc20-token/
-├── contracts/
-│   ├── LearningToken.sol    # 自定义 ERC20 实现（学习用）
-│   └── MyToken.sol          # OpenZeppelin 实现（生产用）
-├── test/
-│   ├── LearningToken.test.js # LearningToken 测试（26 个用例）
-│   └── MyToken.test.js       # MyToken 测试（12 个用例）
-├── scripts/
-│   ├── deploy-learning-token.js  # LearningToken 部署脚本
-│   ├── deploy-my-token.js        # MyToken 部署脚本
-│   └── interact.js               # 合约交互脚本
-├── examples/
-│   └── basic-usage.js       # 基础使用示例
-├── docs/                    # 项目文档
-├── hardhat.config.js        # Hardhat 配置
+├── contracts/                    # Solidity 合约
+│   ├── LearningToken.sol        # 自定义 ERC20 实现（学习用）
+│   └── MyToken.sol              # OpenZeppelin 实现（生产用）
+├── test/                         # Solidity 测试
+│   ├── LearningToken.test.js    # LearningToken 测试（26 个用例）
+│   └── MyToken.test.js          # MyToken 测试（12 个用例）
+├── scripts/                      # 部署脚本
+│   ├── deploy-learning-token.js
+│   ├── deploy-my-token.js
+│   └── interact.js
+├── examples/                     # Solidity 示例
+│   └── basic-usage.js
+├── python/                       # Python 实现
+│   ├── src/
+│   │   ├── __init__.py
+│   │   ├── erc20.py             # ERC20 核心实现
+│   │   ├── events.py            # 事件系统
+│   │   └── exceptions.py        # 自定义异常
+│   ├── tests/
+│   │   └── test_erc20.py        # 67 个测试用例
+│   ├── examples/
+│   │   └── basic_usage.py       # 使用示例
+│   ├── requirements.txt
+│   └── setup.py
+├── docs/                         # 项目文档
+├── hardhat.config.js
 └── package.json
 ```
 

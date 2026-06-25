@@ -1,0 +1,124 @@
+# Clang-Format 配置文件
+# 基于 Google 风格，适配本项目需求
+
+# 基础风格
+BasedOnStyle: Google
+
+# 语言设置
+Language: Cpp
+Standard: c++17
+
+# 缩进设置
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+NamespaceIndentation: None
+IndentWrappedFunctionNames: false
+
+# 列限制
+ColumnLimit: 80
+
+# 大括号风格
+BreakBeforeBraces: Attach
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortLambdasOnASingleLine: Inline
+
+# 空格设置
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 2
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInConditionalStatement: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# 对齐设置
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines: Left
+AlignOperands: Align
+AlignTrailingComments: true
+
+# 换行设置
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+BinPackArguments: true
+BinPackParameters: true
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList: BeforeColon
+BreakStringLiterals: true
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+FixNamespaceComments: true
+MaxEmptyLinesToKeep: 1
+PointerAlignment: Left
+ReflowComments: true
+SortIncludes: CaseSensitive
+SortUsingDeclarations: true
+
+# 其他设置
+AccessModifierOffset: -2
+AlignConsecutiveMacros: true
+AllowAllParametersOfDeclarationOnNextLine: true
+ExperimentalAutoDetectBinPacking: false
+IncludeBlocks: Regroup
+IncludeCategories:
+  # 主头文件
+  - Regex: '^<[a-z_]+\.h>'
+    Priority: 1
+  # C 系统头文件
+  - Regex: '^<c(assert|complex|ctype|errno|fenv|float|inttypes|iso646|limits|locale|math|setjmp|signal|stdalign|stdarg|stdatomic|stdbool|stddef|stdint|stdio|stdlib|stdnoreturn|string|tgmath|threads|time|uchar|wchar|wctype)>'
+    Priority: 2
+  # C++ 标准库
+  - Regex: '^<[a-z_]+>'
+    Priority: 3
+  # 第三方库
+  - Regex: '^<.+>'
+    Priority: 4
+  # 项目头文件
+  - Regex: '^"cpp_standards/'
+    Priority: 5
+  # 其他头文件
+  - Regex: '.*'
+    Priority: 6
+InsertBraces: false
+InsertNewlineAtEOF: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+MacroBlockBegin: ''
+MacroBlockEnd: ''
+ObjCBlockIndentWidth: 2
+ObjCSpaceAfterProperty: false
+ObjCSpaceBeforeProtocolList: true
+SortIncludes: CaseSensitive
+SortUsingDeclarations: true
+SpaceBeforeParens: ControlStatements
+StatementMacros:
+  - Q_UNUSED
+  - QT_REQUIRE_VERSION
+TypenameMacros:
+  - STACK_OF
+  - LIST
+  - Vector
+  - Pair

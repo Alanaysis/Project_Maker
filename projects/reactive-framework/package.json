@@ -1,0 +1,22 @@
+{
+  "name": "reactive-framework",
+  "version": "1.0.0",
+  "description": "响应式数据绑定框架 - 学习项目",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "npx ts-node tests/run.ts",
+    "example:basic": "npx ts-node examples/basic.ts",
+    "example:computed": "npx ts-node examples/computed.ts",
+    "example:watch": "npx ts-node examples/watch.ts",
+    "example:todo": "npx ts-node examples/todo-app.ts"
+  },
+  "keywords": ["reactive", "proxy", "dependency-tracking", "typescript"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.0.0"
+  }
+}

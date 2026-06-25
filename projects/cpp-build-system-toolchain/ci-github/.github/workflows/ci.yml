@@ -1,0 +1,199 @@
+# ============================================================================
+# GitHub Actions CI/CD 配置
+# 本文件展示如何使用 GitHub Actions 进行 C++ 项目的 CI/CD
+# ============================================================================
+
+name: C++ CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # ============================================================================
+  # 1. 构建和测试矩阵
+  # ============================================================================
+  build:
+    name: ${{ matrix.os }} - ${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        compiler: [gcc, clang, msvc]
+        exclude:
+          # MSVC 只在 Windows 上
+          - os: ubuntu-latest
+            compiler: msvc
+          - os: macos-latest
+            compiler: msvc
+          # Clang 在 Windows 上不常用
+          - os: windows-latest
+            compiler: clang
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v1
+        with:
+          cmake-version: '3.21'
+
+      - name: Setup GCC (Linux)
+        if: matrix.os == 'ubuntu-latest' && matrix.compiler == 'gcc'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-12
+          echo "CC=gcc-12" >> $GITHUB_ENV
+          echo "CXX=g++-12" >> $GITHUB_ENV
+
+      - name: Setup Clang (Linux)
+        if: matrix.os == 'ubuntu-latest' && matrix.compiler == 'clang'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-15
+          echo "CC=clang-15" >> $GITHUB_ENV
+          echo "CXX=clang++-15" >> $GITHUB_ENV
+
+      - name: Configure (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Configure (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }}
+
+      - name: Test
+        working-directory: build
+        run: ctest -C ${{ env.BUILD_TYPE }} --output-on-failure
+
+  # ============================================================================
+  # 2. 代码质量检查
+  # ============================================================================
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy cppcheck
+
+      - name: Run clang-tidy
+        run: |
+          cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          find src -name "*.cpp" -exec clang-tidy -p build {} \;
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=all --suppress=missingIncludeSystem src/
+
+  # ============================================================================
+  # 3. 代码覆盖率
+  # ============================================================================
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov
+
+      - name: Build with coverage
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+          cmake --build build
+
+      - name: Run tests
+        working-directory: build
+        run: ctest --output-on-failure
+
+      - name: Generate coverage report
+        working-directory: build
+        run: |
+          lcov --capture --directory . --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' '*/test/*' --output-file coverage_filtered.info
+          genhtml coverage_filtered.info --output-directory coverage_report
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: build/coverage_filtered.info
+          fail_ci_if_error: false
+
+  # ============================================================================
+  # 4. Sanitizer 检查
+  # ============================================================================
+  sanitizers:
+    name: Sanitizers
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build with ASan
+        run: |
+          cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON
+          cmake --build build-asan
+
+      - name: Test with ASan
+        working-directory: build-asan
+        run: ctest --output-on-failure
+
+      - name: Build with UBSan
+        run: |
+          cmake -B build-ubsan -DCMAKE_BUILD_TYPE=Debug -DENABLE_UBSAN=ON
+          cmake --build build-ubsan
+
+      - name: Test with UBSan
+        working-directory: build-ubsan
+        run: ctest --output-on-failure
+
+  # ============================================================================
+  # 5. 发布
+  # ============================================================================
+  release:
+    name: Release
+    needs: [build, code-quality]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build release
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/bin/*
+          generate_release_notes: true

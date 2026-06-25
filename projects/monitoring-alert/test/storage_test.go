@@ -246,35 +246,34 @@ func TestQueryEngineSimpleQuery(t *testing.T) {
 	db := storage.NewMemoryTSDB(24 * time.Hour)
 	engine := storage.NewQueryEngine(db)
 
-	// 写入数据
+	// 写入数据（时间戳在过去，以便查询能匹配）
 	now := time.Now()
 	for i := 0; i < 10; i++ {
 		m := model.NewMetric("cpu_usage", model.MetricTypeGauge, "CPU usage")
-		m.SetLabels(map[string]string{"host": "localhost"})
 		m.SetValue(float64(i * 10))
-		m.Timestamp = now.Add(time.Duration(i) * time.Minute)
+		m.Timestamp = now.Add(-time.Duration(10-i) * time.Minute) // 10分钟前到现在
 
 		err := db.Write(m)
 		assert.NoError(t, err)
 	}
 
-	// 查询最近 5 分钟
-	results, err := engine.SimpleQuery("cpu_usage", 5*time.Minute)
+	// 查询最近 15 分钟
+	results, err := engine.SimpleQuery("cpu_usage", 15*time.Minute)
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
+	assert.Equal(t, 10, results[0].Len())
 }
 
 func TestQueryEngineAggregateQuery(t *testing.T) {
 	db := storage.NewMemoryTSDB(24 * time.Hour)
 	engine := storage.NewQueryEngine(db)
 
-	// 写入数据
+	// 写入数据（时间戳在过去，以便查询能匹配）
 	now := time.Now()
 	for i := 0; i < 10; i++ {
 		m := model.NewMetric("cpu_usage", model.MetricTypeGauge, "CPU usage")
-		m.SetLabels(map[string]string{"host": "localhost"})
 		m.SetValue(float64(i * 10))
-		m.Timestamp = now.Add(time.Duration(i) * time.Minute)
+		m.Timestamp = now.Add(-time.Duration(10-i) * time.Minute) // 10分钟前到现在
 
 		err := db.Write(m)
 		assert.NoError(t, err)

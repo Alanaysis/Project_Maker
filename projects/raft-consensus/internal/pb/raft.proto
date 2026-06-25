@@ -11,6 +11,9 @@ service RaftService {
 
     // AppendEntries 领导者复制日志/心跳
     rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
+
+    // InstallSnapshot 领导者安装快照
+    rpc InstallSnapshot(InstallSnapshotRequest) returns (InstallSnapshotResponse);
 }
 
 // RequestVoteRequest 请求投票请求
@@ -83,4 +86,28 @@ message LogEntry {
 
     // 状态机要执行的命令
     bytes command = 3;
+}
+
+// InstallSnapshotRequest 安装快照请求
+message InstallSnapshotRequest {
+    // 领导者的任期号
+    int64 term = 1;
+
+    // 领导者 ID
+    int64 leaderId = 2;
+
+    // 快照最后包含的日志索引
+    int64 lastIncludedIndex = 3;
+
+    // 快照最后包含的日志任期
+    int64 lastIncludedTerm = 4;
+
+    // 快照数据
+    bytes data = 5;
+}
+
+// InstallSnapshotResponse 安装快照响应
+message InstallSnapshotResponse {
+    // 当前任期号
+    int64 term = 1;
 }

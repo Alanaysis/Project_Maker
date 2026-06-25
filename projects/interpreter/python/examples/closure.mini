@@ -1,0 +1,95 @@
+// 闭包示例 - 展示闭包的各种用法
+
+println("=== 闭包示例 ===");
+println("");
+
+// 1. 计数器
+println("1. 计数器:");
+let makeCounter = fn(start) {
+    let count = start;
+    fn() {
+        count += 1;
+        return count;
+    }
+};
+
+let counter1 = makeCounter(0);
+let counter2 = makeCounter(100);
+println("  counter1: " + str(counter1()) + ", " + str(counter1()) + ", " + str(counter1()));
+println("  counter2: " + str(counter2()) + ", " + str(counter2()));
+println("");
+
+// 2. 累加器
+println("2. 累加器:");
+let makeAccumulator = fn(initial) {
+    let total = initial;
+    fn add(amount) {
+        total += amount;
+        return total;
+    }
+};
+
+let acc = makeAccumulator(0);
+println("  acc(10) = " + str(acc(10)));
+println("  acc(20) = " + str(acc(20)));
+println("  acc(30) = " + str(acc(30)));
+println("");
+
+// 3. 函数工厂
+println("3. 函数工厂:");
+let makeMultiplier = fn(factor) {
+    fn(x) { return x * factor; }
+};
+
+let double = makeMultiplier(2);
+let triple = makeMultiplier(3);
+let times10 = makeMultiplier(10);
+println("  double(5) = " + str(double(5)));
+println("  triple(5) = " + str(triple(5)));
+println("  times10(5) = " + str(times10(5)));
+println("");
+
+// 4. 闭包作为回调
+println("4. 闭包作为回调:");
+let applyToEach = fn(arr, fn_ref) {
+    let result = [];
+    for item in arr {
+        result = push(result, fn_ref(item));
+    }
+    return result;
+};
+
+let numbers = [1, 2, 3, 4, 5];
+let squared = applyToEach(numbers, fn(x) { return x * x; });
+println("  原始数组: " + str(numbers));
+println("  平方后: " + str(squared));
+println("");
+
+// 5. 私有状态（模块模式）
+println("5. 私有状态（模块模式）:");
+let createBankAccount = fn(initialBalance) {
+    let balance = initialBalance;
+    {
+        "deposit": fn(amount) {
+            balance += amount;
+            return balance;
+        },
+        "withdraw": fn(amount) {
+            if amount > balance {
+                println("  余额不足!");
+                return balance;
+            }
+            balance -= amount;
+            return balance;
+        },
+        "getBalance": fn() {
+            return balance;
+        }
+    }
+};
+
+let account = createBankAccount(100);
+println("  初始余额: " + str(account["getBalance"]()));
+println("  存入50后: " + str(account["deposit"](50)));
+println("  取出30后: " + str(account["withdraw"](30)));
+println("  最终余额: " + str(account["getBalance"]()));

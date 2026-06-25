@@ -280,3 +280,169 @@ func TestStatus_Emoji(t *testing.T) {
 		}
 	}
 }
+
+func TestParseConfig_WithTrigger(t *testing.T) {
+	yaml := `
+name: triggered-pipeline
+trigger:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "src/**"
+  schedule: "0 2 * * *"
+  manual: true
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: echo "build"
+`
+	config, err := ParseConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("解析配置失败: %v", err)
+	}
+
+	if config.Trigger.Schedule != "0 2 * * *" {
+		t.Errorf("期望 schedule '0 2 * * *', 实际 '%s'", config.Trigger.Schedule)
+	}
+	if !config.Trigger.Manual {
+		t.Error("期望 manual 为 true")
+	}
+	if config.Trigger.Push == nil {
+		t.Fatal("期望 push 配置存在")
+	}
+	if len(config.Trigger.Push.Branches) != 2 {
+		t.Errorf("期望 2 个分支, 实际 %d", len(config.Trigger.Push.Branches))
+	}
+	if len(config.Trigger.Push.Paths) != 1 {
+		t.Errorf("期望 1 个路径, 实际 %d", len(config.Trigger.Push.Paths))
+	}
+}
+
+func TestParseConfig_WithVariables(t *testing.T) {
+	yaml := `
+name: var-pipeline
+variables:
+  APP_NAME: myapp
+  VERSION: "1.0.0"
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: echo "build"
+`
+	config, err := ParseConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("解析配置失败: %v", err)
+	}
+
+	if config.Variables == nil {
+		t.Fatal("期望 variables 存在")
+	}
+	if config.Variables["APP_NAME"] != "myapp" {
+		t.Errorf("期望 APP_NAME=myapp, 实际 %s", config.Variables["APP_NAME"])
+	}
+	if config.Variables["VERSION"] != "1.0.0" {
+		t.Errorf("期望 VERSION=1.0.0, 实际 %s", config.Variables["VERSION"])
+	}
+}
+
+func TestParseConfig_WithDeploy(t *testing.T) {
+	yaml := `
+name: deploy-pipeline
+stages:
+  - name: deploy
+    deploy:
+      strategy: rolling
+      targets:
+        - name: production
+          url: "https://www.example.com"
+          region: us-east-1
+          weight: 100
+      rollback:
+        enabled: true
+        max_versions: 5
+        health_check: 60
+    tasks:
+      - name: deploy-task
+        command: echo "deploy"
+`
+	config, err := ParseConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("解析配置失败: %v", err)
+	}
+
+	stage := config.Stages[0]
+	if stage.Deploy == nil {
+		t.Fatal("期望 deploy 配置存在")
+	}
+	if stage.Deploy.Strategy != "rolling" {
+		t.Errorf("期望策略 rolling, 实际 %s", stage.Deploy.Strategy)
+	}
+	if len(stage.Deploy.Targets) != 1 {
+		t.Errorf("期望 1 个目标, 实际 %d", len(stage.Deploy.Targets))
+	}
+	if stage.Deploy.Targets[0].Name != "production" {
+		t.Errorf("期望目标名 production, 实际 %s", stage.Deploy.Targets[0].Name)
+	}
+	if stage.Deploy.Targets[0].URL != "https://www.example.com" {
+		t.Errorf("期望 URL https://www.example.com, 实际 %s", stage.Deploy.Targets[0].URL)
+	}
+	if stage.Deploy.Rollback.Enabled != true {
+		t.Error("期望回滚启用")
+	}
+	if stage.Deploy.Rollback.MaxVersions != 5 {
+		t.Errorf("期望 max_versions=5, 实际 %d", stage.Deploy.Rollback.MaxVersions)
+	}
+	if stage.Deploy.Rollback.HealthCheck != 60 {
+		t.Errorf("期望 health_check=60, 实际 %d", stage.Deploy.Rollback.HealthCheck)
+	}
+}
+
+func TestParseConfig_NoTrigger(t *testing.T) {
+	yaml := `
+name: simple
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: echo "build"
+`
+	config, err := ParseConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("解析配置失败: %v", err)
+	}
+
+	// 触发配置应为零值
+	if config.Trigger.Push != nil {
+		t.Error("期望 push 为 nil")
+	}
+	if config.Trigger.Schedule != "" {
+		t.Error("期望 schedule 为空")
+	}
+	if config.Trigger.Manual {
+		t.Error("期望 manual 为 false")
+	}
+}
+
+func TestParseConfig_NoDeploy(t *testing.T) {
+	yaml := `
+name: simple
+stages:
+  - name: build
+    tasks:
+      - name: compile
+        command: echo "build"
+`
+	config, err := ParseConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("解析配置失败: %v", err)
+	}
+
+	// Deploy 配置应为 nil
+	if config.Stages[0].Deploy != nil {
+		t.Error("期望 deploy 为 nil")
+	}
+}

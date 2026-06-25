@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/raft-consensus/internal/raft"
+	pb "github.com/raft-consensus/internal/pb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -167,12 +168,12 @@ func TestHandleAppendEntries(t *testing.T) {
 	replicator := raft.NewLogReplicator(state, peers, applyCh, 50*time.Millisecond)
 
 	// 测试追加日志请求
-	req := &raft.AppendEntriesRequest{
+	req := &pb.AppendEntriesRequest{
 		Term:         1,
 		LeaderId:     2,
 		PrevLogIndex: 0,
 		PrevLogTerm:  0,
-		Entries: []*raft.LogEntry{
+		Entries: []*pb.LogEntry{
 			{
 				Term:    1,
 				Index:   1,

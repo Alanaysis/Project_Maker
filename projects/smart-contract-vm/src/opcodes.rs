@@ -27,7 +27,7 @@ pub enum Opcode {
     Shl = 0x1b,
     Shr = 0x1c,
 
-    // 栈操作
+    // 栈/内存/存储操作
     Pop = 0x50,
     Mload = 0x51,
     Mstore = 0x52,
@@ -38,6 +38,14 @@ pub enum Opcode {
     Pc = 0x58,
     Msize = 0x59,
     JumpDest = 0x5b,
+
+    // 环境操作
+    Address = 0x30,
+    Caller = 0x33,
+    CallValue = 0x34,
+    CallDataLoad = 0x35,
+    CallDataSize = 0x36,
+    CallDataCopy = 0x37,
 
     // Push 操作 (PUSH1-PUSH32)
     Push1 = 0x60,
@@ -101,6 +109,12 @@ impl Opcode {
             0x1a => Some(Opcode::Byte),
             0x1b => Some(Opcode::Shl),
             0x1c => Some(Opcode::Shr),
+            0x30 => Some(Opcode::Address),
+            0x33 => Some(Opcode::Caller),
+            0x34 => Some(Opcode::CallValue),
+            0x35 => Some(Opcode::CallDataLoad),
+            0x36 => Some(Opcode::CallDataSize),
+            0x37 => Some(Opcode::CallDataCopy),
             0x50 => Some(Opcode::Pop),
             0x51 => Some(Opcode::Mload),
             0x52 => Some(Opcode::Mstore),
@@ -176,6 +190,12 @@ impl Opcode {
             Opcode::Pc => 2,
 
             // 日志操作
+            // 环境操作
+            Opcode::Address | Opcode::Caller | Opcode::CallValue => 2,
+            Opcode::CallDataLoad => 3,
+            Opcode::CallDataSize => 2,
+            Opcode::CallDataCopy => 3,
+
             Opcode::Log0 => 375,
             Opcode::Log1 => 750,
             Opcode::Log2 => 1125,

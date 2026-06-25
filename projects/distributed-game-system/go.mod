@@ -3,9 +3,10 @@ module github.com/distributed-game-system
 go 1.21
 
 require (
-	github.com/sirupsen/logrus v1.9.3
-	google.golang.org/protobuf v1.32.0
-	gopkg.in/yaml.v3 v3.0.1
+	github.com/gorilla/websocket v1.5.1
+	github.com/google/uuid v1.6.0
 )
 
-require golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
+require (
+	golang.org/x/net v0.17.0 // indirect
+)

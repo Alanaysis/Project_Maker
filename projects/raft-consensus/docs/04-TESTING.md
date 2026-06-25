@@ -9,13 +9,13 @@
 ```go
 func TestStateTransitions(t *testing.T) {
     state := raft.NewRaftState(1)
-    
+
     // 测试状态转换
     assert.Equal(t, raft.Follower, state.GetNodeState())
-    
+
     state.SetNodeState(raft.Candidate)
     assert.Equal(t, raft.Candidate, state.GetNodeState())
-    
+
     state.SetNodeState(raft.Leader)
     assert.Equal(t, raft.Leader, state.GetNodeState())
 }
@@ -32,7 +32,7 @@ func TestRaftNodeCreation(t *testing.T) {
         Address: "localhost:50051",
         Peers: map[int64]string{},
     }
-    
+
     node := raft.NewRaftNode(config)
     assert.NotNil(t, node)
 }
@@ -47,6 +47,27 @@ func TestClusterElection(t *testing.T) {
     // 创建集群
     // 触发选举
     // 验证领导者产生
+}
+```
+
+### 1.4 故障测试
+
+测试系统在故障情况下的行为：
+
+```go
+func TestNetworkPartition(t *testing.T) {
+    // 创建集群
+    // 模拟网络分区
+    // 验证多数分区能继续工作
+    // 验证少数分区无法选出领导者
+}
+
+func TestNodeFailure(t *testing.T) {
+    // 创建集群
+    // 停止部分节点
+    // 验证集群能继续工作
+    // 重启节点
+    // 验证集群恢复正常
 }
 ```
 
@@ -72,7 +93,38 @@ func TestClusterElection(t *testing.T) {
 - 快照创建
 - 快照恢复
 
-### 2.4 并发测试
+### 2.4 快照测试
+
+- 快照创建
+- 日志截断
+- 多次快照
+- 快照安装
+
+### 2.5 成员变更测试
+
+- 添加节点
+- 移除节点
+- 非领导者拒绝变更
+- 不能移除自己
+
+### 2.6 网络分区测试
+
+- 基本分区
+- 分区恢复
+- 多数分区选举
+- 少数分区无法选举
+- 对称分区
+
+### 2.7 节点故障测试
+
+- 单节点故障
+- 多节点故障
+- 多数故障
+- 节点重启
+- 领导者故障
+- 并发节点操作
+
+### 2.8 并发测试
 
 - 并发读写
 - 竞态条件检测
@@ -143,6 +195,51 @@ go test -race ./...
 | TestConcurrentStateAccess | 并发状态访问 | 无竞态条件 |
 | TestConcurrentLogAccess | 并发日志访问 | 无竞态条件 |
 | TestLogConsistency | 日志一致性 | 日志顺序正确 |
+
+### 4.4 快照测试用例
+
+| 测试用例 | 描述 | 预期结果 |
+|----------|------|----------|
+| TestSnapshotCreation | 创建快照 | 快照正确创建 |
+| TestSnapshotTruncatesLog | 日志截断 | 日志正确截断 |
+| TestNoSnapshotInitially | 初始状态 | 无快照 |
+| TestMultipleSnapshots | 多次快照 | 快照正确更新 |
+
+### 4.5 成员变更测试用例
+
+| 测试用例 | 描述 | 预期结果 |
+|----------|------|----------|
+| TestMembershipAddNode | 添加节点 | 节点正确添加 |
+| TestMembershipIsMember | 成员检查 | 正确识别成员 |
+| TestMembershipRemoveNode | 移除节点 | 节点正确移除 |
+| TestMembershipNonLeaderReject | 非领导者拒绝 | 拒绝变更请求 |
+| TestMembershipCannotRemoveSelf | 不能移除自己 | 拒绝移除请求 |
+
+### 4.6 网络分区测试用例
+
+| 测试用例 | 描述 | 预期结果 |
+|----------|------|----------|
+| TestNetworkPartitionBasic | 基本分区 | 分区正确创建 |
+| TestNetworkPartitionHeal | 分区恢复 | 分区正确恢复 |
+| TestNetworkPartitionMajority | 多数分区 | 能选出领导者 |
+| TestNetworkPartitionMinorityCannotLead | 少数分区 | 无法选出领导者 |
+| TestNetworkPartitionSymmetric | 对称分区 | 连接对称断开 |
+| TestMultiplePartitions | 多个分区 | 分区正确创建 |
+| TestPartitionWithLeader | 领导者分区 | 新领导者正确选出 |
+
+### 4.7 节点故障测试用例
+
+| 测试用例 | 描述 | 预期结果 |
+|----------|------|----------|
+| TestSingleNodeFailure | 单节点故障 | 集群继续工作 |
+| TestMultipleNodeFailures | 多节点故障 | 集群继续工作 |
+| TestMajorityFailure | 多数故障 | 集群无法工作 |
+| TestNodeRestart | 节点重启 | 节点正确恢复 |
+| TestLeaderFailure | 领导者故障 | 新领导者选出 |
+| TestLeaderElectionAfterFailure | 故障后选举 | 新领导者正确选出 |
+| TestNodeCrashAndRecover | 崩溃恢复 | 节点正确恢复 |
+| TestConcurrentNodeOperations | 并发操作 | 无竞态条件 |
+| TestClusterMaintainsQuorum | 法定人数 | 正确维护法定人数 |
 
 ## 5. 性能测试
 

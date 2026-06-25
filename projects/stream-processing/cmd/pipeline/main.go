@@ -8,6 +8,7 @@ import (
 	"github.com/learning/stream-processing/internal/core"
 	"github.com/learning/stream-processing/internal/operator"
 	"github.com/learning/stream-processing/internal/pipeline"
+	"github.com/learning/stream-processing/internal/window"
 )
 
 func main() {
@@ -20,6 +21,7 @@ func main() {
 	demoWindowedAggregation()
 	demoFlatMap()
 	demoParallelPipeline()
+	demoSessionWindow()
 }
 
 // demoBasicPipeline shows a simple map pipeline.
@@ -212,5 +214,42 @@ func demoParallelPipeline() {
 
 	fmt.Printf("  Processed %d events\n", count)
 	fmt.Printf("  Sum of squares: %d\n", sum)
+	fmt.Println()
+}
+
+// demoSessionWindow shows session window aggregation.
+func demoSessionWindow() {
+	fmt.Println("--- Demo 7: Session Window (gap=5s) ---")
+
+	sessOp := window.NewSessionWindowOperator(5*time.Second, func(a, b interface{}) interface{} {
+		return a.(int) + b.(int)
+	})
+
+	base := time.Now()
+	output := core.NewStream(10)
+
+	go func() {
+		defer output.Close()
+
+		// Session 1: events within 5s gap
+		sessOp.Process(core.NewEventWithTime("user-A", 10, base), output)
+		sessOp.Process(core.NewEventWithTime("user-A", 20, base.Add(2*time.Second)), output)
+		sessOp.Process(core.NewEventWithTime("user-A", 30, base.Add(4*time.Second)), output)
+
+		// Session 2: gap > 5s, previous session closes
+		sessOp.Process(core.NewEventWithTime("user-A", 40, base.Add(10*time.Second)), output)
+		sessOp.Process(core.NewEventWithTime("user-A", 50, base.Add(12*time.Second)), output)
+
+		// Different user, independent session
+		sessOp.Process(core.NewEventWithTime("user-B", 100, base.Add(1*time.Second)), output)
+		sessOp.Process(core.NewEventWithTime("user-B", 200, base.Add(3*time.Second)), output)
+
+		// Flush remaining sessions
+		sessOp.Flush(output)
+	}()
+
+	for e := range output.Events() {
+		fmt.Printf("  Session result: %s = %d\n", e.Key, e.Value.(int))
+	}
 	fmt.Println()
 }

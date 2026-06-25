@@ -5,10 +5,11 @@
 ### 系统要求
 
 - 操作系统：Windows/macOS/Linux
-- Node.js：18+
+- Node.js：18+ (Solidity 实现)
+- Python：3.8+ (Python 实现)
 - npm：9+
 
-### 安装步骤
+### Solidity 实现 - 安装步骤
 
 ```bash
 # 1. 进入项目目录
@@ -26,6 +27,26 @@ npx hardhat compile
 
 # 5. 运行测试
 npx hardhat test
+```
+
+### Python 实现 - 安装步骤
+
+```bash
+# 1. 进入 Python 目录
+cd projects/erc20-token/python
+
+# 2. 创建虚拟环境
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 3. 安装依赖
+pip install -r requirements.txt
+
+# 4. 运行测试（67 个用例）
+python3 -m pytest tests/ -v
+
+# 5. 运行示例
+python3 examples/basic_usage.py
 ```
 
 ## 2. 项目结构
@@ -82,7 +103,40 @@ function transfer(address to, uint256 amount) public returns (bool) {
 - require 语句用于输入验证，失败时 revert
 - emit 用于发射事件，供前端和索引器监听
 
-### 模块2：MyToken.sol
+### 模块2：Python ERC20 实现
+
+**文件位置**：`python/src/erc20.py`
+
+**职责**：用 Python 实现完整的 ERC20 标准，包含 Mint/Burn/Pause 扩展
+
+**核心代码**：
+
+```python
+@dataclass
+class ERC20Token:
+    name: str
+    symbol: str
+    decimals: int = 18
+    owner: str = ""
+    max_supply: int = 0  # 0 means unlimited
+
+    _total_supply: int = field(default=0)
+    _balances: dict[str, int] = field(default_factory=dict)
+    _allowances: dict[str, dict[str, int]] = field(default_factory=dict)
+    _paused: bool = field(default=False)
+```
+
+**Python 实现特点**：
+- 使用 `@dataclass` 简化数据类定义
+- 类型提示 (Type Hints) 提高代码可读性
+- 自定义异常类提供清晰的错误信息
+- 事件系统模拟区块链事件日志
+
+**Python 测试覆盖**：
+- 67 个测试用例，覆盖所有功能
+- 包含安全测试、边界测试、集成测试
+
+### 模块3：MyToken.sol
 
 **文件位置**：`contracts/MyToken.sol`
 

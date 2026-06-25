@@ -286,10 +286,15 @@ def _validate_params(self):
 
 ## 8. 扩展性设计
 
-### 8.1 未来扩展
+### 8.1 已实现的扩展
 
-- 支持回归任务 (RandomForestRegressor)
+- [x] 支持回归任务 (DecisionTreeRegressor + RandomForestRegressor)
+- [x] 支持特征重要性的置换方法 (permutation_importance)
+- [x] 模型评估模块 (accuracy, precision, recall, F1, MSE, R2)
+- [x] 实际应用示例 (鸢尾花分类, 房价预测, 特征重要性分析)
+
+### 8.2 未来扩展
+
 - 支持并行训练 (n_jobs)
 - 支持更多分裂准则
 - 支持增量学习
-- 支持特征重要性的置换方法

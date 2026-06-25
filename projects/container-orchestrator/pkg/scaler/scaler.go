@@ -5,8 +5,6 @@ import (
 	"errors"
 	"sync"
 	"time"
-
-	"github.com/container-orchestrator/pkg/container"
 )
 
 var (
@@ -35,13 +33,21 @@ type ServiceState struct {
 
 // ScalingPolicy defines scaling rules
 type ScalingPolicy struct {
-	MinReplicas     int           `json:"min_replicas"`
-	MaxReplicas     int           `json:"max_replicas"`
-	ScaleUpCPU      float64       `json:"scale_up_cpu"`
-	ScaleDownCPU    float64       `json:"scale_down_cpu"`
-	ScaleUpMemory   float64       `json:"scale_up_memory"`
-	ScaleDownMemory float64       `json:"scale_down_memory"`
-	Cooldown        time.Duration `json:"cooldown"`
+	MinReplicas          int                    `json:"min_replicas"`
+	MaxReplicas          int                    `json:"max_replicas"`
+	ScaleUpCPU           float64                `json:"scale_up_cpu"`
+	ScaleDownCPU         float64                `json:"scale_down_cpu"`
+	ScaleUpMemory        float64                `json:"scale_up_memory"`
+	ScaleDownMemory      float64                `json:"scale_down_memory"`
+	Cooldown             time.Duration          `json:"cooldown"`
+	CustomMetricRules    []CustomMetricRule     `json:"custom_metric_rules,omitempty"`
+}
+
+// CustomMetricRule defines a scaling rule based on a custom metric
+type CustomMetricRule struct {
+	MetricName    string  `json:"metric_name"`
+	ScaleUpThreshold   float64 `json:"scale_up_threshold"`
+	ScaleDownThreshold float64 `json:"scale_down_threshold"`
 }
 
 // ScaleFunc is a function that performs scaling
@@ -55,10 +61,11 @@ type MetricsCollector struct {
 
 // ServiceMetrics represents metrics for a service
 type ServiceMetrics struct {
-	CPUUsage    float64   `json:"cpu_usage"`
-	MemoryUsage float64   `json:"memory_usage"`
-	Requests    int64     `json:"requests"`
-	Timestamp   time.Time `json:"timestamp"`
+	CPUUsage     float64            `json:"cpu_usage"`
+	MemoryUsage  float64            `json:"memory_usage"`
+	Requests     int64              `json:"requests"`
+	CustomMetrics map[string]float64 `json:"custom_metrics,omitempty"`
+	Timestamp    time.Time          `json:"timestamp"`
 }
 
 // NewMetricsCollector creates a new metrics collector
@@ -163,7 +170,7 @@ func (s *Scaler) evaluateService(serviceID string) *ScaleDecision {
 		return nil
 	}
 
-	// Evaluate scale up
+	// Evaluate scale up based on CPU/Memory
 	if metrics.CPUUsage > policy.ScaleUpCPU || metrics.MemoryUsage > policy.ScaleUpMemory {
 		if state.CurrentReplicas < policy.MaxReplicas {
 			newReplicas := state.CurrentReplicas + 1
@@ -175,15 +182,48 @@ func (s *Scaler) evaluateService(serviceID string) *ScaleDecision {
 				Direction:       ScaleUp,
 				CurrentReplicas: state.CurrentReplicas,
 				DesiredReplicas: newReplicas,
-				Reason:          "high resource usage",
+				Reason:          "high CPU/memory usage",
 				Timestamp:       time.Now(),
 			}
 		}
 	}
 
-	// Evaluate scale down
+	// Evaluate scale up based on custom metrics
+	for _, rule := range policy.CustomMetricRules {
+		if val, ok := metrics.CustomMetrics[rule.MetricName]; ok {
+			if val > rule.ScaleUpThreshold {
+				if state.CurrentReplicas < policy.MaxReplicas {
+					newReplicas := state.CurrentReplicas + 1
+					if newReplicas > policy.MaxReplicas {
+						newReplicas = policy.MaxReplicas
+					}
+					return &ScaleDecision{
+						ServiceID:       serviceID,
+						Direction:       ScaleUp,
+						CurrentReplicas: state.CurrentReplicas,
+						DesiredReplicas: newReplicas,
+						Reason:          "custom metric " + rule.MetricName + " above threshold",
+						Timestamp:       time.Now(),
+					}
+				}
+			}
+		}
+	}
+
+	// Evaluate scale down based on CPU/Memory
 	if metrics.CPUUsage < policy.ScaleDownCPU && metrics.MemoryUsage < policy.ScaleDownMemory {
-		if state.CurrentReplicas > policy.MinReplicas {
+		// Also check all custom metrics are below their scale-down thresholds
+		allCustomMetricsLow := true
+		for _, rule := range policy.CustomMetricRules {
+			if val, ok := metrics.CustomMetrics[rule.MetricName]; ok {
+				if val >= rule.ScaleDownThreshold {
+					allCustomMetricsLow = false
+					break
+				}
+			}
+		}
+
+		if allCustomMetricsLow && state.CurrentReplicas > policy.MinReplicas {
 			newReplicas := state.CurrentReplicas - 1
 			if newReplicas < policy.MinReplicas {
 				newReplicas = policy.MinReplicas

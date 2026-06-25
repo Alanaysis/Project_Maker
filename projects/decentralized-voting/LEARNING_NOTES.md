@@ -306,3 +306,309 @@ const connectWallet = useCallback(async () => {
 - [Hardhat Documentation](https://hardhat.org/docs)
 - [Next.js Documentation](https://nextjs.org/docs)
 - [ethers.js Documentation](https://docs.ethers.org/)
+
+---
+
+# Python 实现学习笔记
+
+## 概述
+
+本项目同时提供了 Python 实现版本，用于教学和本地测试目的。Python 实现模拟了区块链的核心概念，无需依赖真实的区块链网络。
+
+## 技术栈
+
+- **语言**: Python 3.9+
+- **数据结构**: dataclasses
+- **哈希算法**: hashlib (SHA-256)
+- **测试框架**: pytest
+- **类型注解**: typing
+
+## 核心模块
+
+### 1. 区块链模块 (blockchain.py)
+
+**核心概念：**
+- 交易 (Transaction): 记录操作数据
+- 区块 (Block): 存储多个交易
+- 区块链 (Blockchain): 区块通过哈希连接
+
+**关键实现：**
+```python
+@dataclass
+class Block:
+    index: int
+    transactions: List[Transaction]
+    timestamp: float
+    previous_hash: str
+    nonce: int
+    hash: str
+
+    def compute_hash(self) -> str:
+        block_data = {
+            "index": self.index,
+            "transactions": [tx.to_dict() for tx in self.transactions],
+            "timestamp": self.timestamp,
+            "previous_hash": self.previous_hash,
+            "nonce": self.nonce,
+        }
+        block_string = json.dumps(block_data, sort_keys=True)
+        return hashlib.sha256(block_string.encode()).hexdigest()
+```
+
+**工作量证明：**
+```python
+def proof_of_work(self, block: Block) -> str:
+    block.nonce = 0
+    computed_hash = block.compute_hash()
+
+    while not computed_hash.startswith("0" * self.difficulty):
+        block.nonce += 1
+        computed_hash = block.compute_hash()
+
+    return computed_hash
+```
+
+### 2. 投票模块 (voting.py)
+
+**核心类：**
+- `Proposal`: 提案数据结构
+- `VoteSession`: 投票活动
+- `VotingContract`: 投票合约
+
+**关键功能：**
+1. 创建投票活动
+2. 添加提案
+3. 执行投票
+4. 统计结果
+
+**一人一票实现：**
+```python
+def vote(self, session_id, proposal_id, voter_address):
+    session = self.vote_sessions[session_id]
+
+    # 检查是否已投票
+    if session.has_voted.get(voter_address, False):
+        raise ValueError("您已经投过票了")
+
+    # 记录投票
+    session.proposals[proposal_id].vote_count += 1
+    session.has_voted[voter_address] = True
+    session.total_votes += 1
+```
+
+### 3. 身份模块 (identity.py)
+
+**选民管理：**
+- 注册: 创建选民记录
+- 验证: 确认身份
+- 凭证: 发行投票凭证
+
+**状态枚举：**
+```python
+class VoterStatus(Enum):
+    REGISTERED = "registered"
+    VERIFIED = "verified"
+    SUSPENDED = "suspended"
+    REVOKED = "revoked"
+```
+
+**资格检查：**
+```python
+def is_eligible(self, address: str) -> bool:
+    if address not in self.voters:
+        return False
+    if address in self.blacklist:
+        return False
+    voter = self.voters[address]
+    if voter.status != VoterStatus.VERIFIED:
+        return False
+    if not self.validate_credential(address):
+        return False
+    return True
+```
+
+### 4. 规则模块 (consensus.py)
+
+**投票方式：**
+- 简单多数 (Simple Majority)
+- 绝对多数 (Absolute Majority)
+- 超级多数 (Super Majority)
+- 相对多数 (Plurality)
+
+**法定人数检查：**
+```python
+def check_quorum(self, total_votes, total_eligible_voters):
+    if total_eligible_voters == 0:
+        return False, 0.0
+
+    participation_rate = total_votes / total_eligible_voters
+
+    if self.rules.quorum_type == QuorumType.NONE:
+        return True, participation_rate
+    elif self.rules.quorum_type == QuorumType.PERCENTAGE:
+        return participation_rate >= self.rules.quorum_value, participation_rate
+```
+
+### 5. 透明性模块 (transparency.py)
+
+**投票记录：**
+- 记录每次投票
+- 关联区块链交易
+- 支持验证
+
+**审计追踪：**
+- 哈希链结构
+- 完整性验证
+- 事件记录
+
+**审计链验证：**
+```python
+def verify_chain(self) -> bool:
+    for i in range(1, len(self.entries)):
+        current = self.entries[i]
+        previous = self.entries[i - 1]
+
+        if current.previous_hash != previous.hash:
+            return False
+
+        if current.hash != current.compute_hash():
+            return False
+
+    return True
+```
+
+## 设计模式
+
+### 1. 数据类模式
+
+使用 `@dataclass` 装饰器简化数据类定义：
+
+```python
+@dataclass
+class Voter:
+    address: str
+    name: str
+    email: str
+    voting_power: int = 1
+```
+
+### 2. 枚举模式
+
+使用 `Enum` 定义有限状态：
+
+```python
+class VoteStatus(Enum):
+    NOT_STARTED = "not_started"
+    ACTIVE = "active"
+    ENDED = "ended"
+```
+
+### 3. 事件模式
+
+使用事件记录系统操作：
+
+```python
+def _emit_event(self, event_type, data):
+    event = {
+        "type": event_type,
+        "timestamp": time.time(),
+        "data": data,
+    }
+    self.events.append(event)
+```
+
+## 测试策略
+
+### 1. 单元测试
+
+每个模块独立测试：
+
+```bash
+pytest tests/test_blockchain.py
+pytest tests/test_voting.py
+pytest tests/test_identity.py
+```
+
+### 2. 集成测试
+
+测试模块间交互：
+
+```python
+def test_complete_voting_flow():
+    # 1. 初始化系统
+    blockchain = Blockchain(difficulty=2)
+    contract = VotingContract(blockchain)
+    registry = VoterRegistry()
+
+    # 2. 注册选民
+    registry.register_voter("0xVoter1", "张三", "zhangsan@example.com")
+
+    # 3. 创建投票
+    session_id = contract.create_vote_session(...)
+
+    # 4. 执行投票
+    contract.vote(session_id, 0, "0xVoter1")
+
+    # 5. 验证结果
+    assert contract.has_voted(session_id, "0xVoter1") is True
+```
+
+### 3. 覆盖率测试
+
+```bash
+pytest --cov=src --cov-report=html
+```
+
+## 扩展方向
+
+### 1. 功能扩展
+
+- 加权投票
+- 匿名投票
+- 委托投票
+- 二次投票
+
+### 2. 技术扩展
+
+- 连接真实区块链
+- REST API 接口
+- Web 前端界面
+- 分布式部署
+
+### 3. 应用扩展
+
+- DAO 治理
+- 社区决策
+- 公司治理
+- 公共投票
+
+## 学习收获
+
+1. **区块链原理**: 理解了区块、链、工作量证明等核心概念
+2. **投票系统设计**: 掌握了一人一票、法定人数、结果统计等设计
+3. **身份验证**: 学会了选民注册、凭证管理、资格检查等机制
+4. **透明性**: 理解了投票记录、审计追踪、完整性验证等概念
+5. **Python 高级特性**: 掌握了 dataclasses、Enum、类型注解等特性
+
+## 运行示例
+
+```bash
+cd python
+
+# 基本投票示例
+python examples/basic_voting.py
+
+# DAO 投票示例
+python examples/dao_voting.py
+
+# 社区治理示例
+python examples/community_governance.py
+```
+
+## 参考资源
+
+- [Python 数据类](https://docs.python.org/3/library/dataclasses.html)
+- [Python 枚举](https://docs.python.org/3/library/enum.html)
+- [Pytest 测试框架](https://docs.pytest.org/)
+- [区块链基础](https://www.investopedia.com/terms/b/blockchain.asp)
+- [去中心化自治组织](https://ethereum.org/en/dao/)

@@ -1,6 +1,7 @@
 package container
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -177,6 +178,55 @@ func (c *Container) SetState(state ContainerState) {
 		now := time.Now()
 		c.StoppedAt = &now
 	}
+}
+
+// Start starts the container (transitions from pending/stopped to running)
+func (c *Container) Start() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.State != StatePending && c.State != StateStopped {
+		return fmt.Errorf("cannot start container in state %s", c.State)
+	}
+	c.State = StateRunning
+	now := time.Now()
+	c.StartedAt = &now
+	c.StoppedAt = nil
+	return nil
+}
+
+// Stop stops the container (transitions from running to stopped)
+func (c *Container) Stop() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.State != StateRunning {
+		return fmt.Errorf("cannot stop container in state %s", c.State)
+	}
+	c.State = StateStopped
+	now := time.Now()
+	c.StoppedAt = &now
+	return nil
+}
+
+// Restart restarts the container
+func (c *Container) Restart() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.State != StateRunning && c.State != StateStopped && c.State != StateFailed {
+		return fmt.Errorf("cannot restart container in state %s", c.State)
+	}
+	c.State = StateRunning
+	now := time.Now()
+	c.StartedAt = &now
+	c.StoppedAt = nil
+	c.RestartCount++
+	return nil
+}
+
+// IsRunning returns true if the container is running
+func (c *Container) IsRunning() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.State == StateRunning
 }
 
 // GetState safely gets the container state

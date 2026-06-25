@@ -27,17 +27,24 @@ export PATH=$PATH:$GOPATH/bin
 ```
 circuit-breaker/
 ├── README.md                    # 项目说明
+├── go.mod                       # Go模块文件
+├── verify.sh                    # 验证脚本
 ├── src/                         # 源代码
 │   ├── circuit_breaker.go      # 熔断器核心
 │   ├── states.go               # 状态定义
 │   ├── metrics.go              # 指标统计
-│   └── fallback.go             # 降级策略
+│   ├── fallback.go             # 降级策略
+│   ├── ratelimiter.go          # 限流器
+│   └── retry.go                # 重试机制
 ├── tests/                       # 测试代码
 │   ├── circuit_breaker_test.go
 │   ├── states_test.go
-│   └── metrics_test.go
+│   ├── metrics_test.go
+│   ├── ratelimiter_test.go
+│   └── retry_test.go
 ├── examples/                    # 使用示例
-│   └── main.go
+│   ├── main.go                 # 基础示例
+│   └── api_gateway.go          # API网关示例
 └── docs/                        # 学习文档
     ├── 01-RESEARCH.md
     ├── 02-DESIGN.md

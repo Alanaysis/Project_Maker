@@ -44,6 +44,7 @@ func (s TxState) String() string {
 type Transaction struct {
 	ID        string
 	State     TxState
+	Data      map[string]interface{}
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	mu        sync.RWMutex
@@ -55,9 +56,25 @@ func NewTransaction(id string) *Transaction {
 	return &Transaction{
 		ID:        id,
 		State:     TxStateInit,
+		Data:      make(map[string]interface{}),
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
+}
+
+// SetData 设置事务数据（线程安全）
+func (t *Transaction) SetData(key string, value interface{}) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.Data[key] = value
+}
+
+// GetData 获取事务数据（线程安全）
+func (t *Transaction) GetData(key string) (interface{}, bool) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	val, ok := t.Data[key]
+	return val, ok
 }
 
 // GetState 获取事务状态（线程安全）

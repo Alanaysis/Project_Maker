@@ -7,6 +7,7 @@ This directory contains tests for the WAL (Write-Ahead Logging) implementation.
 - `wal_test.go` - Tests for basic WAL operations (serialization, writing, reading)
 - `recovery_test.go` - Tests for crash recovery scenarios
 - `checkpoint_test.go` - Tests for checkpoint mechanism
+- `retention_test.go` - Tests for log retention and cleanup
 
 ## Running Tests
 
@@ -28,6 +29,12 @@ go test -run TestRecovery ./test/...
 
 # Run only checkpoint tests
 go test -run TestCheckpoint ./test/...
+
+# Run only retention tests
+go test -run TestRetentionPolicy ./test/...
+go test -run TestLogCleaner ./test/...
+go test -run TestTruncateWAL ./test/...
+go test -run TestGetWALStats ./test/...
 ```
 
 ### Run with Verbose Output
@@ -79,6 +86,21 @@ go tool cover -html=coverage.out
 - **TestGetWALSize** - Tests getting WAL file size
 - **TestNeedsRotation** - Tests rotation detection
 - **TestCheckpointWithRecovery** - Tests checkpoint with recovery
+
+### 4. Retention Tests (retention_test.go)
+
+- **TestRetentionPolicyDefaults** - Tests default retention policy values
+- **TestLogCleanerFileCount** - Tests file count-based cleanup
+- **TestLogCleanerMinFiles** - Tests minimum file count enforcement
+- **TestLogCleanerSizeBased** - Tests size-based cleanup
+- **TestTruncateWAL** - Tests WAL truncation by LSN
+- **TestTruncateWALAfterTime** - Tests WAL truncation by time
+- **TestGetWALStats** - Tests WAL statistics gathering
+- **TestWALStatsString** - Tests stats string representation
+- **TestLogCleanerGetTotalSize** - Tests total size calculation
+- **TestLogCleanerGetFileCount** - Tests file count retrieval
+- **TestLogCleanerEmptyDirectory** - Tests cleanup on empty directory
+- **TestLogCleanerWithNonWALFiles** - Tests that non-WAL files are not affected
 
 ## Writing New Tests
 

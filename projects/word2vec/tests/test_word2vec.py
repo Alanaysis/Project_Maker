@@ -94,8 +94,8 @@ class TestWord2Vec:
 
     def test_low_min_count(self):
         """测试低词频阈值"""
-        corpus = [["a", "b", "c"]]
-        model = Word2Vec(min_count=1)
+        corpus = [["a", "b", "c"]] * 10
+        model = Word2Vec(min_count=1, subsample_threshold=0)
         model.train(corpus, epochs=5, verbose=False)
         assert model.vocab_size == 3
 
@@ -132,8 +132,8 @@ class TestWord2VecIntegration:
 
     def test_save_load(self, tmp_path):
         """测试保存和加载"""
-        corpus = [["hello", "world"]] * 10
-        model = Word2Vec(vector_size=50, min_count=1)
+        corpus = [["hello", "world"]] * 20
+        model = Word2Vec(vector_size=50, min_count=1, subsample_threshold=0)
         model.train(corpus, epochs=10, verbose=False)
 
         # 保存

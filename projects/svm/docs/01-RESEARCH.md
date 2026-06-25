@@ -77,7 +77,7 @@ $$\xi_i \geq 0, \forall i$$
 | 线性核 | $K(x,y) = x \cdot y$ | 无 | 简单，适合线性可分数据 |
 | 多项式核 | $K(x,y) = (x \cdot y + c)^d$ | d: 阶数, c: 系数 | 可调复杂度 |
 | RBF 核 | $K(x,y) = \exp(-\gamma\|x-y\|^2)$ | γ: 宽度参数 | 最常用，可映射到无限维 |
-| Sigmoid 核 | $K(x,y) = \tanh(\alpha x \cdot y + c)$ | α, c | 类似神经网络 |
+| Sigmoid 核 | $K(x,y) = \tanh(\gamma x \cdot y + c)$ | γ, c | 类似神经网络，不总满足 Mercer 条件 |
 
 ### 3.3 核函数的选择
 
@@ -121,71 +121,58 @@ KKT (Karush-Kuhn-Tucker) 条件是最优解的必要条件：
 - $0 < \alpha_i < C$：$y_i f(x_i) = 1$
 - $\alpha_i = C$：$y_i f(x_i) \leq 1$
 
-**违反 KKT 条件的判断**：
-```python
-if (alpha_i < C and yi * Ei < -tol) or (alpha_i > 0 and yi * Ei > tol):
-    # 违反 KKT 条件
-```
+## 5. SVR 回归
 
-### 4.4 变量选择启发式
+### 5.1 epsilon 不敏感损失
 
-**第一个变量选择**：
-- 遍历所有样本，找到违反 KKT 条件的样本
-- 优先选择非边界样本 (0 < α < C)
+SVR 使用 epsilon 不敏感损失函数：
+$$L_\epsilon(y, f(x)) = \max(0, |y - f(x)| - \epsilon)$$
 
-**第二个变量选择**：
-- 选择使 |Ei - Ej| 最大的 j
-- 如果失败，随机选择
+只有当预测误差超过 epsilon 时才计算损失。
 
-## 5. 实现方案
+### 5.2 SVR 对偶问题
 
-### 5.1 技术栈
+$$\min \frac{1}{2} \sum_{i,j} (\alpha_i - \alpha_i^*)(\alpha_j - \alpha_j^*) K(x_i, x_j) + \epsilon \sum_i (\alpha_i + \alpha_i^*) - \sum_i y_i(\alpha_i - \alpha_i^*)$$
+
+约束：$0 \leq \alpha_i, \alpha_i^* \leq C$，$\sum_i (\alpha_i - \alpha_i^*) = 0$
+
+## 6. 多分类策略
+
+### 6.1 One-vs-Rest (OvR)
+
+为每个类别训练一个二分类器：
+- 类别 k 的正类：标签为 k 的样本
+- 类别 k 的负类：标签不为 k 的所有样本
+
+预测时选择决策函数值最大的类别。
+
+### 6.2 One-vs-One (OvO)
+
+为每对类别训练一个二分类器：
+- 总共需要 $C(n, 2) = \frac{n(n-1)}{2}$ 个分类器
+- 预测时使用投票机制
+
+## 7. 实现方案
+
+### 7.1 技术栈
 
 - **语言**：Python
 - **依赖**：NumPy
 - **测试**：pytest
 
-### 5.2 模块设计
+### 7.2 模块设计
 
 ```
 svm/
-├── kernel.py    # 核函数模块
-├── smo.py       # SMO 算法模块
-└── svm.py       # SVM 分类器模块
+├── kernel.py      # 核函数模块
+├── smo.py         # SMO 算法模块
+├── svm.py         # SVM 分类器模块
+├── svr.py         # SVR 回归器模块
+├── multiclass.py  # 多分类策略模块
+└── metrics.py     # 模型评估指标模块
 ```
 
-### 5.3 接口设计
-
-```python
-class SVM:
-    def __init__(self, kernel="rbf", C=1.0, gamma=1.0, ...):
-        pass
-
-    def fit(self, X, y) -> "SVM":
-        pass
-
-    def predict(self, X) -> np.ndarray:
-        pass
-
-    def score(self, X, y) -> float:
-        pass
-```
-
-## 6. 风险评估
-
-### 6.1 技术风险
-
-- **数值稳定性**：SMO 算法涉及浮点运算，需要注意精度问题
-- **收敛性**：某些情况下可能收敛很慢
-- **内存占用**：核矩阵需要 O(n²) 的存储空间
-
-### 6.2 应对措施
-
-- 使用适当的容差 (tol) 判断收敛
-- 限制最大迭代次数
-- 对于大数据集，考虑使用线性核或近似方法
-
-## 7. 参考资料
+## 8. 参考资料
 
 1. Vapnik, V. (1995). The Nature of Statistical Learning Theory
 2. Platt, J. (1998). Sequential Minimal Optimization

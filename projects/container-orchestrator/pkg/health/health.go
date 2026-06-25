@@ -24,13 +24,31 @@ const (
 	StateStarting  HealthState = "starting"
 )
 
+// ProbeType represents the type of health probe
+type ProbeType string
+
+const (
+	ProbeLiveness  ProbeType = "liveness"  // 存活探针 - checks if container is alive
+	ProbeReadiness ProbeType = "readiness" // 就绪探针 - checks if container is ready to serve traffic
+)
+
 // HealthResult represents a health check result
 type HealthResult struct {
 	ContainerID string      `json:"container_id"`
+	ProbeType   ProbeType   `json:"probe_type"`
 	State       HealthState `json:"state"`
 	Message     string      `json:"message,omitempty"`
 	Timestamp   time.Time   `json:"timestamp"`
 	Duration    time.Duration `json:"duration"`
+}
+
+// ProbeConfig represents the configuration for a probe
+type ProbeConfig struct {
+	Type             ProbeType     `json:"type"`
+	Interval         time.Duration `json:"interval"`
+	Timeout          time.Duration `json:"timeout"`
+	FailureThreshold int           `json:"failure_threshold"`
+	SuccessThreshold int           `json:"success_threshold"`
 }
 
 // HealthChecker performs health checks
@@ -89,10 +107,14 @@ type HealthMonitor struct {
 
 // MonitoredContainer represents a container being monitored
 type MonitoredContainer struct {
-	Container    *container.Container
-	Config       *container.HealthCheck
-	LastCheck    time.Time
-	FailedChecks int
+	Container         *container.Container
+	Config            *container.HealthCheck
+	LastCheck         time.Time
+	FailedChecks      int
+	LivenessState     HealthState
+	ReadinessState    HealthState
+	LivenessFailed    int
+	ReadinessFailed   int
 }
 
 // HealthEvent represents a health event
@@ -135,13 +157,22 @@ func (m *HealthMonitor) AddContainer(c *container.Container) {
 	defer m.mu.Unlock()
 
 	m.containers[c.ID] = &MonitoredContainer{
-		Container: c,
-		Config:    c.HealthCheck,
-		LastCheck: time.Now(),
+		Container:      c,
+		Config:         c.HealthCheck,
+		LastCheck:      time.Now(),
+		LivenessState:  StateUnknown,
+		ReadinessState: StateUnknown,
 	}
 
 	m.results[c.ID] = &HealthResult{
 		ContainerID: c.ID,
+		ProbeType:   ProbeLiveness,
+		State:       StateUnknown,
+		Timestamp:   time.Now(),
+	}
+	m.results[c.ID+"_readiness"] = &HealthResult{
+		ContainerID: c.ID,
+		ProbeType:   ProbeReadiness,
 		State:       StateUnknown,
 		Timestamp:   time.Now(),
 	}
@@ -154,6 +185,7 @@ func (m *HealthMonitor) RemoveContainer(containerID string) {
 
 	delete(m.containers, containerID)
 	delete(m.results, containerID)
+	delete(m.results, containerID+"_readiness")
 }
 
 // GetHealth returns the health state of a container
@@ -167,6 +199,33 @@ func (m *HealthMonitor) GetHealth(containerID string) (*HealthResult, error) {
 	}
 
 	return result, nil
+}
+
+// GetLiveness returns the liveness probe state of a container
+func (m *HealthMonitor) GetLiveness(containerID string) (*HealthResult, error) {
+	return m.GetHealth(containerID)
+}
+
+// GetReadiness returns the readiness probe state of a container
+func (m *HealthMonitor) GetReadiness(containerID string) (*HealthResult, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result, exists := m.results[containerID+"_readiness"]
+	if !exists {
+		return nil, ErrContainerNotFound
+	}
+
+	return result, nil
+}
+
+// IsReady returns true if the container is ready to serve traffic
+func (m *HealthMonitor) IsReady(containerID string) bool {
+	result, err := m.GetReadiness(containerID)
+	if err != nil {
+		return false
+	}
+	return result.State == StateHealthy
 }
 
 // GetAllHealth returns health states of all containers
@@ -223,43 +282,78 @@ func (m *HealthMonitor) checkAll(ctx context.Context) {
 	}
 }
 
-// checkContainer checks health of a single container
+// checkContainer checks health of a single container (both liveness and readiness)
 func (m *HealthMonitor) checkContainer(ctx context.Context, mc *MonitoredContainer) {
-	result, err := m.checker.Check(ctx, mc.Container)
+	// Perform liveness check
+	livenessResult, err := m.checker.Check(ctx, mc.Container)
 	if err != nil {
-		result = &HealthResult{
+		livenessResult = &HealthResult{
 			ContainerID: mc.Container.ID,
+			ProbeType:   ProbeLiveness,
 			State:       StateUnhealthy,
 			Message:     err.Error(),
 			Timestamp:   time.Now(),
 		}
 	}
+	livenessResult.ProbeType = ProbeLiveness
+
+	// Perform readiness check
+	readinessResult := &HealthResult{
+		ContainerID: mc.Container.ID,
+		ProbeType:   ProbeReadiness,
+		Timestamp:   time.Now(),
+	}
+	// Readiness depends on container being running AND passing health checks
+	if mc.Container.GetState() == container.StateRunning && livenessResult.State == StateHealthy {
+		readinessResult.State = StateHealthy
+		readinessResult.Message = "ready to serve traffic"
+	} else {
+		readinessResult.State = StateUnhealthy
+		readinessResult.Message = "not ready"
+	}
 
 	m.mu.Lock()
-	m.results[mc.Container.ID] = result
+	m.results[mc.Container.ID] = livenessResult
+	m.results[mc.Container.ID+"_readiness"] = readinessResult
 	mc.LastCheck = time.Now()
+	mc.LivenessState = livenessResult.State
+	mc.ReadinessState = readinessResult.State
 
-	// Update failed checks count
-	if result.State == StateUnhealthy {
+	// Update failed checks count for liveness
+	if livenessResult.State == StateUnhealthy {
+		mc.LivenessFailed++
 		mc.FailedChecks++
 	} else {
+		mc.LivenessFailed = 0
 		mc.FailedChecks = 0
+	}
+
+	// Update failed checks count for readiness
+	if readinessResult.State == StateUnhealthy {
+		mc.ReadinessFailed++
+	} else {
+		mc.ReadinessFailed = 0
 	}
 
 	// Determine if we need to emit an event
 	var event *HealthEvent
-	if result.State == StateHealthy {
+	failureThreshold := 3
+	if mc.Config != nil && mc.Config.Retries > 0 {
+		failureThreshold = mc.Config.Retries
+	}
+
+	if livenessResult.State == StateHealthy {
 		event = &HealthEvent{
 			Type:        EventContainerHealthy,
 			ContainerID: mc.Container.ID,
-			Result:      result,
+			Result:      livenessResult,
 			Timestamp:   time.Now(),
 		}
-	} else if mc.Config != nil && mc.FailedChecks >= mc.Config.Retries {
+	} else if mc.LivenessFailed >= failureThreshold {
 		event = &HealthEvent{
 			Type:        EventContainerUnhealthy,
 			ContainerID: mc.Container.ID,
-			Result:      result,
+			Result:      livenessResult,
 			Timestamp:   time.Now(),
 		}
 	}

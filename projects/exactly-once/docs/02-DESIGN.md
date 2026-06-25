@@ -7,32 +7,41 @@
 3. Build idempotent message processing pipeline
 4. Implement transactional operations with rollback support
 5. Provide complete message state tracking and audit trail
+6. Implement consumption acknowledgment (manual, batch, auto-retry)
+7. Implement transactional outbox pattern for atomic DB + message publishing
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Exactly-Once Pipeline                      │
-│                                                             │
-│  ┌──────────┐    ┌──────────┐    ┌──────────────────────┐  │
-│  │  Message  │───▶│  Dedup   │───▶│     Processor        │  │
-│  │  Input    │    │  Layer   │    │  ┌────────────────┐  │  │
-│  └──────────┘    └──────────┘    │  │   Handler(s)   │  │  │
-│                                  │  └────────────────┘  │  │
-│  ┌──────────┐                    │  ┌────────────────┐  │  │
-│  │  Tracker  │◀──────────────────│  │  Transaction   │  │  │
-│  │  (Audit)  │                   │  │  (Atomic Ops)  │  │  │
-│  └──────────┘                    │  └────────────────┘  │  │
-│                                  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        Exactly-Once Pipeline                              │
+│                                                                          │
+│  ┌──────────┐    ┌──────────┐    ┌──────────────────────┐               │
+│  │  Message  │───▶│  Dedup   │───▶│     Processor        │               │
+│  │  Input    │    │  Layer   │    │  ┌────────────────┐  │               │
+│  └──────────┘    └──────────┘    │  │   Handler(s)   │  │               │
+│                                  │  └────────────────┘  │               │
+│  ┌──────────┐    ┌──────────┐    │  ┌────────────────┐  │               │
+│  │  Tracker  │◀──│ Consume  │◀───│  │  Transaction   │  │               │
+│  │  (Audit)  │   │  (Ack)   │    │  │  (Atomic Ops)  │  │               │
+│  └──────────┘    └──────────┘    │  └────────────────┘  │               │
+│                                  │  ┌────────────────┐  │               │
+│  ┌──────────┐                    │  │    Outbox      │  │               │
+│  │  Outbox  │◀───────────────────│  │ (Transactional)│  │               │
+│  │ (Relay)  │                    │  └────────────────┘  │               │
+│  └──────────┘                    └──────────────────────┘               │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Core Flow
 
 ```
-Message → Dedup Check → [NEW] → Process → Track → Complete
-                     → [DUP] → Skip (return cached result)
-                     → [IN_PROGRESS] → Wait or Error
+Message --> Dedup Check --> [NEW]       --> Process --> Track --> Ack --> Complete
+                       --> [DUP]       --> Skip (return cached result)
+                       --> [IN_PROGRESS] --> Wait or Error
+
+Failure --> Retry (with backoff) --> [Success] --> Ack
+                               --> [Exhausted] --> Reject (Dead Letter)
 ```
 
 ## Package Structure
@@ -43,6 +52,8 @@ internal/
 ├── dedup/          # Deduplication with idempotency keys
 ├── processor/      # Idempotent processing pipeline
 ├── transaction/    # Two-phase commit transactions
+├── consume/        # Consumption acknowledgment (manual, batch, retry)
+├── outbox/         # Transactional outbox pattern
 └── tracker/        # Message state tracking and audit
 ```
 
@@ -134,6 +145,112 @@ type Handler func(msg *Message) ([]byte, error)
 
 3. **Callbacks**: Optional success/duplicate/failure callbacks for monitoring and alerting.
 
+## Consume Package
+
+### Design
+
+```go
+type Consumer struct {
+    messages    map[string]*ConsumedMessage
+    handler     Handler
+    retryPolicy RetryPolicy
+}
+
+type ConsumedMessage struct {
+    Message      *Message
+    AckStatus    AckStatus  // PENDING, ACKED, NACKED, REJECTED
+    ReceivedAt   time.Time
+    AckedAt      *time.Time
+    AttemptCount int
+    LastError    string
+}
+
+type RetryPolicy struct {
+    MaxRetries        int
+    InitialBackoff    time.Duration
+    MaxBackoff        time.Duration
+    BackoffMultiplier float64
+}
+```
+
+### Acknowledgment Flow
+
+1. **Receive**: Register message for consumption
+2. **Process**: Execute handler
+3. **Ack**: On success, mark as acknowledged
+4. **Nack**: On failure, mark for retry
+5. **Retry**: Wait for backoff, then re-process
+6. **Reject**: After max retries, send to dead letter
+
+### Batch Consumer
+
+```go
+type BatchConsumer struct {
+    pending     []*ConsumedMessage
+    batchSize   int
+    flushTimeout time.Duration
+    handler     Handler
+}
+```
+
+Batch processing collects messages and processes them together:
+1. **Receive**: Add message to pending batch
+2. **ProcessBatch**: Process all pending messages
+3. **AckBatch/NackBatch**: Acknowledge or reject the batch
+
+### Design Decisions
+
+1. **Exponential backoff**: Retry delays increase exponentially to avoid overwhelming downstream systems.
+
+2. **Dead letter**: Messages that fail all retries are marked as rejected and can be sent to a dead letter queue.
+
+3. **Batch acknowledgment**: More efficient for high-throughput scenarios than individual ack/nack.
+
+## Outbox Package
+
+### Design
+
+```go
+type Outbox struct {
+    entries    map[string]*OutboxEntry
+    publisher  Publisher
+    maxRetries int
+}
+
+type OutboxEntry struct {
+    ID            string
+    Topic         string
+    Message       *Message
+    State         EntryState  // PENDING, PUBLISHING, PUBLISHED, FAILED
+    CreatedAt     time.Time
+    PublishedAt   *time.Time
+    RetryCount    int
+    TransactionID string
+}
+
+type TransactionalOutbox struct {
+    txnMgr *Manager
+    outbox *Outbox
+}
+```
+
+### Transactional Outbox Flow
+
+1. BEGIN transaction
+2. Execute business logic (e.g., update order status)
+3. Write message to outbox (within same transaction)
+4. COMMIT transaction
+5. (Async) Relay reads outbox and publishes to message broker
+6. (Async) Relay marks outbox entry as published
+
+### Design Decisions
+
+1. **Atomic writes**: Business logic and outbox writes happen in the same transaction, ensuring consistency.
+
+2. **Relay pattern**: A separate process reads unpublished entries and publishes them. This handles broker failures gracefully.
+
+3. **Retry on publish**: Failed publishes are retried with configurable max retries.
+
 ## Transaction Package
 
 ### Design
@@ -209,14 +326,24 @@ type Event struct {
 - Log duplicate detection
 
 ### Processing Failures
-- Retry up to MaxRetries times
+- Retry up to MaxRetries times with exponential backoff
 - Track retry count per message
-- After exhaustion: mark as failed, trigger failure callback
+- After exhaustion: mark as rejected, trigger failure callback
+
+### Consumption Failures
+- Auto-retry with configurable backoff policy
+- Dead letter queue for permanently failed messages
+- Batch-level failure handling
 
 ### Transaction Failures
 - Roll back all executed operations
 - Record failure reason
 - Leave transaction in ABORTED state
+
+### Outbox Failures
+- Retry publishing up to max retries
+- Failed entries remain in outbox for manual inspection
+- Relay process handles retry logic
 
 ## Testing Strategy
 
@@ -226,11 +353,15 @@ type Event struct {
 - Processor with idempotent handlers
 - Transaction commit and rollback
 - Tracker event recording
+- Consumer acknowledgment (manual, batch, retry)
+- Outbox save, publish, and retry
 
 ### Integration Tests
-- Full pipeline: message -> dedup -> process -> track
+- Full pipeline: message -> dedup -> process -> track -> ack
 - Concurrent message processing
 - Retry scenarios
+- Batch processing
+- Transactional outbox with business logic
 
 ### What We Don't Test
 - External storage (in-memory only for this learning project)

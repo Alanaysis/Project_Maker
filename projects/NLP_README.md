@@ -1,6 +1,6 @@
 # 🤖 NLP & 机器学习模块
 
-> **10 个深度学习项目** | 涵盖自然语言处理、机器学习算法、数据结构、边缘计算等领域
+> **13 个深度学习项目** | 涵盖自然语言处理、机器学习算法、数据结构、边缘计算、概率算法等领域
 
 ---
 
@@ -16,10 +16,13 @@
 |------|------|--------|------|
 | [tokenizer](tokenizer/) | 中文分词器 | Python | ⭐⭐⭐ |
 | [language-model](language-model/) | N-gram 语言模型 | Python | ⭐⭐⭐ |
-| [random-forest](random-forest/) | 随机森林分类器 | Python | ⭐⭐⭐⭐ |
+| [text-classification](text-classification/) | 文本分类系统 | Python, NumPy | ⭐⭐⭐⭐ |
+| [word2vec](word2vec/) | 词向量 Word2Vec | Python, NumPy | ⭐⭐⭐⭐ |
+| [random-forest](random-forest/) | 随机森林分类+回归+评估 | Python, NumPy | ⭐⭐⭐⭐ |
 | [svm](svm/) | 支持向量机 | Python | ⭐⭐⭐⭐ |
+| [hyperloglog](hyperloglog/) | HyperLogLog 基数估计 | Go | ⭐⭐⭐⭐ |
 | [dht](dht/) | 分布式哈希表 | Go | ⭐⭐⭐⭐ |
-| [dns-server](dns-server/) | DNS 服务器 | Go | ⭐⭐⭐⭐ |
+| [dns-server](dns-server/) | DNS 服务器 | C++ | ⭐⭐⭐⭐ |
 | [distributed-transaction](distributed-transaction/) | 分布式事务 | Go | ⭐⭐⭐⭐⭐ |
 | [matching-engine](matching-engine/) | 撮合引擎 | C++ | ⭐⭐⭐⭐⭐ |
 | [query-parser](query-parser/) | 查询解析器 | Go | ⭐⭐⭐⭐ |
@@ -60,22 +63,94 @@ python3 example.py
 **项目路径**: `projects/language-model/`
 
 **学习目标**:
-- 理解语言模型的基本概念
-- 掌握 N-gram 统计方法
-- 学会困惑度 (Perplexity) 评估
+- 理解语言模型的基本概念和概率链式法则
+- 掌握 N-gram 统计方法 (Unigram, Bigram, Trigram)
+- 学会拉普拉斯、Good-Turing、Kneser-Ney 平滑技术
+- 实现前馈神经网络、RNN、LSTM 语言模型
+- 掌握困惑度和交叉熵评估
+- 实现拼写纠错和输入法等应用
 
 **核心功能**:
 - N-gram 模型 (Unigram, Bigram, Trigram)
-- Add-k 平滑
-- 文本生成（温度控制）
-- 困惑度评估
+- 平滑技术 (拉普拉斯、Good-Turing、Kneser-Ney)
+- 神经语言模型 (FFNN、RNN、LSTM)
+- 评估指标 (困惑度、交叉熵、BLEU、WER)
+- 文本生成（温度控制、多样生成）
+- 拼写纠错（编辑距离 + 语言模型排序）
+- 输入法（前缀补全 + 语言模型排序）
 
-**技术栈**: Python
+**技术栈**: Python, NumPy
+
+**测试**: 155 个测试用例
 
 **快速开始**:
 ```bash
 cd projects/language-model
+pip install -r requirements.txt
 python3 -m pytest tests/ -v
+```
+
+---
+
+### 📝 文本分类 (text-classification)
+
+**项目路径**: `projects/text-classification/`
+
+**学习目标**:
+- 理解文本表示方法（词袋、TF-IDF、N-gram）
+- 掌握传统分类器（朴素贝叶斯、逻辑回归、SVM）
+- 学会深度学习模型（TextCNN、LSTM、BiLSTM+Attention）
+- 掌握评估指标（准确率、精确率、召回率、F1、混淆矩阵）
+
+**核心功能**:
+- 特征提取: BagOfWords、TF-IDF、N-gram
+- 传统分类器: 朴素贝叶斯、逻辑回归、SVM
+- 深度学习: TextCNN、LSTM、BiLSTM+Attention
+- 评估指标: 准确率、精确率、召回率、F1、混淆矩阵
+- 实际应用: 情感分析、新闻分类、垃圾邮件检测
+
+**技术栈**: Python, NumPy
+
+**测试**: 185 个测试用例
+
+**快速开始**:
+```bash
+cd projects/text-classification
+python3 -m pytest tests/ -v
+```
+
+---
+
+### 📝 词向量 Word2Vec (word2vec)
+
+**项目路径**: `projects/word2vec/`
+
+**学习目标**:
+- 理解词向量原理和分布式假设
+- 掌握 CBOW 和 Skip-gram 模型架构
+- 学会负采样和层次 Softmax 优化技术
+- 理解降采样对训练的影响
+
+**核心功能**:
+- Skip-gram 模型（给定中心词预测上下文）
+- CBOW 模型（给定上下文预测中心词）
+- 负采样优化（词频的 3/4 次方噪声分布）
+- 层次 Softmax（Huffman 树加速）
+- 降采样（高频词随机丢弃）
+- 词相似度评估（Spearman 相关系数）
+- 词类比（king - man + woman = queen）
+- t-SNE 可视化（PCA/t-SNE 降维）
+- 文本分类、情感分析、词聚类
+
+**技术栈**: Python, NumPy
+
+**测试**: 97 个测试用例
+
+**快速开始**:
+```bash
+cd projects/word2vec
+python3 -m pytest tests/ -v
+python3 examples/train_example.py
 ```
 
 ---
@@ -87,14 +162,23 @@ python3 -m pytest tests/ -v
 **学习目标**:
 - 理解 Bagging 原理
 - 掌握随机特征选择
-- 学会集成学习
+- 学会集成学习（分类与回归）
+- 掌握特征重要性分析（不纯度 vs 排列）
+- 理解袋外估计 (OOB)
 
 **核心功能**:
-- 决策树实现
-- 随机森林集成
-- 特征重要性评估
+- 决策树分类器 (Gini/Entropy)
+- 随机森林分类器 (多数投票)
+- 决策树回归器 (MSE)
+- 随机森林回归器 (平均预测)
+- 特征重要性 (不纯度 + 排列)
+- 袋外估计 (OOB Score)
+- 评估指标 (Accuracy, Precision, Recall, F1, MSE, R2)
+- 实战示例 (鸢尾花分类, 房价预测, 特征重要性分析)
 
-**技术栈**: Python
+**技术栈**: Python, NumPy
+
+**测试**: 103 个测试用例
 
 ---
 
@@ -113,6 +197,31 @@ python3 -m pytest tests/ -v
 - SMO 优化算法
 
 **技术栈**: Python
+
+---
+
+### 📊 HyperLogLog 基数估计 (hyperloglog)
+
+**项目路径**: `projects/hyperloglog/`
+
+**学习目标**:
+- 理解 HyperLogLog 原理
+- 掌握概率计数
+- 学会精度调优
+
+**核心功能**:
+- HyperLogLog 算法实现
+- 基数估计
+- 精度分析
+- 合并操作
+
+**技术栈**: Go
+
+**快速开始**:
+```bash
+cd projects/hyperloglog
+go run cmd/hyperloglog/main.go demo
+```
 
 ---
 
@@ -273,10 +382,13 @@ python examples/basic_usage.py
 1. **基础算法** (1-2 周)
    - [tokenizer](tokenizer/) - 中文分词器
    - [language-model](language-model/) - N-gram 语言模型
+   - [word2vec](word2vec/) - 词向量 Word2Vec
+   - [text-classification](text-classification/) - 文本分类系统
    - [random-forest](random-forest/) - 随机森林
 
 2. **进阶算法** (2-3 周)
    - [svm](svm/) - 支持向量机
+   - [hyperloglog](hyperloglog/) - HyperLogLog 基数估计
 
 3. **分布式系统** (3-4 周)
    - [dht](dht/) - 分布式哈希表
@@ -301,8 +413,9 @@ python examples/basic_usage.py
 
 完成本模块后，你将掌握：
 
-- **NLP 基础**: 分词算法、词典管理、HMM 模型、语言模型
-- **机器学习**: 决策树、集成学习、SVM 原理
+- **NLP 基础**: 分词算法、词典管理、HMM 模型、语言模型、词向量、文本分类
+- **机器学习**: 决策树、集成学习、SVM 原理、逻辑回归、朴素贝叶斯
+- **深度学习**: TextCNN、LSTM、BiLSTM+Attention
 - **分布式系统**: DHT、DNS、分布式事务
 - **搜索引擎**: 查询解析、布尔查询、相关性排序
 - **高性能计算**: 撮合引擎、订单簿管理
@@ -315,6 +428,8 @@ python examples/basic_usage.py
 
 - [NLP 学习笔记](tokenizer/LEARNING_NOTES.md) - 中文分词器学习笔记
 - [语言模型学习笔记](language-model/LEARNING_NOTES.md) - N-gram 语言模型学习笔记
+- [词向量学习笔记](word2vec/LEARNING_NOTES.md) - Word2Vec 学习笔记
+- [文本分类学习笔记](text-classification/LEARNING_NOTES.md) - 文本分类系统学习笔记
 - [机器学习笔记](random-forest/LEARNING_NOTES.md) - 随机森林学习笔记
 - [SVM 学习笔记](svm/LEARNING_NOTES.md) - SVM 学习笔记
 - [查询解析器学习笔记](query-parser/LEARNING_NOTES.md) - 查询解析器学习笔记
@@ -327,10 +442,10 @@ python examples/basic_usage.py
 
 | 维度 | 数量 |
 |------|------|
-| **总项目数** | 10 |
+| **总项目数** | 12 |
 | **技术栈** | 3 (Python, Go, C++) |
-| **总代码行数** | 16,000+ |
-| **文档数量** | 40+ |
+| **总代码行数** | 18,000+ |
+| **文档数量** | 50+ |
 
 ---
 

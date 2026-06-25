@@ -303,3 +303,138 @@ func TestHandleGetServiceNotFound(t *testing.T) {
 		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
+
+func TestHandleDiscoverByTags(t *testing.T) {
+	srv, s := setupTestServer(t)
+	defer s.Close()
+
+	ctx := context.Background()
+	srv.discoverer.Start(ctx)
+	defer srv.discoverer.Stop()
+
+	// Add services with metadata
+	svc1 := &registry.Service{
+		ID: "svc-1", Name: "web", Address: "10.0.0.1", Port: 8001,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "prod", "version": "1.0"},
+	}
+	svc2 := &registry.Service{
+		ID: "svc-2", Name: "web", Address: "10.0.0.2", Port: 8002,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "staging", "version": "1.0"},
+	}
+	data1, _ := svc1.Marshal()
+	data2, _ := svc2.Marshal()
+	s.Put(ctx, svc1.Key(), data1, 0)
+	s.Put(ctx, svc2.Key(), data2, 0)
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Filter by env=prod
+	req := httptest.NewRequest("GET", "/discover/tags?name=web&env=prod", nil)
+	w := httptest.NewRecorder()
+	srv.handleDiscoverByTags(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var services []*registry.Service
+	json.NewDecoder(w.Body).Decode(&services)
+	if len(services) != 1 {
+		t.Errorf("expected 1 service, got %d", len(services))
+	}
+	if len(services) > 0 && services[0].ID != "svc-1" {
+		t.Errorf("expected svc-1, got %s", services[0].ID)
+	}
+}
+
+func TestHandleDiscoverByTagsMissingName(t *testing.T) {
+	srv, s := setupTestServer(t)
+	defer s.Close()
+
+	req := httptest.NewRequest("GET", "/discover/tags?env=prod", nil)
+	w := httptest.NewRecorder()
+	srv.handleDiscoverByTags(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleDiscoverByTagsMethodNotAllowed(t *testing.T) {
+	srv, s := setupTestServer(t)
+	defer s.Close()
+
+	req := httptest.NewRequest("POST", "/discover/tags?name=web&env=prod", nil)
+	w := httptest.NewRecorder()
+	srv.handleDiscoverByTags(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleChooseByTags(t *testing.T) {
+	srv, s := setupTestServer(t)
+	defer s.Close()
+
+	ctx := context.Background()
+	srv.discoverer.Start(ctx)
+	defer srv.discoverer.Stop()
+
+	// Add services with metadata
+	svc1 := &registry.Service{
+		ID: "svc-1", Name: "web", Address: "10.0.0.1", Port: 8001,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "prod"},
+	}
+	svc2 := &registry.Service{
+		ID: "svc-2", Name: "web", Address: "10.0.0.2", Port: 8002,
+		Status:   registry.StatusUp,
+		Metadata: map[string]string{"env": "prod"},
+	}
+	data1, _ := svc1.Marshal()
+	data2, _ := svc2.Marshal()
+	s.Put(ctx, svc1.Key(), data1, 0)
+	s.Put(ctx, svc2.Key(), data2, 0)
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Choose with tag filter
+	selected := make(map[string]bool)
+	for i := 0; i < 10; i++ {
+		req := httptest.NewRequest("GET", "/choose/tags?name=web&env=prod", nil)
+		w := httptest.NewRecorder()
+		srv.handleChooseByTags(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+
+		var svc registry.Service
+		json.NewDecoder(w.Body).Decode(&svc)
+		selected[svc.ID] = true
+	}
+
+	if len(selected) < 2 {
+		t.Errorf("expected both services to be selected, got %v", selected)
+	}
+}
+
+func TestHandleChooseByTagsNoMatch(t *testing.T) {
+	srv, s := setupTestServer(t)
+	defer s.Close()
+
+	ctx := context.Background()
+	srv.discoverer.Start(ctx)
+	defer srv.discoverer.Stop()
+
+	req := httptest.NewRequest("GET", "/choose/tags?name=web&env=prod", nil)
+	w := httptest.NewRecorder()
+	srv.handleChooseByTags(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503, got %d", w.Code)
+	}
+}

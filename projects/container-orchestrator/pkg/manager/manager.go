@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -329,6 +330,118 @@ func (m *Manager) scaleService(serviceID string, desiredReplicas int) error {
 // ResolveService resolves a service name to an endpoint
 func (m *Manager) ResolveService(serviceName string) (*discovery.Endpoint, error) {
 	return m.discovery.Resolve(serviceName)
+}
+
+// StartContainer starts a container
+func (m *Manager) StartContainer(containerID string) error {
+	m.mu.RLock()
+
+	// Find the container across all services
+	m.mu.RLock()
+	for _, sm := range m.services {
+		for _, c := range sm.Containers {
+			if c.ID == containerID {
+				m.mu.RUnlock()
+				if err := c.Start(); err != nil {
+					return err
+				}
+				// Re-register with discovery
+				endpoint := &discovery.Endpoint{
+					ID:          c.ID,
+					ServiceID:   sm.Service.ID,
+					ContainerID: c.ID,
+					NodeID:      c.NodeID,
+					Address:     "",
+					Port:        8080,
+					Labels:      c.Labels,
+					Health:      discovery.HealthHealthy,
+					Weight:      1,
+					LastSeen:    time.Now(),
+				}
+				m.discovery.RegisterEndpoint(endpoint)
+				return nil
+			}
+		}
+	}
+	m.mu.RUnlock()
+	return fmt.Errorf("container %s not found", containerID)
+}
+
+// StopContainer stops a container
+func (m *Manager) StopContainer(containerID string) error {
+	m.mu.RLock()
+	for _, sm := range m.services {
+		for _, c := range sm.Containers {
+			if c.ID == containerID {
+				m.mu.RUnlock()
+				if err := c.Stop(); err != nil {
+					return err
+				}
+				// Update discovery endpoint health
+				m.discovery.UnregisterEndpoint(sm.Service.ID, c.ID)
+				return nil
+			}
+		}
+	}
+	m.mu.RUnlock()
+	return fmt.Errorf("container %s not found", containerID)
+}
+
+// RestartContainer restarts a container
+func (m *Manager) RestartContainer(containerID string) error {
+	m.mu.RLock()
+	for _, sm := range m.services {
+		for _, c := range sm.Containers {
+			if c.ID == containerID {
+				m.mu.RUnlock()
+				if err := c.Restart(); err != nil {
+					return err
+				}
+				// Re-register with discovery
+				endpoint := &discovery.Endpoint{
+					ID:          c.ID,
+					ServiceID:   sm.Service.ID,
+					ContainerID: c.ID,
+					NodeID:      c.NodeID,
+					Address:     "",
+					Port:        8080,
+					Labels:      c.Labels,
+					Health:      discovery.HealthHealthy,
+					Weight:      1,
+					LastSeen:    time.Now(),
+				}
+				m.discovery.RegisterEndpoint(endpoint)
+				return nil
+			}
+		}
+	}
+	m.mu.RUnlock()
+	return fmt.Errorf("container %s not found", containerID)
+}
+
+// DeleteContainer deletes a container
+func (m *Manager) DeleteContainer(containerID string) error {
+	m.mu.Lock()
+	for serviceID, sm := range m.services {
+		for i, c := range sm.Containers {
+			if c.ID == containerID {
+				// Remove from service
+				sm.Containers = append(sm.Containers[:i], sm.Containers[i+1:]...)
+				m.mu.Unlock()
+
+				// Unschedule from scheduler
+				m.scheduler.Unschedule(c.ID)
+				// Remove from health monitoring
+				m.monitor.RemoveContainer(c.ID)
+				// Unregister from discovery
+				m.discovery.UnregisterEndpoint(serviceID, c.ID)
+
+				return nil
+			}
+		}
+	}
+	m.mu.Unlock()
+	return fmt.Errorf("container %s not found", containerID)
 }
 
 // GetClusterStats returns cluster statistics

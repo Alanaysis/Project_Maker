@@ -123,9 +123,7 @@ func TestManualScaleLimits(t *testing.T) {
 }
 
 func TestEvaluate(t *testing.T) {
-	scaled := false
 	scaleFunc := func(serviceID string, desiredReplicas int) error {
-		scaled = true
 		return nil
 	}
 
@@ -245,4 +243,127 @@ func TestMetricsCollector(t *testing.T) {
 	// Get non-existent metrics
 	_, ok = mc.GetMetrics("service-2")
 	assert.False(t, ok)
+}
+
+func TestCustomMetrics(t *testing.T) {
+	scaleFunc := func(serviceID string, desiredReplicas int) error {
+		return nil
+	}
+
+	s := scaler.NewScaler(scaleFunc)
+
+	// Register service with custom metric rules
+	s.RegisterService("service-1", 3, &scaler.ScalingPolicy{
+		MinReplicas:     1,
+		MaxReplicas:     10,
+		ScaleUpCPU:      0.8,
+		ScaleDownCPU:    0.2,
+		ScaleUpMemory:   0.8,
+		ScaleDownMemory: 0.2,
+		Cooldown:        0,
+		CustomMetricRules: []scaler.CustomMetricRule{
+			{
+				MetricName:       "requests_per_second",
+				ScaleUpThreshold: 1000,
+				ScaleDownThreshold: 100,
+			},
+		},
+	})
+
+	// Update metrics with custom metric above threshold
+	s.UpdateMetrics("service-1", &scaler.ServiceMetrics{
+		CPUUsage:    0.3,
+		MemoryUsage: 0.3,
+		CustomMetrics: map[string]float64{
+			"requests_per_second": 1500,
+		},
+		Timestamp: time.Now(),
+	})
+
+	// Evaluate - should trigger scale up due to custom metric
+	decisions := s.Evaluate()
+	assert.Len(t, decisions, 1)
+	assert.Equal(t, scaler.ScaleUp, decisions[0].Direction)
+	assert.Contains(t, decisions[0].Reason, "requests_per_second")
+}
+
+func TestCustomMetricsScaleDown(t *testing.T) {
+	scaleFunc := func(serviceID string, desiredReplicas int) error {
+		return nil
+	}
+
+	s := scaler.NewScaler(scaleFunc)
+
+	// Register service with custom metric rules
+	s.RegisterService("service-1", 3, &scaler.ScalingPolicy{
+		MinReplicas:     1,
+		MaxReplicas:     10,
+		ScaleUpCPU:      0.8,
+		ScaleDownCPU:    0.2,
+		ScaleUpMemory:   0.8,
+		ScaleDownMemory: 0.2,
+		Cooldown:        0,
+		CustomMetricRules: []scaler.CustomMetricRule{
+			{
+				MetricName:       "requests_per_second",
+				ScaleUpThreshold: 1000,
+				ScaleDownThreshold: 100,
+			},
+		},
+	})
+
+	// Update metrics with all metrics low
+	s.UpdateMetrics("service-1", &scaler.ServiceMetrics{
+		CPUUsage:    0.1,
+		MemoryUsage: 0.1,
+		CustomMetrics: map[string]float64{
+			"requests_per_second": 50,
+		},
+		Timestamp: time.Now(),
+	})
+
+	// Evaluate - should trigger scale down
+	decisions := s.Evaluate()
+	assert.Len(t, decisions, 1)
+	assert.Equal(t, scaler.ScaleDown, decisions[0].Direction)
+}
+
+func TestCustomMetricsNoScale(t *testing.T) {
+	scaleFunc := func(serviceID string, desiredReplicas int) error {
+		return nil
+	}
+
+	s := scaler.NewScaler(scaleFunc)
+
+	// Register service with custom metric rules
+	s.RegisterService("service-1", 3, &scaler.ScalingPolicy{
+		MinReplicas:     1,
+		MaxReplicas:     10,
+		ScaleUpCPU:      0.8,
+		ScaleDownCPU:    0.2,
+		ScaleUpMemory:   0.8,
+		ScaleDownMemory: 0.2,
+		Cooldown:        0,
+		CustomMetricRules: []scaler.CustomMetricRule{
+			{
+				MetricName:       "requests_per_second",
+				ScaleUpThreshold: 1000,
+				ScaleDownThreshold: 100,
+			},
+		},
+	})
+
+	// Update metrics - CPU low but custom metric above scale-down threshold
+	s.UpdateMetrics("service-1", &scaler.ServiceMetrics{
+		CPUUsage:    0.1,
+		MemoryUsage: 0.1,
+		CustomMetrics: map[string]float64{
+			"requests_per_second": 500, // Above scale-down threshold
+		},
+		Timestamp: time.Now(),
+	})
+
+	// Evaluate - should not trigger scale down
+	decisions := s.Evaluate()
+	assert.Len(t, decisions, 0)
 }

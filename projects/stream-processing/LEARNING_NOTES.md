@@ -180,22 +180,81 @@ Instead of using timers, windows are completed based on the watermark (maximum e
 ## What I Would Do Differently
 
 1. **Use generics from the start**: Type-safe operators would catch more errors at compile time
-2. **Implement proper watermarks**: The current watermark is just "max timestamp seen," but production systems need bounded out-of-orderness
+2. **Support operator chaining syntax**: A fluent API like `stream.Filter(...).Map(...).Reduce(...)`
 3. **Add operator metrics**: Latency, throughput, and state size per operator
-4. **Implement checkpointing**: Periodic state snapshots for fault tolerance
-5. **Support operator chaining syntax**: A fluent API like `stream.Filter(...).Map(...).Reduce(...)`
+
+## What Has Been Implemented
+
+The following features have been added since the initial implementation:
+
+### Session Windows (Gap-Based)
+
+Session windows group events by activity gaps. Unlike tumbling/sliding windows, session windows have dynamic boundaries that depend on the data:
+
+```go
+sw := window.NewSessionWindow(30 * time.Second)
+closed := sw.ProcessEvent(event) // Returns closed windows
+```
+
+**Key Insight**: Session windows require per-key state tracking since each key has independent session boundaries.
+
+### Watermark with Bounded Out-of-Orderness
+
+Proper watermark implementation that handles late-arriving events:
+
+```go
+wm := watermark.NewWatermark(5 * time.Second)
+wm.Update(event.Timestamp)
+wm.IsLate(event.Timestamp) // Check if event arrived late
+```
+
+**Key Insight**: The `maxOutOfOrderness` parameter controls the trade-off between latency and completeness. A larger value means we wait longer but handle more late events.
+
+### Data Sources
+
+Multiple data source implementations:
+
+- **FileSource**: Reads from files with configurable parsing (key, value, timestamp extraction)
+- **SocketSource**: TCP/UDP socket streaming
+- **KafkaSource**: Kafka consumer interface with mock implementation for testing
+
+**Key Insight**: Abstracting sources behind an interface enables testing without real I/O dependencies.
+
+### Keyed State with Checkpoints
+
+Per-key state management with snapshot/restore for fault tolerance:
+
+```go
+ks := state.NewKeyedState()
+ks.Put("user1", "count", 42)
+
+// Checkpoint
+snapshot, _ := ks.Snapshot()
+
+// Restore
+ks.Restore(snapshot)
+```
+
+**Key Insight**: Checkpointing is essential for production systems. The checkpoint manager provides periodic snapshots with configurable retention.
+
+### Late Event Handling
+
+Configurable policies for handling late-arriving events:
+
+- `DropLateEvents`: Discard events arriving after watermark
+- `AllowLateEvents`: Process within allowed lateness window
+- `SideOutputLateEvents`: Send to side output for separate processing
 
 ## Next Steps
 
-To extend this project:
+To further extend this project:
 
-1. Add session windows (gap-based windowing)
-2. Implement stream joins (combining two streams)
-3. Add custom triggers (early firing, late data handling)
-4. Implement state checkpointing to disk
-5. Add metrics and monitoring
-6. Create a DSL for pipeline definition
-7. Implement exactly-once semantics
+1. Implement stream joins (combining two streams)
+2. Add custom triggers (early firing, late data handling)
+3. Add metrics and monitoring
+4. Create a DSL for pipeline definition
+5. Implement exactly-once semantics
+6. Support distributed execution across multiple nodes
 
 ## Resources That Helped
 

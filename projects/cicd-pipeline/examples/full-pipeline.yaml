@@ -1,0 +1,376 @@
+# 完整 CI/CD 流水线示例
+# 包含：构建、测试、部署的完整流程
+# 支持：Git Push 触发、定时触发、手动触发
+
+name: "完整应用 CI/CD 流水线"
+
+# 触发配置
+trigger:
+  # Git Push 触发
+  push:
+    branches:
+      - main
+      - develop
+      - "release/*"
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "go.mod"
+
+  # 定时触发 (每天凌晨 2 点)
+  schedule: "0 2 * * *"
+
+  # 允许手动触发
+  manual: true
+
+# 全局变量
+variables:
+  APP_NAME: "myapp"
+  REGISTRY: "registry.example.com"
+  GO_VERSION: "1.21"
+
+stages:
+  # ============================================
+  # 阶段 1: 代码检出与准备
+  # ============================================
+  - name: checkout
+    tasks:
+      - name: "克隆代码"
+        command: |
+          echo "📥 检出代码..."
+          echo "分支: ${BRANCH:-main}"
+          echo "提交: ${COMMIT:-latest}"
+          echo "✅ 代码检出完成"
+        timeout: 60
+
+      - name: "检查代码变更"
+        command: |
+          echo "🔍 检查代码变更..."
+          echo "变更文件:"
+          echo "  - src/main.go"
+          echo "  - src/utils.go"
+          echo "✅ 代码变更检查完成"
+
+  # ============================================
+  # 阶段 2: 依赖安装
+  # ============================================
+  - name: dependencies
+    depends_on:
+      - checkout
+    tasks:
+      - name: "下载依赖"
+        command: |
+          echo "📦 下载 Go 依赖..."
+          echo "go mod download"
+          echo "下载完成: 128 个依赖包"
+          echo "✅ 依赖下载完成"
+        timeout: 180
+
+      - name: "验证依赖"
+        command: |
+          echo "🔍 验证依赖完整性..."
+          echo "go mod verify"
+          echo "✅ 依赖验证通过"
+
+  # ============================================
+  # 阶段 3: 代码编译
+  # ============================================
+  - name: build
+    depends_on:
+      - dependencies
+    tasks:
+      - name: "编译应用"
+        command: |
+          echo "🔨 编译应用..."
+          echo "go build -o bin/app ./cmd/app"
+          echo "编译成功: bin/app (15MB)"
+          echo "✅ 编译完成"
+        timeout: 300
+
+      - name: "编译测试工具"
+        command: |
+          echo "🔨 编译测试工具..."
+          echo "go build -o bin/test-tool ./cmd/test"
+          echo "✅ 测试工具编译完成"
+
+      - name: "打包制品"
+        command: |
+          echo "📦 打包制品..."
+          echo "tar -czf dist/app-v1.2.0.tar.gz bin/ config/"
+          echo "生成: dist/app-v1.2.0.tar.gz (12MB)"
+          echo "SHA256: a1b2c3d4e5f6..."
+          echo "✅ 制品打包完成"
+
+  # ============================================
+  # 阶段 4: 单元测试
+  # ============================================
+  - name: unit-test
+    depends_on:
+      - build
+    tasks:
+      - name: "运行单元测试"
+        command: |
+          echo "🧪 运行单元测试..."
+          echo "go test ./... -v -count=1"
+          echo ""
+          echo "测试结果:"
+          echo "  ✓ pkg/utils   (0.5s)"
+          echo "  ✓ pkg/api      (1.2s)"
+          echo "  ✓ pkg/database (0.8s)"
+          echo ""
+          echo "总计: 42 passed, 0 failed"
+          echo "✅ 单元测试通过"
+        timeout: 300
+
+      - name: "运行竞态检测"
+        command: |
+          echo "🔍 运行竞态检测..."
+          echo "go test ./... -race"
+          echo "✅ 竞态检测通过"
+
+  # ============================================
+  # 阶段 5: 代码覆盖率
+  # ============================================
+  - name: coverage
+    depends_on:
+      - unit-test
+    tasks:
+      - name: "生成覆盖率报告"
+        command: |
+          echo "📊 生成代码覆盖率..."
+          echo "go test ./... -coverprofile=coverage.out"
+          echo "go tool cover -html=coverage.out -o coverage.html"
+          echo ""
+          echo "覆盖率报告:"
+          echo "  总覆盖率: 85.2%"
+          echo "  - pkg/utils:   92.3%"
+          echo "  - pkg/api:     78.5%"
+          echo "  - pkg/database: 81.0%"
+          echo "✅ 覆盖率报告生成完成"
+
+      - name: "检查覆盖率阈值"
+        command: |
+          echo "📏 检查覆盖率阈值..."
+          echo "当前覆盖率: 85.2%"
+          echo "阈值要求: 80%"
+          echo "✅ 覆盖率达标"
+
+  # ============================================
+  # 阶段 6: 集成测试
+  # ============================================
+  - name: integration-test
+    depends_on:
+      - build
+    tasks:
+      - name: "启动测试环境"
+        command: |
+          echo "🚀 启动测试环境..."
+          echo "docker-compose up -d test-db test-redis"
+          echo "等待服务就绪..."
+          echo "✅ 测试环境就绪"
+        timeout: 120
+
+      - name: "运行集成测试"
+        command: |
+          echo "🔗 运行集成测试..."
+          echo "go test ./tests/integration/ -v"
+          echo ""
+          echo "测试结果:"
+          echo "  ✓ TestDatabaseConnection"
+          echo "  ✓ TestAPIEndpoints"
+          echo "  ✓ TestCacheOperations"
+          echo ""
+          echo "总计: 15 passed, 0 failed"
+          echo "✅ 集成测试通过"
+        timeout: 600
+
+      - name: "清理测试环境"
+        command: |
+          echo "🧹 清理测试环境..."
+          echo "docker-compose down"
+          echo "✅ 测试环境已清理"
+
+  # ============================================
+  # 阶段 7: 代码质量检查
+  # ============================================
+  - name: quality
+    depends_on:
+      - build
+    tasks:
+      - name: "静态代码分析"
+        command: |
+          echo "🔍 运行静态分析..."
+          echo "golangci-lint run ./..."
+          echo "发现 0 个严重问题"
+          echo "✅ 静态分析通过"
+
+      - name: "安全漏洞扫描"
+        command: |
+          echo "🛡️ 运行安全扫描..."
+          echo "govulncheck ./..."
+          echo "发现 0 个已知漏洞"
+          echo "✅ 安全扫描通过"
+
+      - name: "依赖检查"
+        command: |
+          echo "📋 检查依赖许可证..."
+          echo "go-licenses check ./..."
+          echo "所有依赖许可证合规"
+          echo "✅ 依赖检查通过"
+
+  # ============================================
+  # 阶段 8: 构建 Docker 镜像
+  # ============================================
+  - name: docker-build
+    depends_on:
+      - unit-test
+      - integration-test
+      - quality
+    tasks:
+      - name: "构建镜像"
+        command: |
+          echo "🐳 构建 Docker 镜像..."
+          echo "docker build -t myapp:v1.2.0 ."
+          echo "镜像大小: 45MB"
+          echo "✅ 镜像构建完成"
+        timeout: 300
+
+      - name: "推送镜像"
+        command: |
+          echo "📤 推送镜像到仓库..."
+          echo "docker push registry.example.com/myapp:v1.2.0"
+          echo "✅ 镜像推送完成"
+        timeout: 300
+
+  # ============================================
+  # 阶段 9: 部署到预发布环境
+  # ============================================
+  - name: deploy-staging
+    depends_on:
+      - docker-build
+      - coverage
+    deploy:
+      strategy: rolling
+      targets:
+        - name: staging
+          url: "https://staging.example.com"
+          region: "us-east-1"
+      rollback:
+        enabled: true
+        max_versions: 3
+        health_check: 30
+    tasks:
+      - name: "部署到预发布"
+        command: |
+          echo "🚀 部署到预发布环境..."
+          echo "目标: staging.example.com"
+          echo "版本: v1.2.0"
+          echo "策略: 滚动部署"
+          echo ""
+          echo "部署步骤:"
+          echo "  1. 上传制品..."
+          echo "  2. 更新配置..."
+          echo "  3. 滚动更新服务..."
+          echo "  4. 等待就绪..."
+          echo "✅ 预发布部署完成"
+        timeout: 300
+
+      - name: "健康检查"
+        command: |
+          echo "💓 执行健康检查..."
+          echo "GET https://staging.example.com/health"
+          echo "HTTP 200 OK"
+          echo "响应时间: 45ms"
+          echo "✅ 服务健康"
+
+      - name: "冒烟测试"
+        command: |
+          echo "🧪 运行冒烟测试..."
+          echo "测试 API 端点..."
+          echo "  ✓ GET /api/v1/status"
+          echo "  ✓ POST /api/v1/data"
+          echo "  ✓ GET /api/v1/health"
+          echo "✅ 冒烟测试通过"
+
+  # ============================================
+  # 阶段 10: 部署到生产环境
+  # ============================================
+  - name: deploy-production
+    depends_on:
+      - deploy-staging
+    deploy:
+      strategy: canary
+      targets:
+        - name: prod-canary
+          url: "https://canary.example.com"
+          region: "us-east-1"
+          weight: 10
+        - name: prod-main
+          url: "https://www.example.com"
+          region: "us-east-1"
+          weight: 100
+      rollback:
+        enabled: true
+        max_versions: 5
+        health_check: 60
+    tasks:
+      - name: "金丝雀部署"
+        command: |
+          echo "🐤 开始金丝雀部署..."
+          echo "阶段 1: 部署到 10% 流量"
+          echo "  目标: canary.example.com"
+          echo "  流量: 10%"
+          echo ""
+          echo "监控指标:"
+          echo "  - 错误率: 0.1% (阈值: 1%)"
+          echo "  - 响应时间: 120ms (阈值: 200ms)"
+          echo "✅ 金丝雀阶段 1 通过"
+        timeout: 600
+
+      - name: "扩大部署范围"
+        command: |
+          echo "🐤 扩大金丝雀部署..."
+          echo "阶段 2: 部署到 50% 流量"
+          echo "阶段 3: 部署到 100% 流量"
+          echo ""
+          echo "最终状态:"
+          echo "  - 所有节点已更新"
+          echo "  - 流量切换完成"
+          echo "✅ 生产部署完成"
+        timeout: 600
+
+      - name: "生产环境验证"
+        command: |
+          echo "✅ 生产环境验证..."
+          echo "GET https://www.example.com/health"
+          echo "HTTP 200 OK"
+          echo "所有指标正常"
+          echo "✅ 生产验证通过"
+
+  # ============================================
+  # 阶段 11: 部署后任务
+  # ============================================
+  - name: post-deploy
+    depends_on:
+      - deploy-production
+    tasks:
+      - name: "通知团队"
+        command: |
+          echo "📧 发送部署通知..."
+          echo "渠道: Slack, Email, 钉钉"
+          echo "内容: v1.2.0 已部署到生产环境"
+          echo "✅ 通知发送完成"
+
+      - name: "更新文档"
+        command: |
+          echo "📝 更新部署文档..."
+          echo "更新 CHANGELOG.md"
+          echo "更新部署记录"
+          echo "✅ 文档更新完成"
+
+      - name: "清理旧版本"
+        command: |
+          echo "🧹 清理旧版本..."
+          echo "保留最近 5 个版本"
+          echo "删除旧镜像..."
+          echo "✅ 清理完成"

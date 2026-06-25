@@ -1,6 +1,6 @@
 # ⚙️ 系统基础设施模块
 
-> 14 个深度学习项目，涵盖数据库、存储引擎、并发控制、调度、容器、虚拟机、操作系统、流计算、CI/CD、日志收集、监控告警、设备管理、容器编排、编译器
+> 24 个深度学习项目，涵盖数据库、存储引擎、并发控制、调度、容器、虚拟机、操作系统、流计算、CI/CD、日志收集、监控告警、设备管理、容器编排、编译器、响应式框架、流媒体服务器、C++20 新特性、C++17 新特性、C++ 奇技淫巧、Paxos 共识算法、数字滤波器、信号采样重建、外部排序、逻辑门模拟器
 
 ---
 
@@ -14,7 +14,7 @@
 | [container-runtime](container-runtime/) | 容器化基础设施 | Go | ⭐⭐⭐⭐ | ✅ |
 | [simple-vm](simple-vm/) | 简易虚拟机 | C++, KVM | ⭐⭐⭐⭐⭐⭐ | ✅ |
 | [simple-os](simple-os/) | 简易操作系统 | C, 汇编 | ⭐⭐⭐⭐⭐⭐ | ✅ |
-| [mvcc](mvcc/) | MVCC 并发控制 | Go | ⭐⭐⭐⭐ | ✅ |
+| [mvcc](mvcc/) | MVCC 并发控制 | Python | ⭐⭐⭐ | ✅ |
 | [stream-processing](stream-processing/) | 流式计算框架 | Go | ⭐⭐⭐⭐ | ✅ |
 | [cicd-pipeline](cicd-pipeline/) | CI/CD 流水线 | Go, Docker | ⭐⭐⭐⭐ | ✅ |
 | [log-collector](log-collector/) | 分布式日志收集系统 | Go | ⭐⭐⭐⭐ | ✅ |
@@ -23,6 +23,23 @@
 | [container-orchestrator](container-orchestrator/) | 容器编排系统 | Go | ⭐⭐⭐⭐ | ✅ |
 | [physics-engine](physics-engine/) | 2D 物理引擎 | C++ | ⭐⭐⭐⭐ | ✅ |
 | [simple-compiler](simple-compiler/) | 简易编译器 | Rust | ⭐⭐⭐⭐ | ✅ |
+| [reactive-framework](reactive-framework/) | 响应式数据绑定框架 | TypeScript, Proxy | ⭐⭐⭐⭐ | ✅ |
+| [cpp20-features](cpp20-features/) | C++20 新特性实践 | C++20 | ⭐⭐⭐ | ✅ |
+| [cpp17-features](cpp17-features/) | C++17 新特性实践 | C++17 | ⭐⭐⭐ | ✅ |
+| [cpp-tricks-and-tips](cpp-tricks-and-tips/) | C++ 奇技淫巧集锦 | C++17/20 | ⭐⭐⭐⭐ | ✅ |
+| [streaming-server](streaming-server/) | 流媒体服务器 | C++17/20 | ⭐⭐⭐⭐⭐ | ✅ |
+| [gpu-shader-library](gpu-shader-library/) | GPU 着色器库 | C++17/20, GLSL | ⭐⭐⭐⭐ | ✅ |
+| [distributed-cache](distributed-cache/) | 分布式缓存系统 | Go | ⭐⭐⭐⭐ | ✅ |
+| [mapreduce](mapreduce/) | 分布式 MapReduce | Go | ⭐⭐⭐⭐⭐ | ✅ |
+| [paxos](paxos/) | Paxos 共识算法 | Python | ⭐⭐⭐⭐⭐ | ✅ |
+| [vector-db](vector-db/) | 向量数据库 | Python, NumPy | ⭐⭐⭐⭐ | ✅ |
+| [digital-filter](digital-filter/) | 数字滤波器 | Python, NumPy, SciPy | ⭐⭐⭐ | ✅ |
+| [signal-sampling](signal-sampling/) | 信号采样重建 | Python, NumPy | ⭐⭐⭐ | ✅ |
+| [external-sort](external-sort/) | 外部排序 | Python | ⭐⭐⭐⭐ | ✅ |
+| [logic-gates](logic-gates/) | 逻辑门模拟器 | Python | ⭐⭐⭐⭐ | ✅ |
+| [basic-circuit](basic-circuit/) | 基本电路模拟 | Python, NumPy | ⭐⭐⭐ | ✅ |
+| [analog-filter](analog-filter/) | 模拟滤波器 | Python, NumPy | ⭐⭐⭐ | ✅ |
+| [amplifier-design](amplifier-design/) | 放大器设计 | Python, NumPy | ⭐⭐⭐ | ✅ |
 
 ---
 
@@ -108,6 +125,11 @@
     - 掌握碰撞检测算法（AABB、圆形碰撞）
     - 学会约束求解（距离约束、钉子约束）
 
+14. **cpp20-features** (C++20 新特性)
+    - 掌握 Concepts、Ranges、Coroutines、Modules 四大特性
+    - 理解三向比较、consteval/constinit、Lambda 改进等语言特性
+    - 学会使用 std::format、std::span、std::jthread 等标准库组件
+
 ---
 
 ## 🔧 技术栈
@@ -189,10 +211,13 @@ make run
 **核心功能**：
 - 容器生命周期管理（创建、启动、停止、删除）
 - Namespace 隔离（PID、Mount、UTS、IPC、Network）
-- Cgroups 资源限制（内存、CPU、进程数）
+- Cgroups 资源限制（内存、CPU、进程数、I/O）
 - 容器网络（IP 地址池、veth pair、Linux bridge）
+- OverlayFS 分层存储
+- 卷挂载（bind mount、tmpfs）
+- exec 命令（加入容器 namespace 执行命令）
 
-**代码量**：约 25 个文件
+**代码量**：约 30 个文件，31 个测试
 
 **快速开始**：
 ```bash
@@ -419,6 +444,95 @@ cmake ..
 make
 ctest --output-on-failure
 ./examples/example_basic
+```
+
+---
+
+### 14. cpp20-features (C++20 新特性实践)
+
+**核心功能**：
+- Concepts 模板约束（concept 定义、requires 表达式、概念组合）
+- Ranges 范围库（视图、管道操作、惰性求值、范围算法）
+- Coroutines 协程（Generator、co_yield/co_await/co_return）
+- 语言特性（三向比较 <=>、consteval/constinit、Lambda 改进、using enum）
+- 标准库组件（std::format、std::span、std::jthread、同步原语、source_location）
+
+**代码量**：17 个独立示例 + 1 个综合示例
+
+**快速开始**：
+```bash
+cd cpp20-features
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+ctest --output-on-failure
+./01_concepts
+```
+
+---
+
+### 15. vector-db (向量数据库)
+
+**核心功能**：
+- 三种索引：暴力搜索、LSH（局部敏感哈希）、HNSW（层级可导航小世界图）
+- 三种距离度量：欧氏距离、余弦相似度、内积
+- 完整 CRUD：插入、删除、更新、查询（单条和批量）
+- 元数据过滤：等值、比较、范围、集合、包含、存在判断，AND/OR 逻辑
+- 范围查询：返回指定距离内的所有向量
+- JSON 持久化：保存/加载数据库状态
+- 三个应用示例：相似图片搜索、语义搜索、推荐系统
+
+**代码量**：约 15 个文件
+
+**快速开始**：
+```bash
+cd vector-db
+pip install -r requirements.txt
+python tests/test_vector_db.py
+python examples/image_search.py
+```
+
+---
+
+### 16. digital-filter (数字滤波器)
+
+**核心功能**：
+- FIR 滤波器（窗函数法、频率采样法）
+- IIR 滤波器（Butterworth、Chebyshev I/II、椭圆滤波器）
+- 低通/高通/带通/带阻滤波器设计
+- 频率响应分析（幅频响应、相频响应、群延迟）
+- 实际应用（音频滤波、信号去噪）
+
+**代码量**：约 4 个核心模块 + 3 个示例 + 33 个测试
+
+**快速开始**：
+```bash
+cd digital-filter
+pip install -r requirements.txt
+python -m pytest tests/ -v
+python examples/audio_filter.py
+```
+
+---
+
+### 17. signal-sampling (信号采样重建)
+
+**核心功能**：
+- 奈奎斯特采样、过采样、欠采样
+- 均匀量化和非均匀量化（mu律/A律）
+- 零阶保持、一阶保持、sinc 插值重建
+- 混叠现象演示和抗混叠滤波
+- 音频采样（多种采样率和量化位数）
+- 图像采样（降采样/上采样，多种插值方法）
+
+**代码量**：约 6 个核心模块 + 6 个示例 + 119 个测试
+
+**快速开始**：
+```bash
+cd signal-sampling
+pip install numpy scipy
+python -m pytest tests/ -v
+python examples/sampling_demo.py
 ```
 
 ---

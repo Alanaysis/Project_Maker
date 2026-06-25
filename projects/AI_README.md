@@ -1,6 +1,6 @@
 # 🤖 AI 全栈模块
 
-> 10 个深度学习项目，涵盖量化、微调、训练、推理、部署、强化学习、图像分割、Actor-Critic
+> 25 个深度学习项目，涵盖量化、微调、训练、推理、部署、强化学习、图像分割、Actor-Critic、Vision Transformer、生成对抗网络、姿态估计、对比学习、超分辨率、风格迁移、点云处理、动作识别、手势识别、文字检测、图像描述、遗传算法、梯度下降、粒子群优化、贝叶斯优化
 
 ---
 
@@ -10,6 +10,8 @@
 |------|------|--------|------|------|
 | [edge-quantized-model](edge-quantized-model/) | 端侧极致量化模型 | Python, C++ | ⭐⭐⭐⭐⭐⭐ | ✅ |
 | [finetune-rl-framework](finetune-rl-framework/) | 微调/RL 后训练框架 | Python, PyTorch | ⭐⭐⭐⭐⭐⭐ | ✅ |
+| [clip](clip/) | CLIP 对比学习模型 | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
+| [vit](vit/) | Vision Transformer 图像分类 | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
 | [vit-clip-training](vit-clip-training/) | ViT/CLIP 模型训练 | Python, PyTorch | ⭐⭐⭐⭐⭐ | ✅ |
 | [industrial-vision-detection](industrial-vision-detection/) | 工业视觉检测 | Python, PyTorch | ⭐⭐⭐⭐⭐ | ✅ |
 | [local-llm-engine](local-llm-engine/) | 本地 LLM 推理引擎 | C++ | ⭐⭐⭐⭐⭐⭐⭐ | ✅ |
@@ -18,6 +20,23 @@
 | [image-segmentation](image-segmentation/) | U-Net 语义分割网络 | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
 | [policy-gradient](policy-gradient/) | 策略梯度算法 | Python, PyTorch, Gym | ⭐⭐⭐⭐ | ✅ |
 | [actor-critic](actor-critic/) | Actor-Critic 算法 | Python, PyTorch, Gym | ⭐⭐⭐⭐ | ✅ |
+| [gan](gan/) | GAN 生成对抗网络 | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
+| [pose-estimation](pose-estimation/) | 人体姿态估计 | Python, PyTorch, OpenCV | ⭐⭐⭐⭐ | ✅ |
+| [super-resolution](super-resolution/) | 图像超分辨率 | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
+| [style-transfer](style-transfer/) | 神经风格迁移 | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
+| [point-cloud](point-cloud/) | 3D 点云处理 (PointNet) | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
+| [action-recognition](action-recognition/) | 视频动作识别 | Python, PyTorch, OpenCV | ⭐⭐⭐⭐ | ✅ |
+| [gesture-recognition](gesture-recognition/) | 手势识别 | Python, PyTorch, OpenCV | ⭐⭐⭐⭐ | ✅ |
+| [text-detection](text-detection/) | 文字检测 | Python, PyTorch, OpenCV | ⭐⭐⭐⭐ | ✅ |
+| [image-captioning](image-captioning/) | 图像描述生成 | Python, PyTorch | ⭐⭐⭐⭐ | ✅ |
+| [genetic-algorithm](genetic-algorithm/) | 遗传算法优化框架 | Python, matplotlib | ⭐⭐⭐ | ✅ |
+| [gradient-descent](gradient-descent/) | 梯度下降优化算法 | Python, numpy | ⭐⭐⭐ | ✅ |
+| [simulated-annealing](simulated-annealing/) | 模拟退火优化算法 | Python, matplotlib | ⭐⭐⭐ | ✅ |
+| [particle-swarm](particle-swarm/) | 粒子群优化算法 | Python, matplotlib | ⭐⭐⭐ | ✅ |
+| [bayesian-optimization](bayesian-optimization/) | 贝叶斯优化（高斯过程） | Python, NumPy, SciPy | ⭐⭐⭐⭐ | ✅ |
+| [linear-programming](linear-programming/) | 线性规划（单纯形法、对偶、敏感性分析） | Python, NumPy | ⭐⭐⭐⭐ | ✅ |
+| [q-learning](q-learning/) | Q-Learning 强化学习 | Python, NumPy | ⭐⭐⭐ | ✅ |
+| [hft-engine](hft-engine/) | 高频交易引擎 | C++17/20 | ⭐⭐⭐⭐⭐⭐⭐ | ✅ |
 
 ---
 
@@ -73,7 +92,29 @@
 
 ## 📊 项目详情
 
-### 1. vit-clip-training (模型训练)
+### 1. vit (Vision Transformer 图像分类)
+
+**核心功能**：
+- Patch Embedding：图像分割 + 线性投影
+- Multi-Head Self-Attention：多头自注意力机制
+- Transformer Encoder：Pre-LN 架构的 Transformer 编码器
+- 完整 ViT 模型：支持 ViT-Tiny/Small/Base 配置
+- 训练器：AdamW + Cosine Annealing + Label Smoothing
+- 注意力可视化：注意力热力图和 Attention Rollout
+
+**代码量**：约 1500 行
+
+**快速开始**：
+```bash
+cd vit
+pip install -r requirements.txt
+python demo.py
+python train.py --epochs 5 --model tiny
+```
+
+---
+
+### 2. vit-clip-training (模型训练)
 
 **核心功能**：
 - Vision Transformer (ViT) 实现
@@ -93,7 +134,7 @@ python examples/train_clip.py
 
 ---
 
-### 2. finetune-rl-framework (模型微调)
+### 3. finetune-rl-framework (模型微调)
 
 **核心功能**：
 - LoRA 低秩适配实现
@@ -112,7 +153,7 @@ python examples/lora_finetune_example.py
 
 ---
 
-### 3. edge-quantized-model (模型量化)
+### 4. edge-quantized-model (模型量化)
 
 **核心功能**：
 - INT8/INT4 量化
@@ -131,7 +172,7 @@ python examples/basic/simple_quantize.py
 
 ---
 
-### 4. local-llm-engine (模型推理)
+### 5. local-llm-engine (模型推理)
 
 **核心功能**：
 - GGUF 模型加载
@@ -153,7 +194,7 @@ make
 
 ---
 
-### 5. industrial-vision-detection (视觉检测)
+### 6. industrial-vision-detection (视觉检测)
 
 **核心功能**：
 - CSPDarknet 骨干网络
@@ -173,7 +214,7 @@ python examples/train_demo.py
 
 ---
 
-### 6. dqn (深度 Q 网络)
+### 7. dqn (深度 Q 网络)
 
 **核心功能**：
 - DQN 算法实现
@@ -193,7 +234,7 @@ python src/train.py
 
 ---
 
-### 7. policy-gradient (策略梯度)
+### 8. policy-gradient (策略梯度)
 
 **核心功能**：
 - REINFORCE 算法实现
@@ -213,7 +254,7 @@ pytest tests/
 
 ---
 
-### 8. image-segmentation (图像分割)
+### 9. image-segmentation (图像分割)
 
 **核心功能**：
 - U-Net 编码器-解码器架构
@@ -233,7 +274,7 @@ pytest tests/ -v
 
 ---
 
-### 9. actor-critic (Actor-Critic 算法)
+### 10. actor-critic (Actor-Critic 算法)
 
 **核心功能**：
 - Actor-Critic 算法实现
@@ -250,6 +291,30 @@ cd actor-critic
 pip install -e .
 python scripts/train.py
 pytest tests/ -v
+```
+
+---
+
+### 12. pose-estimation (人体姿态估计)
+
+**核心功能**：
+- 轻量级骨干网络（类似简化版 ResNet）
+- 热力图预测头（反卷积上采样）
+- 高斯热力图生成与处理
+- MSE 损失 + OHKM 在线困难关键点挖掘
+- COCO 17 关键点定义和骨骼连接
+- 关键点提取（argmax / soft-argmax / 亚像素精度）
+- PCK 和 OKS 评估指标
+- 合成数据集和可视化
+
+**代码量**：约 1500 行
+
+**快速开始**：
+```bash
+cd pose-estimation
+pip install torch torchvision numpy opencv-python pytest
+pytest tests/ -v
+python examples/demo.py
 ```
 
 ---

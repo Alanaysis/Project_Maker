@@ -159,6 +159,39 @@ func TestSomething(t *testing.T) {
 
 ## Adding Features
 
+### Using Tag-Based Filtering
+
+Services can have metadata tags for fine-grained discovery:
+
+```go
+// Register service with tags
+svc := &registry.Service{
+    ID:   "api-v2-1",
+    Name: "api-service",
+    Metadata: map[string]string{
+        "version": "2.0",
+        "env":     "prod",
+        "canary":  "true",
+    },
+}
+registry.Register(ctx, svc, 10*time.Second)
+
+// Discover by tags
+services := discoverer.GetServicesByTags("api-service", map[string]string{
+    "env": "prod",
+})
+```
+
+### Running Examples
+
+```bash
+# Microservice architecture example
+go run ./examples/microservice_example.go
+
+# API gateway example
+go run ./examples/api_gateway_example.go
+```
+
 ### Adding a New Load Balancing Strategy
 
 1. Add strategy constant in `internal/loadbalancer/balancer.go`:

@@ -6,10 +6,12 @@
 
 本项目实现了一个简易的容器编排系统，包含以下核心功能：
 
-- **容器调度**：支持多种调度策略（Bin Packing、Spread、Round Robin）
-- **服务发现**：服务注册、端点管理、服务解析
-- **健康检查**：HTTP 健康检查、健康状态管理
-- **扩缩容**：自动扩缩容、手动扩缩容、冷却时间控制
+- **容器管理**：容器创建、启停、删除、生命周期管理
+- **容器调度**：支持多种调度策略（Bin Packing、Spread、Round Robin、随机、资源感知、亲和性）
+- **服务发现**：服务注册、端点管理、服务解析、负载均衡
+- **健康检查**：存活探针、就绪探针、HTTP 健康检查
+- **扩缩容**：基于 CPU/内存/自定义指标的自动扩缩容、手动扩缩容
+- **微服务部署**：支持多服务编排和管理
 
 ## 核心循环
 
@@ -19,25 +21,44 @@
 
 ## 功能特性
 
-### 1. 容器调度
+### 1. 容器管理
+- 容器创建与销毁
+- 容器启停控制
+- 容器重启
+- 容器状态管理
+
+### 2. 容器调度
 - **Bin Packing**：紧凑调度，提高资源利用率
 - **Spread**：分散调度，提高可用性
 - **Round Robin**：轮询调度，简单公平
+- **Random**：随机调度，简单高效
+- **Resource Aware**：资源感知调度，选择最优资源节点
+- **Affinity**：亲和性调度，基于标签匹配
 
-### 2. 服务发现
+### 3. 服务发现
 - 服务注册与注销
 - 端点管理
 - 服务解析与负载均衡
+- 加权轮询选择
 
-### 3. 健康检查
+### 4. 健康检查
+- **存活探针（Liveness Probe）**：检查容器是否存活
+- **就绪探针（Readiness Probe）**：检查容器是否准备好接收流量
 - HTTP 健康检查
 - 健康状态管理
 - 事件通知
 
-### 4. 扩缩容
-- 基于 CPU/内存指标的自动扩缩容
+### 5. 扩缩容
+- 基于 CPU 阈值的自动扩缩容
+- 基于内存阈值的自动扩缩容
+- 基于自定义指标的自动扩缩容
 - 手动扩缩容
 - 冷却时间控制
+
+### 6. 微服务部署
+- 多服务编排
+- 服务依赖管理
+- 集群资源管理
 
 ## 项目结构
 
@@ -157,6 +178,22 @@ curl -X PUT http://localhost:8080/api/services/{service_id} \
   }'
 ```
 
+### 容器生命周期管理
+
+```bash
+# 启动容器
+curl -X POST http://localhost:8080/api/containers/{container_id}/start
+
+# 停止容器
+curl -X POST http://localhost:8080/api/containers/{container_id}/stop
+
+# 重启容器
+curl -X POST http://localhost:8080/api/containers/{container_id}/restart
+
+# 删除容器
+curl -X POST http://localhost:8080/api/containers/{container_id}/delete
+```
+
 ### 解析服务
 
 ```bash
@@ -201,6 +238,30 @@ curl http://localhost:8080/api/health
 
 **适用场景**：节点同构、简单场景、测试环境
 
+### Random
+
+**目标**：简单高效
+
+**策略**：随机选择节点
+
+**适用场景**：无特殊要求、快速部署、测试环境
+
+### Resource Aware
+
+**目标**：最优资源匹配
+
+**策略**：根据容器资源需求选择最合适的节点
+
+**适用场景**：异构节点、资源敏感型应用
+
+### Affinity
+
+**目标**：亲和性调度
+
+**策略**：基于标签匹配将容器调度到匹配的节点
+
+**适用场景**：有特定部署要求、地理分布、合规要求
+
 ## 服务发现
 
 ### 服务注册
@@ -231,6 +292,40 @@ endpoint, err := discovery.Resolve("web-service")
 
 ## 健康检查
 
+### 存活探针（Liveness Probe）
+
+检查容器是否存活。如果存活探针失败，容器将被重启。
+
+```go
+checker := health.NewHTTPHealthChecker(httpClient)
+monitor := health.NewHealthMonitor(checker)
+monitor.AddContainer(container)
+monitor.Start(ctx, 10*time.Second)
+
+// 获取存活状态
+result, err := monitor.GetLiveness(containerID)
+if result.State == health.StateHealthy {
+    // 容器存活
+}
+```
+
+### 就绪探针（Readiness Probe）
+
+检查容器是否准备好接收流量。如果就绪探针失败，容器将从服务端点中移除。
+
+```go
+// 获取就绪状态
+result, err := monitor.GetReadiness(containerID)
+if result.State == health.StateHealthy {
+    // 容器已就绪
+}
+
+// 检查容器是否就绪
+if monitor.IsReady(containerID) {
+    // 容器可以接收流量
+}
+```
+
 ### HTTP 健康检查
 
 ```go
@@ -259,9 +354,40 @@ policy := &scaler.ScalingPolicy{
     MaxReplicas:     10,
     ScaleUpCPU:      0.8,
     ScaleDownCPU:    0.2,
+    ScaleUpMemory:   0.8,
+    ScaleDownMemory: 0.2,
     Cooldown:        5 * time.Minute,
 }
 scaler.RegisterService(serviceID, replicas, policy)
+```
+
+### 基于自定义指标的扩缩容
+
+```go
+policy := &scaler.ScalingPolicy{
+    MinReplicas:     1,
+    MaxReplicas:     10,
+    ScaleUpCPU:      0.8,
+    ScaleDownCPU:    0.2,
+    Cooldown:        5 * time.Minute,
+    CustomMetricRules: []scaler.CustomMetricRule{
+        {
+            MetricName:       "requests_per_second",
+            ScaleUpThreshold: 1000,
+            ScaleDownThreshold: 100,
+        },
+    },
+}
+scaler.RegisterService(serviceID, replicas, policy)
+
+// 更新指标
+scaler.UpdateMetrics(serviceID, &scaler.ServiceMetrics{
+    CPUUsage:    0.5,
+    MemoryUsage: 0.6,
+    CustomMetrics: map[string]float64{
+        "requests_per_second": 1500,
+    },
+})
 ```
 
 ### 手动扩缩容

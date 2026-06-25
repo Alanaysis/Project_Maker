@@ -1,0 +1,89 @@
+// 猜数字游戏 - 展示控制流和用户交互
+
+println("=== 猜数字游戏 ===");
+println("我想了一个1-100之间的数字，你来猜！");
+println("");
+
+// 生成伪随机数（用时间种子不可行，这里用固定数演示）
+let secret = 42;
+let attempts = 0;
+let maxAttempts = 7;
+
+println("你有 " + str(maxAttempts) + " 次机会。");
+println("提示: 输入 guess(数字) 来猜测");
+println("");
+
+// 游戏逻辑封装
+let makeGame = fn(secret, maxAttempts) {
+    let attempts = 0;
+    let won = false;
+
+    {
+        "guess": fn(n) {
+            attempts += 1;
+            if n == secret {
+                won = true;
+                return "恭喜你猜对了！答案就是 " + str(secret) + "！";
+            }
+            elif n < secret {
+                return "太小了！再大一点。";
+            }
+            else {
+                return "太大了！再小一点。";
+            }
+        },
+        "isOver": fn() {
+            return won or attempts >= maxAttempts;
+        },
+        "getAttempts": fn() {
+            return attempts;
+        },
+        "hasWon": fn() {
+            return won;
+        }
+    }
+};
+
+let game = makeGame(secret, maxAttempts);
+
+// 模拟几次猜测
+let guesses = [50, 30, 45, 38, 42];
+
+println("模拟猜测过程:");
+for g in guesses {
+    if game["isOver"]() {
+        break;
+    }
+    let result = game["guess"](g);
+    println("  猜 " + str(g) + ": " + result);
+}
+
+println("");
+if game["hasWon"]() {
+    println("游戏胜利！用了 " + str(game["getAttempts"]()) + " 次。");
+} else {
+    println("游戏失败！答案是 " + str(secret));
+}
+
+println("");
+println("=== 另一个示例: 简单问答 ===");
+println("");
+
+// 简单的问答系统
+let qa = {
+    "你好": "你好！有什么可以帮助你的？",
+    "今天天气": "今天天气晴朗！",
+    "你是谁": "我是Mini语言解释器！",
+    "再见": "再见！祝你有美好的一天！"
+};
+
+let questions = ["你好", "你是谁", "今天天气", "再见"];
+
+for q in questions {
+    let answer = qa[q];
+    if answer != null {
+        println("问: " + q);
+        println("答: " + answer);
+        println("");
+    }
+}

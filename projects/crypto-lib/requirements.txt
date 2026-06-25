@@ -1,0 +1,10 @@
+# 密码学库依赖
+# 本项目为纯Python实现，无外部依赖
+
+# 可选依赖（用于性能优化）
+# cryptography>=41.0.0
+# pycryptodome>=3.19.0
+
+# 开发依赖
+# pytest>=7.0.0
+# pytest-cov>=4.0.0

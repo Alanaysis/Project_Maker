@@ -2,7 +2,10 @@
 
 ## 1. 实现概述
 
-本项目使用纯 NumPy 实现 Word2Vec 的 Skip-gram 模型，采用负采样优化。
+本项目使用纯 NumPy 实现 Word2Vec，支持：
+- **模型架构**：Skip-gram 和 CBOW
+- **优化方式**：负采样和层次 Softmax
+- **训练技巧**：降采样、动态窗口、学习率衰减
 
 ## 2. 核心实现
 
@@ -15,229 +18,180 @@ class Vocabulary:
         self.word2idx = {}
         self.idx2word = {}
         self.word_freq = {}
-        self.total_words = 0
-        # 用于负采样的累积分布
-        self.neg_sample_table = None
-        
+
     def build(self, corpus):
         """构建词汇表"""
         # 1. 统计词频
+        counter = Counter()
         for sentence in corpus:
-            for word in sentence:
-                self.word_freq[word] = self.word_freq.get(word, 0) + 1
-        
-        # 2. 过滤低频词
-        filtered = {w: f for w, f in self.word_freq.items() 
-                   if f >= self.min_count}
-        
-        # 3. 建立映射
-        for idx, word in enumerate(filtered):
-            self.word2idx[word] = idx
-            self.idx2word[idx] = word
-            
-        # 4. 构建负采样表
-        self._build_neg_table()
+            counter.update(sentence)
+
+        # 2. 过滤低频词并建立映射
+        idx = 0
+        for word, freq in counter.most_common():
+            if freq >= self.min_count:
+                self.word2idx[word] = idx
+                self.idx2word[idx] = word
+                self.word_freq[word] = freq
+                idx += 1
 ```
 
-### 2.2 负采样实现 (negative_sampling.py)
+### 2.2 Skip-gram 模型实现 (skipgram.py)
+
+```python
+class SkipGramModel:
+    def __init__(self, vocab_size, vector_size):
+        # Xavier 初始化
+        scale = np.sqrt(6.0 / (vocab_size + vector_size))
+        self.W_in = np.random.uniform(-scale, scale, (vocab_size, vector_size))
+        self.W_out = np.random.uniform(-scale, scale, (vocab_size, vector_size)) * 0.01
+
+    def forward(self, center_idx, context_idx, neg_indices):
+        """前向传播"""
+        v_center = self.W_in[center_idx]
+        v_context = self.W_out[context_idx]
+        v_neg = self.W_out[neg_indices]
+
+        pos_score = sigmoid(np.dot(v_context, v_center))
+        neg_scores = sigmoid(-np.dot(v_neg, v_center))
+
+        loss = -np.log(pos_score + 1e-10) - np.sum(np.log(neg_scores + 1e-10))
+        return loss, v_center, v_context, v_neg, pos_score, neg_scores
+```
+
+### 2.3 CBOW 模型实现 (cbow.py)
+
+```python
+class CBOWModel:
+    def forward(self, context_indices, center_idx, neg_indices):
+        """前向传播"""
+        # 上下文词向量平均 -> 隐藏层
+        context_vectors = self.W_in[context_indices]
+        h = np.mean(context_vectors, axis=0)
+
+        v_center = self.W_out[center_idx]
+        v_neg = self.W_out[neg_indices]
+
+        pos_score = sigmoid(np.dot(v_center, h))
+        neg_scores = sigmoid(-np.dot(v_neg, h))
+
+        loss = -np.log(pos_score + 1e-10) - np.sum(np.log(neg_scores + 1e-10))
+        return loss, h, v_center, v_neg, pos_score, neg_scores
+
+    def backward(self, context_indices, center_idx, neg_indices,
+                 h, v_center, v_neg, pos_sig, neg_sig, lr):
+        """反向传播"""
+        n_context = len(context_indices)
+
+        # 对隐藏层的梯度
+        grad_h = (pos_sig - 1) * v_center + np.sum(
+            (1 - neg_sig).reshape(-1, 1) * v_neg, axis=0)
+
+        # 更新输出层
+        self.W_out[center_idx] -= lr * (pos_sig - 1) * h
+        self.W_out[neg_indices] -= lr * (1 - neg_sig).reshape(-1, 1) * h
+
+        # 更新输入层（上下文词向量）
+        grad_each = grad_h / n_context
+        for idx in context_indices:
+            self.W_in[idx] -= lr * grad_each
+```
+
+### 2.4 负采样实现 (negative_sampling.py)
 
 ```python
 class NegativeSampler:
-    def __init__(self, vocab_size, word_freqs, table_size=1e6):
-        self.table_size = int(table_size)
-        self.table = self._build_table(vocab_size, word_freqs)
-        
-    def _build_table(self, vocab_size, word_freqs):
+    def __init__(self, vocab_size, word_freqs, table_size=1000000):
+        self.table = self._build_table(word_freqs)
+
+    def _build_table(self, word_freqs):
         """构建负采样查找表"""
         # 使用词频的 3/4 次方
-        freqs = np.array(list(word_freqs.values()))
-        powered = freqs ** 0.75
+        powered = np.power(word_freqs.astype(np.float64), 0.75)
         powered /= powered.sum()
-        
+
         # 构建累积分布
         table = np.zeros(self.table_size, dtype=np.int32)
-        cumulative = np.cumsum(powered)
-        
+        cumsum = np.cumsum(powered)
+
         j = 0
         for i in range(self.table_size):
-            while j < len(cumulative) - 1 and i / self.table_size > cumulative[j]:
+            while j < len(cumsum) - 1 and i / self.table_size > cumsum[j]:
                 j += 1
             table[i] = j
-            
         return table
-        
+
     def sample(self, positive, k):
         """采样 k 个负样本"""
         negatives = []
         while len(negatives) < k:
             idx = np.random.randint(0, self.table_size)
-            neg = self.table[idx]
-            if neg != positive:
+            neg = int(self.table[idx])
+            if neg != positive and neg not in negatives:
                 negatives.append(neg)
-        return np.array(negatives)
+        return np.array(negatives, dtype=np.int32)
 ```
 
-### 2.3 Skip-gram 模型实现 (skipgram.py)
+### 2.5 层次 Softmax 实现 (hierarchical_softmax.py)
 
 ```python
-class SkipGramModel:
-    def __init__(self, vocab_size, vector_size):
-        self.vocab_size = vocab_size
-        self.vector_size = vector_size
-        
-        # Xavier 初始化
-        scale = np.sqrt(6.0 / (vocab_size + vector_size))
-        self.W_in = np.random.uniform(-scale, scale, (vocab_size, vector_size))
-        self.W_out = np.zeros((vocab_size, vector_size))
-        
-    def forward(self, center_idx, context_idx, neg_indices):
-        """前向传播"""
-        # 获取向量
-        v_center = self.W_in[center_idx]      # (D,)
-        v_context = self.W_out[context_idx]   # (D,)
-        v_neg = self.W_out[neg_indices]       # (K, D)
-        
-        # 计算得分
-        pos_score = np.dot(v_context, v_center)  # 正样本得分
-        neg_scores = np.dot(v_neg, v_center)      # 负样本得分
-        
-        # Sigmoid
-        pos_sig = sigmoid(pos_score)
-        neg_sig = sigmoid(-neg_scores)
-        
-        # 损失
-        loss = -np.log(pos_sig + 1e-10) - np.sum(np.log(neg_sig + 1e-10))
-        
-        return loss, v_center, v_context, v_neg, pos_sig, neg_sig
-        
-    def backward(self, center_idx, context_idx, neg_indices, 
-                 v_center, pos_sig, neg_sig, lr):
-        """反向传播"""
-        # 计算梯度
-        grad_center = (pos_sig - 1) * v_context + np.sum((neg_sig - 1).reshape(-1, 1) * v_neg, axis=0)
-        
-        grad_context = (pos_sig - 1) * v_center
-        grad_neg = (neg_sig - 1).reshape(-1, 1) * v_center
-        
-        # 更新参数
-        self.W_in[center_idx] -= lr * grad_center
-        self.W_out[context_idx] -= lr * grad_context
-        self.W_out[neg_indices] -= lr * grad_neg
+class HierarchicalSoftmax:
+    def __init__(self, vocab_size, vector_size, word_freqs):
+        # 构建 Huffman 树
+        self.root, self.word_nodes = self._build_huffman_tree(word_freqs)
+
+        # 收集内部节点
+        self.inner_nodes = []
+        self._collect_inner_nodes(self.root)
+
+        # 内部节点参数
+        self.W_inner = np.zeros((len(self.inner_nodes), vector_size))
+
+        # 预计算路径
+        self.word_paths = {}
+        self._precompute_paths()
+
+    def forward_backward(self, context_vector, center_idx, lr):
+        """前向+反向传播"""
+        path = self.word_paths[center_idx]
+        loss = 0.0
+
+        for node_idx, code in path:
+            w = self.W_inner[node_idx]
+            score = sigmoid(np.dot(w, context_vector))
+
+            if code == 1:
+                loss -= np.log(score + 1e-10)
+                grad = (score - 1) * context_vector
+            else:
+                loss -= np.log(1 - score + 1e-10)
+                grad = score * context_vector
+
+            self.W_inner[node_idx] -= lr * grad
+
+        return loss
 ```
 
-### 2.4 训练器实现 (trainer.py)
+### 2.6 降采样实现 (subsampling.py)
 
 ```python
-class Trainer:
-    def __init__(self, model, vocabulary, negative_sampler, 
-                 window_size=5, learning_rate=0.025, negative=5):
-        self.model = model
-        self.vocab = vocabulary
-        self.neg_sampler = negative_sampler
-        self.window = window_size
-        self.lr = learning_rate
-        self.negative = negative
-        
-    def generate_pairs(self, corpus):
-        """生成训练对"""
-        pairs = []
+class SubSampler:
+    def __init__(self, word_freq, total_words, threshold=1e-3):
+        self.keep_probs = {}
+        for word, freq in word_freq.items():
+            f = freq / total_words
+            prob = (np.sqrt(f / threshold) + 1) * (threshold / f)
+            self.keep_probs[word] = min(1.0, prob)
+
+    def subsample_corpus(self, corpus):
+        """对语料进行降采样"""
+        result = []
         for sentence in corpus:
-            indices = [self.vocab.word2idx[w] for w in sentence 
-                      if w in self.vocab.word2idx]
-            for i, center in enumerate(indices):
-                # 动态窗口
-                window = np.random.randint(1, self.window + 1)
-                for j in range(max(0, i - window), min(len(indices), i + window + 1)):
-                    if i != j:
-                        pairs.append((center, indices[j]))
-        return pairs
-        
-    def train_epoch(self, pairs):
-        """训练一个 epoch"""
-        total_loss = 0
-        for center, context in pairs:
-            # 负采样
-            negatives = self.neg_sampler.sample(context, self.negative)
-            
-            # 前向传播
-            loss, v_center, v_context, v_neg, pos_sig, neg_sig = \
-                self.model.forward(center, context, negatives)
-            
-            # 反向传播
-            self.model.backward(center, context, negatives,
-                              v_center, pos_sig, neg_sig, self.lr)
-            
-            total_loss += loss
-            
-        return total_loss / len(pairs)
-```
-
-### 2.5 主接口实现 (word2vec.py)
-
-```python
-class Word2Vec:
-    def __init__(self, vector_size=100, window=5, min_count=5, 
-                 negative=5, learning_rate=0.025):
-        self.vector_size = vector_size
-        self.window = window
-        self.min_count = min_count
-        self.negative = negative
-        self.lr = learning_rate
-        
-        self.vocab = Vocabulary(min_count)
-        self.model = None
-        self.trainer = None
-        
-    def train(self, corpus, epochs=100):
-        """训练模型"""
-        # 1. 构建词汇表
-        self.vocab.build(corpus)
-        
-        # 2. 初始化模型
-        self.model = SkipGramModel(len(self.vocab), self.vector_size)
-        
-        # 3. 初始化负采样器
-        neg_sampler = NegativeSampler(
-            len(self.vocab), 
-            self.vocab.word_freq
-        )
-        
-        # 4. 初始化训练器
-        self.trainer = Trainer(
-            self.model, self.vocab, neg_sampler,
-            self.window, self.lr, self.negative
-        )
-        
-        # 5. 生成训练数据
-        pairs = self.trainer.generate_pairs(corpus)
-        
-        # 6. 训练
-        for epoch in range(epochs):
-            loss = self.trainer.train_epoch(pairs)
-            if (epoch + 1) % 10 == 0:
-                print(f"Epoch {epoch+1}, Loss: {loss:.4f}")
-                
-    def get_vector(self, word):
-        """获取词向量"""
-        if word not in self.vocab.word2idx:
-            return None
-        idx = self.vocab.word2idx[word]
-        return self.model.W_in[idx]
-        
-    def most_similar(self, word, topn=10):
-        """查询相似词"""
-        vector = self.get_vector(word)
-        if vector is None:
-            return []
-            
-        # 计算余弦相似度
-        similarities = np.dot(self.model.W_in, vector) / \
-                      (np.linalg.norm(self.model.W_in, axis=1) * np.linalg.norm(vector))
-        
-        # 排序
-        top_indices = np.argsort(similarities)[::-1][1:topn+1]
-        
-        return [(self.vocab.idx2word[i], similarities[i]) for i in top_indices]
+            subsampled = [w for w in sentence
+                         if np.random.random() < self.keep_probs.get(w, 1.0)]
+            if len(subsampled) > 0:
+                result.append(subsampled)
+        return result
 ```
 
 ## 3. 关键算法
@@ -259,6 +213,17 @@ def cosine_similarity(v1, v2):
     return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
 ```
 
+### 3.3 梯度裁剪
+
+```python
+def clip_gradient(grad, max_norm=5.0):
+    """梯度裁剪"""
+    norm = np.linalg.norm(grad)
+    if norm > max_norm:
+        grad = grad * (max_norm / norm)
+    return grad
+```
+
 ## 4. 调试技巧
 
 ### 4.1 检查梯度
@@ -266,7 +231,23 @@ def cosine_similarity(v1, v2):
 ```python
 def check_gradient(model, center, context, neg, epsilon=1e-5):
     """数值梯度检查"""
-    # 实现省略...
+    # 计算解析梯度
+    loss, v_center, v_context, v_neg, pos_sig, neg_sig = \
+        model.forward(center, context, neg)
+
+    # 数值梯度
+    grad_numerical = np.zeros_like(model.W_in[center])
+    for i in range(len(grad_numerical)):
+        model.W_in[center, i] += epsilon
+        loss_plus, *_ = model.forward(center, context, neg)
+
+        model.W_in[center, i] -= 2 * epsilon
+        loss_minus, *_ = model.forward(center, context, neg)
+
+        grad_numerical[i] = (loss_plus - loss_minus) / (2 * epsilon)
+        model.W_in[center, i] += epsilon
+
+    return grad_numerical
 ```
 
 ### 4.2 监控训练
@@ -274,11 +255,13 @@ def check_gradient(model, center, context, neg, epsilon=1e-5):
 - 打印损失变化
 - 检查词向量范数
 - 测试相似词查询
+- 监控学习率衰减
 
 ## 5. 性能数据
 
-| 语料大小 | 词汇量 | 训练时间 | 内存占用 |
-|----------|--------|----------|----------|
-| 1MB | 5K | 10s | 50MB |
-| 10MB | 20K | 2min | 200MB |
-| 100MB | 100K | 30min | 1GB |
+| 语料大小 | 词汇量 | 模型 | 训练时间 | 内存占用 |
+|----------|--------|------|----------|----------|
+| 1MB | 5K | Skip-gram | 10s | 50MB |
+| 1MB | 5K | CBOW | 5s | 50MB |
+| 10MB | 20K | Skip-gram | 2min | 200MB |
+| 100MB | 100K | Skip-gram | 30min | 1GB |

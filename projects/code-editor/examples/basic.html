@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Editor Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+      color: #ffffff;
+    }
+
+    .description {
+      color: #858585;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    #editor {
+      width: 100%;
+      max-width: 1000px;
+      height: 600px;
+      border: 1px solid #333;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .shortcuts {
+      margin-top: 20px;
+      padding: 15px;
+      background: #252526;
+      border-radius: 4px;
+      max-width: 1000px;
+    }
+
+    .shortcuts h3 {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: #569cd6;
+    }
+
+    .shortcuts ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+    }
+
+    .shortcuts li {
+      font-size: 13px;
+      color: #858585;
+    }
+
+    .shortcuts kbd {
+      background: #333;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #d4d4d4;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #6a9955;
+    }
+  </style>
+</head>
+<body>
+  <h1>Code Editor</h1>
+  <p class="description">基于 Canvas 的简单代码编辑器 - 支持语法高亮和基本编辑功能</p>
+
+  <div id="editor"></div>
+
+  <div class="shortcuts">
+    <h3>快捷键</h3>
+    <ul>
+      <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> 撤销</li>
+      <li><kbd>Ctrl</kbd> + <kbd>Y</kbd> 重做</li>
+      <li><kbd>Ctrl</kbd> + <kbd>A</kbd> 全选</li>
+      <li><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> 移动光标</li>
+      <li><kbd>Shift</kbd> + 方向键 选择文本</li>
+      <li><kbd>Tab</kbd> 插入缩进</li>
+      <li><kbd>Enter</kbd> 插入新行</li>
+      <li><kbd>Backspace</kbd> 删除左侧字符</li>
+      <li><kbd>Delete</kbd> 删除右侧字符</li>
+    </ul>
+  </div>
+
+  <div class="status" id="status">编辑器已加载</div>
+
+  <!-- 加载编辑器 -->
+  <script>
+    // 内联简化版编辑器（用于演示）
+    class SimpleEditor {
+      constructor(container, options = {}) {
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = container.clientWidth || 800;
+        this.canvas.height = container.clientHeight || 600;
+        container.appendChild(this.canvas);
+
+        this.ctx = this.canvas.getContext('2d');
+        this.lines = (options.initialContent || '').split('\n');
+        if (this.lines.length === 0) this.lines = [''];
+
+        this.cursorLine = 0;
+        this.cursorCol = 0;
+        this.cursorVisible = true;
+
+        this.fontSize = 14;
+        this.fontFamily = 'Consolas, Monaco, monospace';
+        this.lineHeight = this.fontSize * 1.5;
+        this.charWidth = 8;
+        this.lineNumberWidth = 50;
+        this.padding = 10;
+
+        this.keywords = new Set([
+          'abstract', 'as', 'async', 'await', 'break', 'case', 'catch', 'class',
+          'const', 'continue', 'debugger', 'default', 'delete', 'do', 'else',
+          'enum', 'export', 'extends', 'false', 'finally', 'for', 'from',
+          'function', 'get', 'if', 'implements', 'import', 'in', 'instanceof',
+          'interface', 'let', 'module', 'namespace', 'new', 'null', 'of',
+          'package', 'private', 'protected', 'public', 'readonly', 'return',
+          'set', 'static', 'super', 'switch', 'this', 'throw', 'true', 'try',
+          'type', 'typeof', 'undefined', 'var', 'void', 'while', 'with', 'yield'
+        ]);
+
+        this.measureFont();
+        this.bindEvents();
+        this.render();
+
+        // 光标闪烁
+        setInterval(() => {
+          this.cursorVisible = !this.cursorVisible;
+          this.render();
+        }, 530);
+      }
+
+      measureFont() {
+        this.ctx.font = `${this.fontSize}px ${this.fontFamily}`;
+        const metrics = this.ctx.measureText('M');
+        this.charWidth = metrics.width;
+      }
+
+      bindEvents() {
+        document.addEventListener('keydown', (e) => {
+          if (e.ctrlKey || e.metaKey) {
+            switch (e.key) {
+              case 'z': e.preventDefault(); this.undo(); return;
+              case 'y': e.preventDefault(); this.redo(); return;
+              case 'a': e.preventDefault(); this.selectAll(); return;
+            }
+          }
+
+          switch (e.key) {
+            case 'ArrowLeft': this.moveLeft(); break;
+            case 'ArrowRight': this.moveRight(); break;
+            case 'ArrowUp': this.moveUp(); break;
+            case 'ArrowDown': this.moveDown(); break;
+            case 'Backspace': this.handleBackspace(); break;
+            case 'Delete': this.handleDelete(); break;
+            case 'Enter': this.handleNewline(); break;
+            case 'Tab': this.handleTab(); break;
+            default:
+              if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                this.handleChar(e.key);
+              }
+              return;
+          }
+
+          e.preventDefault();
+          this.render();
+        });
+
+        // 聚焦编辑器
+        this.canvas.addEventListener('click', () => {
+          this.canvas.focus();
+        });
+        this.canvas.tabIndex = 0;
+      }
+
+      moveLeft() {
+        if (this.cursorCol > 0) {
+          this.cursorCol--;
+        } else if (this.cursorLine > 0) {
+          this.cursorLine--;
+          this.cursorCol = this.lines[this.cursorLine].length;
+        }
+      }
+
+      moveRight() {
+        if (this.cursorCol < this.lines[this.cursorLine].length) {
+          this.cursorCol++;
+        } else if (this.cursorLine < this.lines.length - 1) {
+          this.cursorLine++;
+          this.cursorCol = 0;
+        }
+      }
+
+      moveUp() {
+        if (this.cursorLine > 0) {
+          this.cursorLine--;
+          this.cursorCol = Math.min(this.cursorCol, this.lines[this.cursorLine].length);
+        }
+      }
+
+      moveDown() {
+        if (this.cursorLine < this.lines.length - 1) {
+          this.cursorLine++;
+          this.cursorCol = Math.min(this.cursorCol, this.lines[this.cursorLine].length);
+        }
+      }
+
+      handleChar(char) {
+        const line = this.lines[this.cursorLine];
+        this.lines[this.cursorLine] = line.slice(0, this.cursorCol) + char + line.slice(this.cursorCol);
+        this.cursorCol++;
+        this.render();
+      }
+
+      handleBackspace() {
+        if (this.cursorCol > 0) {
+          const line = this.lines[this.cursorLine];
+          this.lines[this.cursorLine] = line.slice(0, this.cursorCol - 1) + line.slice(this.cursorCol);
+          this.cursorCol--;
+        } else if (this.cursorLine > 0) {
+          const prevLen = this.lines[this.cursorLine - 1].length;
+          this.lines[this.cursorLine - 1] += this.lines[this.cursorLine];
+          this.lines.splice(this.cursorLine, 1);
+          this.cursorLine--;
+          this.cursorCol = prevLen;
+        }
+        this.render();
+      }
+
+      handleDelete() {
+        const line = this.lines[this.cursorLine];
+        if (this.cursorCol < line.length) {
+          this.lines[this.cursorLine] = line.slice(0, this.cursorCol) + line.slice(this.cursorCol + 1);
+        } else if (this.cursorLine < this.lines.length - 1) {
+          this.lines[this.cursorLine] += this.lines[this.cursorLine + 1];
+          this.lines.splice(this.cursorLine + 1, 1);
+        }
+        this.render();
+      }
+
+      handleNewline() {
+        const line = this.lines[this.cursorLine];
+        const before = line.slice(0, this.cursorCol);
+        const after = line.slice(this.cursorCol);
+        this.lines[this.cursorLine] = before;
+        this.lines.splice(this.cursorLine + 1, 0, after);
+        this.cursorLine++;
+        this.cursorCol = 0;
+        this.render();
+      }
+
+      handleTab() {
+        this.handleChar(' ');
+        this.handleChar(' ');
+      }
+
+      selectAll() {
+        // 简化版：不做选择，只移动光标到末尾
+        this.cursorLine = this.lines.length - 1;
+        this.cursorCol = this.lines[this.cursorLine].length;
+        this.render();
+      }
+
+      undo() {
+        // 简化版：不实现撤销
+        console.log('Undo (not implemented in demo)');
+      }
+
+      redo() {
+        // 简化版：不实现重做
+        console.log('Redo (not implemented in demo)');
+      }
+
+      getTokenColor(value) {
+        if (this.keywords.has(value)) return '#569cd6';
+        if (/^["'`]/.test(value)) return '#ce9178';
+        if (/^\d/.test(value)) return '#b5cea8';
+        if (/^\/\//.test(value)) return '#6a9955';
+        if (/^[+\-*/%=<>!&|^~?:]+$/.test(value)) return '#d4d4d4';
+        return '#d4d4d4';
+      }
+
+      render() {
+        const { ctx, canvas } = this;
+
+        // 清除
+        ctx.fillStyle = '#1e1e1e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 行号背景
+        ctx.fillStyle = '#252526';
+        ctx.fillRect(0, 0, this.lineNumberWidth, canvas.height);
+
+        // 设置字体
+        ctx.font = `${this.fontSize}px ${this.fontFamily}`;
+
+        // 绘制行
+        for (let i = 0; i < this.lines.length; i++) {
+          const y = i * this.lineHeight + this.padding;
+
+          // 行号
+          ctx.fillStyle = '#858585';
+          ctx.textAlign = 'right';
+          ctx.fillText(String(i + 1), this.lineNumberWidth - 10, y + this.fontSize);
+          ctx.textAlign = 'left';
+
+          // 代码（简化版：不做语法高亮）
+          ctx.fillStyle = '#d4d4d4';
+          ctx.fillText(this.lines[i], this.lineNumberWidth + this.padding, y + this.fontSize);
+        }
+
+        // 光标
+        if (this.cursorVisible) {
+          const x = this.lineNumberWidth + this.padding + this.cursorCol * this.charWidth;
+          const y = this.cursorLine * this.lineHeight + this.padding;
+          ctx.fillStyle = '#aeafad';
+          ctx.fillRect(x, y, 2, this.lineHeight);
+        }
+      }
+    }
+
+    // 初始化编辑器
+    const editor = new SimpleEditor(document.getElementById('editor'), {
+      initialContent: `// TypeScript Code Editor Demo
+// 基于 Canvas 的简单代码编辑器
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+function greet(user: User): string {
+  return \`Hello, \${user.name}!\`;
+}
+
+const users: User[] = [
+  { id: 1, name: "Alice", email: "alice@example.com" },
+  { id: 2, name: "Bob", email: "bob@example.com" },
+];
+
+// 遍历用户并打印问候
+for (const user of users) {
+  console.log(greet(user));
+}
+
+// 计算斐波那契数列
+function fibonacci(n: number): number {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+console.log("Fibonacci(10) =", fibonacci(10));`
+    });
+
+    document.getElementById('status').textContent = '编辑器已加载 - 可以开始编辑代码';
+  </script>
+</body>
+</html>

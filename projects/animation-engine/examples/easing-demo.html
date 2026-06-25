@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animation Engine - Easing Functions Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a1a;
+      color: #eee;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #e94560;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 30px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 16px;
+      border: 1px solid #0f3460;
+    }
+    .card h3 {
+      color: #e94560;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .track {
+      height: 30px;
+      background: #0a0a1a;
+      border-radius: 4px;
+      position: relative;
+      margin-bottom: 8px;
+    }
+    .dot {
+      width: 24px;
+      height: 24px;
+      background: #e94560;
+      border-radius: 50%;
+      position: absolute;
+      top: 3px;
+      left: 0;
+      transition: none;
+    }
+    .canvas-container {
+      height: 80px;
+      background: #0a0a1a;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
+    .info {
+      font-size: 12px;
+      color: #888;
+      font-family: monospace;
+    }
+    .controls {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    button {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 6px;
+      background: #e94560;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 0 5px;
+    }
+    button:hover { background: #c73e54; }
+  </style>
+</head>
+<body>
+  <h1>Easing Functions Visualizer</h1>
+  <p class="subtitle">Compare different easing functions side by side</p>
+
+  <div class="controls">
+    <button id="btnAnimate">Animate All</button>
+    <button id="btnReset">Reset</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <script>
+    // ============================================================
+    // Easing Functions (inline for demo)
+    // ============================================================
+    const easings = {
+      'linear': t => t,
+      'easeInQuad': t => t * t,
+      'easeOutQuad': t => t * (2 - t),
+      'easeInOutQuad': t => t < 0.5 ? 2*t*t : -1+(4-2*t)*t,
+      'easeInCubic': t => t*t*t,
+      'easeOutCubic': t => (--t)*t*t+1,
+      'easeInOutCubic': t => t<0.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1,
+      'easeInQuart': t => t*t*t*t,
+      'easeOutQuart': t => 1-(--t)*t*t*t,
+      'easeInOutQuart': t => t<0.5?8*t*t*t*t:1-8*(--t)*t*t*t,
+      'easeInQuint': t => t*t*t*t*t,
+      'easeOutQuint': t => 1+(--t)*t*t*t*t,
+      'easeInOutQuint': t => t<0.5?16*t*t*t*t*t:1+16*(--t)*t*t*t*t,
+      'easeInSine': t => 1-Math.cos((t*Math.PI)/2),
+      'easeOutSine': t => Math.sin((t*Math.PI)/2),
+      'easeInOutSine': t => -(Math.cos(Math.PI*t)-1)/2,
+      'easeInExpo': t => t===0?0:Math.pow(2,10*(t-1)),
+      'easeOutExpo': t => t===1?1:1-Math.pow(2,-10*t),
+      'easeInCirc': t => 1-Math.sqrt(1-t*t),
+      'easeOutCirc': t => Math.sqrt(1-(--t)*t),
+      'easeInElastic': t => {
+        if(t===0||t===1) return t;
+        return -(Math.pow(2,10*(t-1))*Math.sin((t-1.075)*2*Math.PI/0.3));
+      },
+      'easeOutElastic': t => {
+        if(t===0||t===1) return t;
+        return Math.pow(2,-10*t)*Math.sin((t-0.075)*2*Math.PI/0.3)+1;
+      },
+      'easeInBack': t => t*t*(2.70158*t-1.70158),
+      'easeOutBack': t => { const s=1.70158; return (t-=1)*t*((s+1)*t+s)+1; },
+      'easeInBounce': t => 1-bounceOut(1-t),
+      'easeOutBounce': bounceOut,
+    };
+
+    function bounceOut(t) {
+      const n1=7.5625, d1=2.75;
+      if(t<1/d1) return n1*t*t;
+      if(t<2/d1) return n1*(t-=1.5/d1)*t+0.75;
+      if(t<2.5/d1) return n1*(t-=2.25/d1)*t+0.9375;
+      return n1*(t-=2.625/d1)*t+0.984375;
+    }
+
+    // ============================================================
+    // UI
+    // ============================================================
+    const grid = document.getElementById('grid');
+    const cards = [];
+
+    for (const [name, fn] of Object.entries(easings)) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <h3>${name}</h3>
+        <div class="track"><div class="dot" id="dot-${name}"></div></div>
+        <div class="canvas-container"><canvas id="canvas-${name}"></canvas></div>
+        <div class="info" id="info-${name}">t=0.00 → 0.00</div>
+      `;
+      grid.appendChild(card);
+
+      const canvas = card.querySelector('canvas');
+      const ctx = canvas.getContext('2d');
+      const dot = card.querySelector('.dot');
+      const info = card.querySelector('.info');
+
+      // Draw curve
+      canvas.width = canvas.offsetWidth * 2;
+      canvas.height = canvas.offsetHeight * 2;
+      ctx.scale(2, 2);
+      const w = canvas.offsetWidth;
+      const h = canvas.offsetHeight;
+
+      ctx.strokeStyle = '#e94560';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i <= w; i++) {
+        const t = i / w;
+        const v = fn(t);
+        const x = i;
+        const y = h - v * h * 0.9 - h * 0.05;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      cards.push({ name, fn, dot, info, trackWidth: 0 });
+    }
+
+    // Get track widths after render
+    requestAnimationFrame(() => {
+      cards.forEach(c => {
+        c.trackWidth = c.dot.parentElement.offsetWidth - 24;
+      });
+    });
+
+    // ============================================================
+    // Animation
+    // ============================================================
+    let running = false;
+    let startTime = 0;
+    const duration = 2000;
+
+    function animate() {
+      if (!running) return;
+      const elapsed = performance.now() - startTime;
+      const raw = Math.min(elapsed / duration, 1);
+
+      cards.forEach(c => {
+        const eased = c.fn(raw);
+        const x = eased * c.trackWidth;
+        c.dot.style.transform = `translateX(${x}px)`;
+        c.info.textContent = `t=${raw.toFixed(2)} → ${eased.toFixed(3)}`;
+      });
+
+      if (raw < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        running = false;
+      }
+    }
+
+    document.getElementById('btnAnimate').addEventListener('click', () => {
+      running = true;
+      startTime = performance.now();
+      cards.forEach(c => {
+        c.trackWidth = c.dot.parentElement.offsetWidth - 24;
+      });
+      animate();
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      running = false;
+      cards.forEach(c => {
+        c.dot.style.transform = 'translateX(0)';
+        c.info.textContent = 't=0.00 → 0.00';
+      });
+    });
+  </script>
+</body>
+</html>

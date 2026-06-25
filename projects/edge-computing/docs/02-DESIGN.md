@@ -5,27 +5,43 @@
 ### 整体架构
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Coordinator                            │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │  - 管理多个集群                                       │   │
-│  │  - 协调任务分发                                       │   │
-│  │  - 收集结果                                           │   │
-│  │  - 系统监控                                           │   │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-          v                v                v
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│  Cluster 1   │  │  Cluster 2   │  │  Cluster 3   │
-│ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌──────────┐ │
-│ │ Node 1   │ │  │ │ Node 4   │ │  │ │ Node 7   │ │
-│ │ Node 2   │ │  │ │ Node 5   │ │  │ │ Node 8   │ │
-│ │ Node 3   │ │  │ │ Node 6   │ │  │ │ Node 9   │ │
-│ └──────────┘ │  │ └──────────┘ │  │ └──────────┘ │
-└──────────────┘  └──────────────┘  └──────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Cloud Layer                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Cloud Storage / Config Server / Analytics                          │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ Sync
+                                    v
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Edge Computing Layer                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                          Coordinator                                │   │
+│  │  ┌──────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────────┐ │   │
+│  │  │ Cluster  │  │ Data         │  │ Cloud Sync │  │ IoT Gateway  │ │   │
+│  │  │ Manager  │  │ Processor    │  │ Manager    │  │              │ │   │
+│  │  └──────────┘  └──────────────┘  └────────────┘  └──────────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│          │                │                │                │               │
+│          v                v                v                v               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │  Cluster 1   │  │  Cluster 2   │  │  Cluster 3   │  │  Cluster N   │   │
+│  │ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌──────────┐ │   │
+│  │ │ Node 1   │ │  │ │ Node 4   │ │  │ │ Node 7   │ │  │ │ Node N   │ │   │
+│  │ │ Node 2   │ │  │ │ Node 5   │ │  │ │ Node 8   │ │  │ │          │ │   │
+│  │ │ Node 3   │ │  │ │ Node 6   │ │  │ │ Node 9   │ │  │ │          │ │   │
+│  │ └──────────┘ │  │ └──────────┘ │  │ └──────────┘ │  │ └──────────┘ │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    v
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            IoT Device Layer                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+│  │ Sensor 1 │  │ Sensor 2 │  │ Actuator │  │ Camera   │  │ Device N │    │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 核心组件设计
@@ -154,6 +170,167 @@ class Scheduler(ABC):
 - `get_system_stats()`: 获取系统统计
 - `health_check()`: 系统健康检查
 
+### 6. DataProcessor（数据处理器）
+
+**职责**:
+- 过滤边缘数据
+- 聚合时间序列数据
+- 执行规则引擎
+
+#### DataFilter（数据过滤器）
+
+**属性**:
+- `name`: 过滤器名称
+- `_rules`: 过滤规则列表
+- `_match_all`: 匹配模式（AND/OR）
+
+**方法**:
+- `add_rule(rule)`: 添加过滤规则
+- `filter(data_points)`: 过滤数据点
+- `matches(data_point)`: 检查单个数据点
+
+#### DataAggregator（数据聚合器）
+
+**属性**:
+- `window_size`: 时间窗口大小
+- `_buffer`: 数据缓冲区
+
+**方法**:
+- `add(data_point)`: 添加数据点
+- `aggregate(type, source, metric)`: 执行聚合
+- `get_window_data(...)`: 获取窗口数据
+
+**聚合类型**:
+- COUNT: 计数
+- SUM: 求和
+- AVG: 平均值
+- MIN/MAX: 最小/最大值
+- FIRST/LAST: 首/末值
+- STDDEV: 标准差
+
+#### RuleEngine（规则引擎）
+
+**属性**:
+- `_rules`: 规则列表
+- `_handlers`: 动作处理器
+- `_alert_callbacks`: 告警回调
+
+**方法**:
+- `add_rule(rule)`: 添加规则
+- `process(data_point)`: 处理单个数据点
+- `process_batch(data_points)`: 批量处理
+- `register_alert_callback(callback)`: 注册告警回调
+
+**规则动作**:
+- FORWARD: 转发数据
+- DROP: 丢弃数据
+- TRANSFORM: 转换数据
+- ALERT: 触发告警
+- AGGREGATE: 聚合请求
+
+### 7. CloudSync（云端同步）
+
+**职责**:
+- 管理边缘与云端的数据同步
+- 处理配置下发
+- 支持批量上传和重试
+
+#### DataUploader（数据上传器）
+
+**属性**:
+- `connector`: 云端连接器
+- `config`: 同步配置
+- `_upload_queue`: 上传队列
+
+**方法**:
+- `queue_data(...)`: 数据入队
+- `upload_batch()`: 执行批量上传
+- `register_callback(callback)`: 注册回调
+
+#### ConfigManager（配置管理器）
+
+**属性**:
+- `connector`: 云端连接器
+- `node_id`: 节点标识
+- `_config`: 远程配置
+- `_overrides`: 本地覆盖
+
+**方法**:
+- `get(key, default)`: 获取配置值
+- `set_override(key, value)`: 设置本地覆盖
+- `sync_from_cloud()`: 从云端同步配置
+- `watch(key, callback)`: 监视配置变更
+
+#### CloudSyncManager（同步管理器）
+
+**属性**:
+- `node_id`: 节点标识
+- `connector`: 云端连接器
+- `uploader`: 数据上传器
+- `config_manager`: 配置管理器
+
+**方法**:
+- `start()`: 启动同步
+- `stop()`: 停止同步
+- `sync_data(...)`: 同步数据
+- `sync_batch()`: 执行批量同步
+- `report_status(status)`: 上报状态
+
+### 8. IoTGateway（IoT 网关）
+
+**职责**:
+- 管理 IoT 设备
+- 收集传感器数据
+- 实时数据分析
+- 告警管理
+
+#### DeviceRegistry（设备注册表）
+
+**属性**:
+- `_devices`: 设备集合
+- `_device_types`: 设备类型索引
+
+**方法**:
+- `register(device)`: 注册设备
+- `unregister(device_id)`: 注销设备
+- `get_device(device_id)`: 获取设备
+- `heartbeat(device_id)`: 设备心跳
+- `check_device_health()`: 健康检查
+
+#### DataBuffer（数据缓冲区）
+
+**属性**:
+- `max_size`: 最大容量
+- `ttl`: 数据存活时间
+- `_buffer`: 数据缓冲
+
+**方法**:
+- `add(reading)`: 添加读数
+- `get_recent(count, device_id, data_type)`: 获取最近数据
+- `get_time_range(start, end, device_id)`: 获取时间范围数据
+- `get_latest(device_id, data_type)`: 获取最新数据
+
+#### AlertManager（告警管理器）
+
+**属性**:
+- `_alerts`: 告警列表
+- `_rules`: 告警规则
+- `_callbacks`: 告警回调
+
+**方法**:
+- `add_rule(...)`: 添加告警规则
+- `check_reading(reading)`: 检查读数
+- `acknowledge_alert(alert_id)`: 确认告警
+- `get_alerts(...)`: 获取告警列表
+
+#### RealtimeAnalyzer（实时分析器）
+
+**方法**:
+- `calculate_stats(readings)`: 计算统计信息
+- `detect_trend(readings)`: 检测趋势
+- `detect_anomalies(readings, threshold)`: 检测异常
+- `get_summary(device_id, data_type, buffer)`: 获取摘要
+
 ## 数据流设计
 
 ### 任务提交流程
@@ -168,15 +345,27 @@ class Scheduler(ABC):
 7. 触发回调（如果有）
 ```
 
-### 结果收集流程
+### 数据处理流程
 
 ```
-1. Node 完成任务
-2. Node 通知 Cluster
-3. Cluster 通知 Coordinator
-4. Coordinator 存储结果
-5. 触发用户回调
-6. 更新统计信息
+1. IoT 设备产生数据
+2. IoT Gateway 接收数据
+3. DataFilter 过滤无效数据
+4. RuleEngine 执行规则
+5. DataAggregator 聚合数据
+6. DataUploader 上传到云端
+7. 触发告警（如果需要）
+```
+
+### 云端同步流程
+
+```
+1. 边缘节点产生数据
+2. DataUploader 队列数据
+3. 批量上传到云端
+4. 云端处理并存储
+5. ConfigManager 下发新配置
+6. 边缘节点应用配置
 ```
 
 ## 接口设计
@@ -237,6 +426,55 @@ class Coordinator:
     def health_check(self) -> Dict[str, Any]
 ```
 
+### DataProcessor 接口
+
+```python
+class DataFilter:
+    def add_rule(self, rule: FilterRule) -> DataFilter
+    def filter(self, data_points: List[DataPoint]) -> List[DataPoint]
+    def matches(self, data_point: DataPoint) -> bool
+
+class DataAggregator:
+    def add(self, data_point: DataPoint) -> None
+    def aggregate(self, type: AggregationType, ...) -> Dict[str, Any]
+
+class RuleEngine:
+    def add_rule(self, rule: Rule) -> None
+    def process(self, data_point: DataPoint) -> Optional[DataPoint]
+    def process_batch(self, data_points: List[DataPoint]) -> List[DataPoint]
+```
+
+### CloudSync 接口
+
+```python
+class CloudConnector(ABC):
+    def connect(self) -> bool
+    def disconnect(self) -> None
+    def upload_data(self, data: Dict) -> bool
+    def download_data(self, data_type: str, since: float) -> List[Dict]
+    def get_config(self, key: str) -> Dict
+    def report_status(self, status: Dict) -> bool
+
+class CloudSyncManager:
+    def start(self) -> bool
+    def stop(self) -> None
+    def sync_data(self, type: str, id: str, data: Any) -> str
+    def sync_batch(self) -> Dict
+    def report_status(self, status: Dict) -> bool
+```
+
+### IoTGateway 接口
+
+```python
+class IoTGateway:
+    def register_device(self, device: IoTDevice) -> bool
+    def unregister_device(self, device_id: str) -> bool
+    def receive_data(self, reading: SensorReading) -> Dict
+    def add_alert_rule(self, **kwargs) -> None
+    def get_device_summary(self, device_id: str) -> Dict
+    def get_gateway_stats(self) -> Dict
+```
+
 ## 扩展性设计
 
 ### 1. 调度器扩展
@@ -277,6 +515,35 @@ task = Task(
 )
 ```
 
+### 4. 云端连接器扩展
+
+通过继承 `CloudConnector` 基类，可以支持不同的云服务：
+
+```python
+class AWSConnector(CloudConnector):
+    def connect(self):
+        # AWS 连接逻辑
+        pass
+
+class AzureConnector(CloudConnector):
+    def connect(self):
+        # Azure 连接逻辑
+        pass
+```
+
+### 5. 数据类型扩展
+
+通过 `DataType` 枚举，可以添加新的传感器类型：
+
+```python
+class DataType(Enum):
+    TEMPERATURE = "temperature"
+    HUMIDITY = "humidity"
+    PRESSURE = "pressure"
+    ACCELEROMETER = "accelerometer"  # 新增
+    GYROSCOPE = "gyroscope"  # 新增
+```
+
 ## 性能考虑
 
 ### 1. 任务队列管理
@@ -306,6 +573,27 @@ def get_task_result(task_id):
     return self._completed_tasks.get(task_id)
 ```
 
+### 4. 数据缓冲区优化
+
+使用 deque 的 maxlen 参数自动淘汰旧数据：
+
+```python
+buffer = deque(maxlen=10000)  # 自动淘汰超过 10000 的旧数据
+```
+
+### 5. 批量处理
+
+减少 I/O 操作次数，提高吞吐量：
+
+```python
+# 不好的做法
+for item in items:
+    upload(item)
+
+# 好的做法
+upload_batch(items)
+```
+
 ## 安全考虑
 
 ### 1. 任务验证
@@ -324,8 +612,21 @@ def get_task_result(task_id):
 
 实现基于角色的访问控制（RBAC）。
 
+### 5. 数据完整性
+
+使用校验和验证数据完整性：
+
+```python
+import hashlib
+
+def calculate_checksum(data):
+    return hashlib.md5(json.dumps(data).encode()).hexdigest()
+```
+
 ## 参考资料
 
 1. [Designing Data-Intensive Applications](https://dataintensive.net/)
 2. [System Design Interview](https://www.amazon.com/System-Design-Interview-insiders-Second/dp/B08CMF2CQF)
 3. [Edge Computing Architecture](https://www.edgecomputing.com/)
+4. [IoT Architecture](https://en.wikipedia.org/wiki/Internet_of_things)
+5. [Stream Processing](https://en.wikipedia.org/wiki/Stream_processing)

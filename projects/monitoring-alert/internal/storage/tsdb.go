@@ -21,6 +21,8 @@ type TimeSeriesDB interface {
 	Delete(metric string, labels map[string]string) error
 	// List 列出所有指标名称
 	List() []string
+	// GetLatest 获取指标的最新值
+	GetLatest(metric string, labels map[string]string) (float64, bool)
 }
 
 // MemoryTSDB 内存时序数据库

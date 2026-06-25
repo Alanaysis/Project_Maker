@@ -210,6 +210,32 @@ func TestDiscovererGetServicesFiltersDown(t *testing.T) {
 }
 ```
 
+#### Tag-Based Filtering
+
+```go
+func TestDiscovererGetServicesByTags(t *testing.T) {
+    // Register services with different metadata
+    putService(t, s, ctx, &Service{
+        ID: "svc-1", Name: "web",
+        Metadata: map[string]string{"env": "prod", "version": "1.0"},
+    })
+    putService(t, s, ctx, &Service{
+        ID: "svc-2", Name: "web",
+        Metadata: map[string]string{"env": "staging", "version": "1.0"},
+    })
+
+    // Filter by single tag
+    services := d.GetServicesByTags("web", map[string]string{"env": "prod"})
+    assertEqual(t, len(services), 1)
+
+    // Filter by multiple tags
+    services = d.GetServicesByTags("web", map[string]string{
+        "env": "prod", "version": "1.0",
+    })
+    assertEqual(t, len(services), 1)
+}
+```
+
 ### Load Balancer Tests
 
 #### Round Robin Distribution

@@ -54,7 +54,9 @@ func New(s store.Store, config Config) *Server {
 	mux.HandleFunc("/services", srv.handleListServices)
 	mux.HandleFunc("/services/", srv.handleGetService)
 	mux.HandleFunc("/discover", srv.handleDiscover)
+	mux.HandleFunc("/discover/tags", srv.handleDiscoverByTags)
 	mux.HandleFunc("/choose", srv.handleChoose)
+	mux.HandleFunc("/choose/tags", srv.handleChooseByTags)
 	mux.HandleFunc("/health", srv.handleHealth)
 
 	srv.httpServer = &http.Server{
@@ -236,4 +238,62 @@ func (s *Server) handleChoose(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// handleDiscoverByTags handles GET /discover/tags?name=X&tag1=val1&tag2=val2 requests.
+// It discovers services by name and filters by metadata tags.
+func (s *Server) handleDiscoverByTags(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "missing name parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Extract tag filters from query parameters (exclude "name")
+	tags := make(map[string]string)
+	for key, values := range r.URL.Query() {
+		if key != "name" && len(values) > 0 {
+			tags[key] = values[0]
+		}
+	}
+
+	services := s.discoverer.GetServicesByTags(name, tags)
+	json.NewEncoder(w).Encode(services)
+}
+
+// handleChooseByTags handles GET /choose/tags?name=X&tag1=val1 requests.
+// It chooses a service by name, filtered by tags, using the load balancer.
+func (s *Server) handleChooseByTags(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "missing name parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Extract tag filters from query parameters (exclude "name")
+	tags := make(map[string]string)
+	for key, values := range r.URL.Query() {
+		if key != "name" && len(values) > 0 {
+			tags[key] = values[0]
+		}
+	}
+
+	services := s.discoverer.GetServicesByTags(name, tags)
+	svc, err := s.balancer.Select(services)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("no services available: %v", err), http.StatusServiceUnavailable)
+		return
+	}
+
+	json.NewEncoder(w).Encode(svc)
 }

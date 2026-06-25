@@ -1,0 +1,26 @@
+// FlatBuffers Schema 文件
+namespace Example;
+
+// 用户类型枚举
+enum UserType : byte {
+    Regular = 0,
+    Premium = 1,
+    Admin = 2
+}
+
+// 用户消息
+table User {
+    id:int;
+    name:string;
+    email:string;
+    age:int;
+    type:UserType;
+}
+
+// 消息列表
+table UserList {
+    users:[User];
+}
+
+// 根类型
+root_type UserList;

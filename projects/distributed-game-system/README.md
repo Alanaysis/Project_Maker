@@ -1,98 +1,173 @@
-# 分布式游戏系统 (Distributed Game System)
+# Distributed Game System
 
-## 项目简介
+A distributed game server system supporting real-time multiplayer games with matchmaking, state synchronization, and WebSocket communication.
 
-一个支持多玩家实时对战的分布式游戏服务器，从零实现客户端预测、服务器验证、状态同步等核心机制。
+## Features
 
-## 学习目标
+- **Game Server** - Room management, player management, game state synchronization
+- **WebSocket Communication** - Real-time bidirectional communication with heartbeat detection
+- **State Synchronization** - Snapshot sync, delta sync, and frame sync modes
+- **Matchmaking System** - Random matching and ELO-based skill matching
+- **Web Client** - HTML5 client demo with canvas rendering
 
-- **分布式状态同步原理** - 理解如何在多个客户端之间同步游戏状态
-- **网络延迟优化技术** - 掌握客户端预测和服务器校正算法
-- **一致性哈希和负载均衡** - 学会分布式系统中的玩家分配策略
-
-## 技术栈
-
-| 技术 | 用途 | 学习难度 |
-|------|------|----------|
-| Go | 主语言，高并发网络服务 | ⭐⭐ |
-| Protobuf | 高效序列化协议 | ⭐⭐ |
-| UDP/TCP | 网络传输层 | ⭐⭐⭐ |
-| 一致性哈希 | 分布式负载均衡 | ⭐⭐⭐ |
-
-## 核心循环
-
-```
-玩家输入 → 客户端预测 → 服务器验证 → 状态同步 → 客户端校正
-```
-
-## 项目结构
+## Architecture
 
 ```
 distributed-game-system/
-├── cmd/
-│   ├── server/          # 游戏服务器入口
-│   └── client/          # 游戏客户端入口
+├── cmd/server/          # Server entry point
 ├── internal/
-│   ├── game/            # 游戏核心逻辑
-│   ├── network/         # 网络通信层
-│   ├── sync/            # 状态同步引擎
-│   ├── prediction/      # 客户端预测系统
-│   └── hashing/         # 一致性哈希实现
-├── pkg/
-│   ├── protocol/        # 通信协议定义
-│   ├── config/          # 配置管理
-│   └── logger/          # 日志系统
-├── api/                 # API 定义
-├── proto/               # Protobuf 定义文件
-├── docs/                # 项目文档
-├── examples/            # 使用示例
-├── tests/               # 集成测试
-└── scripts/             # 构建脚本
+│   ├── protocol/        # Message protocol definitions
+│   ├── network/         # WebSocket and Hub implementation
+│   ├── player/          # Player management
+│   ├── room/            # Room and game state management
+│   ├── sync/            # State synchronization
+│   ├── matchmaking/     # Matchmaking system
+│   └── server/          # Game server orchestration
+├── examples/            # Client examples
+├── tests/               # Unit tests
+└── docs/                # Documentation
 ```
 
-## 快速开始
+## Quick Start
+
+### Prerequisites
+
+- Go 1.21+
+
+### Build and Run
 
 ```bash
-# 编译项目
-go build -o bin/server ./cmd/server
-go build -o bin/client ./cmd/client
+# Install dependencies
+go mod tidy
 
-# 启动服务器
-./bin/server -port 8080
+# Run server
+go run cmd/server/main.go
 
-# 启动客户端
-./bin/client -server localhost:8080 -name Player1
+# Or build
+go build -o game-server cmd/server/main.go
+./game-server -addr :8080
 ```
 
-## 重点难点
+### Run Tests
 
-### ⭐ 客户端预测 (Client Prediction)
-客户端在发送输入后立即在本地模拟结果，无需等待服务器确认，大幅降低感知延迟。
+```bash
+go test ./tests/ -v
+```
 
-### ⭐ 服务器校正 (Server Reconciliation)
-当服务器状态与客户端预测不一致时，客户端需要从服务器状态重新应用未确认的输入。
+### Open Client
 
-### ⭐ 状态插值 (Entity Interpolation)
-远程玩家的状态需要在两个服务器快照之间平滑插值，避免画面抖动。
+Open `examples/client.html` in a browser and connect to `ws://localhost:8080/ws`.
 
-### ⭐ 一致性哈希 (Consistent Hashing)
-使用虚拟节点的一致性哈希环，实现玩家到服务器的均匀分配和最小化迁移。
+## WebSocket Message Protocol
 
-## 值得思考
+### Connection Messages
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `connect` | Client -> Server | Player connects with name |
+| `disconnect` | Client -> Server | Player disconnects |
+| `heartbeat` | Bidirectional | Keep-alive ping/pong (30s interval, 60s timeout) |
 
-- 💡 为什么选择 UDP 而不是 TCP？在什么场景下 TCP 更合适？
-- 💡 如何处理作弊问题？客户端预测是否会导致安全漏洞？
-- 💡 状态同步的频率如何确定？过高和过低各有什么问题？
-- 💡 一致性哈希的虚拟节点数量如何选择？
+### Room Management
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `create_room` | Client -> Server | Create a new game room |
+| `join_room` | Client -> Server | Join an existing room |
+| `leave_room` | Client -> Server | Leave current room |
+| `room_list` | Client -> Server | Request list of rooms |
+| `room_info` | Server -> Client | Room information response |
+| `player_join` | Server -> Client | Player joined notification |
+| `player_leave` | Server -> Client | Player left notification |
 
-## 参考资源
+### Gameplay
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `player_ready` | Client -> Server | Player ready status |
+| `player_move` | Client -> Server | Player movement input (x, y, z) |
+| `game_start` | Server -> Client | Game starts notification |
+| `game_end` | Server -> Client | Game ends notification |
 
-- [Gabriel Gambetta - Fast-Paced Multiplayer](https://www.gabrielgambetta.com/client-server-game-architecture.html)
-- [Valve Developer Wiki - Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking)
-- [Glenn Fiedler - Game Networking](https://gafferongames.com/)
-- [Agones - Game Server on Kubernetes](https://github.com/googleforgames/agones)
-- [Nakama - Open-Source Game Server](https://github.com/heroiclabs/nakama)
+### State Synchronization
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `game_state` | Server -> Client | Full state snapshot |
+| `state_delta` | Server -> Client | State changes since last sync |
+| `frame_input` | Client -> Server | Player input for frame sync |
+| `frame_sync` | Server -> Client | Frame synchronization data |
 
-## 许可证
+### Matchmaking
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `match_request` | Client -> Server | Request matchmaking (random/elo) |
+| `match_result` | Server -> Client | Match found with room ID |
+| `match_cancel` | Client -> Server | Cancel matchmaking |
 
-MIT License
+### REST API
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/rooms` | GET | List all rooms |
+| `/api/players` | GET | List online players |
+| `/api/status` | GET | Server status |
+
+## State Synchronization Modes
+
+### Snapshot Sync
+Sends the complete game state at regular intervals (default 50ms = 20 FPS). Simple but uses more bandwidth. Best for small game states or infrequent updates.
+
+### Delta Sync
+Sends only changes since the last synchronization frame. More bandwidth-efficient for games with sparse state changes. Tracks the last synced frame and sends only the diff.
+
+### Frame Sync (Lockstep)
+All player inputs are collected for each frame before advancing to the next. The server broadcasts frame data containing all player inputs. Best for deterministic simulations like fighting games or RTS games.
+
+## Matchmaking System
+
+### Random Match
+Quickly pairs any two players waiting in the queue, regardless of skill level. Fast queue times but potentially unbalanced matches.
+
+### ELO Match
+Pairs players based on ELO rating proximity. Players who have been waiting longer are allowed larger rating differences to prevent indefinite queue times.
+
+**ELO Calculation:**
+- Default rating: 1200
+- K-factor: 32
+- Expected score: `1 / (1 + 10^((ratingB - ratingA) / 400))`
+- New rating: `rating + K * (actual - expected)`
+
+## Game State Structure
+
+```json
+{
+  "frame": 42,
+  "timestamp": "2024-01-01T00:00:00Z",
+  "players": {
+    "player-1": {
+      "x": 100.0,
+      "y": 200.0,
+      "z": 0.0,
+      "score": 10,
+      "health": 100,
+      "active": true
+    }
+  },
+  "state": {}
+}
+```
+
+## Message Format
+
+All messages follow this structure:
+
+```json
+{
+  "type": "message_type",
+  "id": "unique-message-id",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "player_id": "player-id",
+  "room_id": "room-id",
+  "payload": {}
+}
+```
+
+## License
+
+MIT

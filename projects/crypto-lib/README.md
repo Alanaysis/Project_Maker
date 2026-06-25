@@ -1,127 +1,121 @@
 # 密码学库 (Crypto Library)
 
-一个用Rust实现的密码学库，支持AES对称加密、RSA非对称加密和椭圆曲线密码学（ECC）。
+一个用Python实现的密码学学习库，支持哈希算法、对称加密、非对称加密和编码工具。
 
 ## 功能特性
 
-### AES对称加密
-- 支持AES-128、AES-192、AES-256
-- CBC模式加密
-- PKCS7填充
-- 随机IV生成
+### 哈希算法
+- **MD5**：128位散列值（已不安全，仅用于学习）
+- **SHA-1**：160位散列值（已不安全，仅用于学习）
+- **SHA-256**：256位散列值（目前安全）
+- **HMAC**：基于哈希的消息认证码
 
-### RSA非对称加密
-- RSA-512到RSA-4096密钥生成
-- 公钥加密/私钥解密
-- OAEP填充支持
-- Miller-Rabin素性测试
+### 对称加密
+- **AES**：支持128/192/256位密钥
+- **DES**：64位密钥（已不安全，仅用于学习）
+- **分组模式**：ECB、CBC、CTR
 
-### 椭圆曲线密码学
-- secp256k1曲线（比特币使用）
-- P-256曲线（NIST标准）
-- ECDH密钥交换
-- ECDSA数字签名
+### 非对称加密
+- **RSA**：支持512-4096位密钥
+- **ECDH**：椭圆曲线密钥交换
+- **数字签名**：RSA签名、ECDSA签名
+
+### 编码工具
+- **Base64**：标准和URL安全编码
+- **Hex**：十六进制编码
+
+### 实用工具
+- **密码存储**：PBKDF2密钥派生
+- **数据加密**：简单加密接口
+- **数字签名**：文件和消息签名
 
 ## 快速开始
 
-### 添加依赖
+### 基本使用
 
-在`Cargo.toml`中添加：
-```toml
-[dependencies]
-crypto-lib = { path = "../crypto-lib" }
+```python
+from src.hash import SHA256, HMAC
+from src.symmetric import AES
+from src.asymmetric import RSA
+import os
+
+# SHA-256哈希
+hash_value = SHA256.hash("Hello, World!")
+print(f"SHA-256: {hash_value}")
+
+# HMAC消息认证
+key = "my_secret_key"
+mac = HMAC.compute(key, "Hello", 'sha256')
+is_valid = HMAC.verify(key, "Hello", mac, 'sha256')
+
+# AES加密
+key = os.urandom(32)
+aes = AES(key)
+ciphertext, iv = aes.encrypt(b"Secret message", 'cbc')
+decrypted = aes.decrypt(ciphertext, 'cbc', iv)
+
+# RSA加密
+rsa = RSA(2048)
+public_key, private_key = rsa.generate_keys()
+ciphertext = rsa.encrypt(b"Hello")
+decrypted = rsa.decrypt(ciphertext)
 ```
 
-### AES加密示例
+### 密码存储
 
-```rust
-use crypto_lib::aes::{AesKey, AesCipher};
+```python
+from src.utils import PasswordManager
 
-fn main() {
-    // 生成256位AES密钥
-    let key = AesKey::generate(256);
-    let cipher = AesCipher::new(key);
+pm = PasswordManager()
 
-    // 加密
-    let plaintext = b"Hello, World!";
-    let ciphertext = cipher.encrypt(plaintext);
+# 存储密码
+stored = pm.store_password("user_password")
 
-    // 解密
-    let decrypted = cipher.decrypt(&ciphertext);
-    assert_eq!(decrypted, plaintext);
-}
+# 验证密码
+is_valid = pm.check_password("user_password", stored)
 ```
 
-### RSA加密示例
+### 数字签名
 
-```rust
-use crypto_lib::rsa::RsaKeyPair;
+```python
+from src.utils import SignatureUtil
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 生成RSA密钥对
-    let keypair = RsaKeyPair::generate(2048)?;
+sig = SignatureUtil('ecdsa')
 
-    // 加密
-    let message = b"Secret message";
-    let ciphertext = keypair.encrypt(message);
+# 签名消息
+signature_info = sig.sign_message(b"Important document")
 
-    // 解密
-    let decrypted = keypair.decrypt(&ciphertext);
-    assert_eq!(decrypted, message);
-
-    Ok(())
-}
-```
-
-### ECDH密钥交换示例
-
-```rust
-use crypto_lib::ecc::{EllipticCurve, EcdhKeyExchange};
-
-fn main() {
-    let curve = EllipticCurve::secp256k1();
-    let ecdh = EcdhKeyExchange::new(curve);
-
-    // Alice生成密钥对
-    let (alice_private, alice_public) = ecdh.generate_keypair();
-
-    // Bob生成密钥对
-    let (bob_private, bob_public) = ecdh.generate_keypair();
-
-    // 计算共享密钥
-    let alice_shared = ecdh.compute_shared_secret(&alice_private, &bob_public);
-    let bob_shared = ecdh.compute_shared_secret(&bob_private, &alice_public);
-
-    assert_eq!(alice_shared, bob_shared);
-}
+# 验证签名
+is_valid = sig.verify_message(b"Important document", signature_info)
 ```
 
 ## 运行示例
 
 ```bash
-# AES示例
-cargo run --example aes_example
+# 哈希算法示例
+python examples/hash_example.py
 
-# RSA示例
-cargo run --example rsa_example
+# 加密示例
+python examples/encryption_example.py
 
-# ECC示例
-cargo run --example ecc_example
+# 非对称加密示例
+python examples/asymmetric_example.py
+
+# 实际应用示例
+python examples/practical_example.py
 ```
 
 ## 运行测试
 
 ```bash
 # 运行所有测试
-cargo test
+python -m unittest discover tests/
 
 # 运行特定模块测试
-cargo test aes
-cargo test rsa
-cargo test ecc
-
-# 运行集成测试
-cargo test --test integration
+python -m unittest tests.test_hash
+python -m unittest tests.test_symmetric
+python -m unittest tests.test_asymmetric
+python -m unittest tests.test_encoding
 ```
 
 ## 项目结构
@@ -129,22 +123,51 @@ cargo test --test integration
 ```
 crypto-lib/
 ├── src/
-│   ├── lib.rs          # 库入口
-│   ├── aes.rs          # AES实现
-│   ├── rsa.rs          # RSA实现
-│   └── ecc.rs          # ECC实现
-├── tests/
-│   └── integration_test.rs
-├── examples/
-│   ├── aes_example.rs
-│   ├── rsa_example.rs
-│   └── ecc_example.rs
-└── docs/
-    ├── 01-RESEARCH.md
-    ├── 02-DESIGN.md
-    ├── 03-IMPLEMENTATION.md
-    ├── 04-TESTING.md
-    └── 05-DEVELOPMENT.md
+│   ├── __init__.py
+│   ├── hash/                    # 哈希算法
+│   │   ├── __init__.py
+│   │   ├── md5.py              # MD5实现
+│   │   ├── sha1.py             # SHA-1实现
+│   │   ├── sha256.py           # SHA-256实现
+│   │   └── hmac_alg.py         # HMAC实现
+│   ├── symmetric/               # 对称加密
+│   │   ├── __init__.py
+│   │   ├── aes.py              # AES实现
+│   │   ├── des.py              # DES实现
+│   │   └── modes.py            # 分组模式
+│   ├── asymmetric/              # 非对称加密
+│   │   ├── __init__.py
+│   │   ├── rsa.py              # RSA实现
+│   │   ├── ecdh.py             # ECDH实现
+│   │   └── signature.py        # 数字签名
+│   ├── encoding/                # 编码工具
+│   │   ├── __init__.py
+│   │   ├── base64_codec.py     # Base64实现
+│   │   └── hex_codec.py        # Hex实现
+│   └── utils/                   # 实用工具
+│       ├── __init__.py
+│       ├── password.py          # 密码存储
+│       ├── data_encrypt.py      # 数据加密
+│       └── digital_signature_util.py
+├── examples/                    # 使用示例
+│   ├── hash_example.py
+│   ├── encryption_example.py
+│   ├── asymmetric_example.py
+│   └── practical_example.py
+├── tests/                       # 测试代码
+│   ├── test_hash.py
+│   ├── test_symmetric.py
+│   ├── test_asymmetric.py
+│   └── test_encoding.py
+├── docs/                        # 文档
+│   ├── 01_RESEARCH.md
+│   ├── 02_REQUIREMENTS.md
+│   ├── 03_DESIGN.md
+│   ├── 04_PRODUCT.md
+│   └── 05_DEVELOPMENT.md
+├── README.md
+├── requirements.txt
+└── setup.py
 ```
 
 ## 算法说明
@@ -155,7 +178,7 @@ crypto-lib/
 明文 → PKCS7填充 → 分块 → CBC模式加密 → 密文
 
 每块加密过程：
-1. 与前一块密文异或
+1. 与前一块密文异或（CBC模式）
 2. SubBytes字节替换
 3. ShiftRows行移位
 4. MixColumns列混合
@@ -186,18 +209,18 @@ Bob: 生成私钥b，计算公钥B = bG
 
 ## 安全说明
 
-⚠️ **警告：此库仅用于学习目的，不建议用于生产环境。**
+**警告：此库仅用于学习目的，不建议用于生产环境。**
 
 生产环境建议使用：
-- [RustCrypto](https://github.com/RustCrypto) 项目
-- [ring](https://github.com/briansmith/ring)
-- [OpenSSL](https://www.openssl.org/)
+- [cryptography](https://cryptography.io/) - Python密码学库
+- [PyCryptodome](https://pycryptodome.readthedocs.io/) - Python密码学库
+- [OpenSSL](https://www.openssl.org/) - 通用密码学库
 
 ## 学习资源
 
-- [AES标准 (FIPS 197)](https://csrc.nist.gov/publications/detail/fips/197/final)
-- [RSA论文](https://people.csail.mit.edu/rivest/Rsapaper.pdf)
-- [椭圆曲线密码学介绍](https://blog.cloudflare.com/a-relatively-easy-to-understand-primer-on-elliptic-curve-cryptography/)
+- [Crypto101](https://www.crypto101.io/) - 密码学入门
+- [Cryptopals](https://cryptopals.com/) - 密码学挑战
+- [NIST密码标准](https://csrc.nist.gov/projects/cryptographic-standards-and-guidelines)
 
 ## 许可证
 

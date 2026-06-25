@@ -196,10 +196,10 @@ distances = np.sqrt(np.maximum(XX + YY - 2 * np.dot(X, centroids.T), 0))
 
 ### 7.1 功能扩展
 
-- [ ] 实现 Mini-Batch K-Means
-- [ ] 支持更多距离度量
+- [x] 实现 Mini-Batch K-Means
+- [x] 支持更多距离度量
 - [ ] 实现并行计算
-- [ ] 添加更多评估指标
+- [x] 添加更多评估指标
 
 ### 7.2 性能优化
 
@@ -210,7 +210,7 @@ distances = np.sqrt(np.maximum(XX + YY - 2 * np.dot(X, centroids.T), 0))
 ### 7.3 用户体验
 
 - [ ] 添加进度条
-- [ ] 支持更多可视化选项
+- [x] 支持更多可视化选项
 - [ ] 提供命令行接口
 
 ## 8. 总结

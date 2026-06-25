@@ -36,6 +36,9 @@ type RaftNode struct {
 	state        *RaftState
 	election     *ElectionManager
 	replicator   *LogReplicator
+	snapshot     *SnapshotManager
+	membership   *MembershipManager
+	client       *ClientManager
 	peers        map[int64]*Peer
 	applyCh      chan ApplyMsg
 	grpcServer   *grpc.Server
@@ -80,11 +83,23 @@ func NewRaftNode(config Config) *RaftNode {
 	// 创建日志复制器
 	replicator := NewLogReplicator(state, peers, applyCh, config.HeartbeatInterval)
 
+	// 创建快照管理器
+	snapshot := NewSnapshotManager(state, peers)
+
+	// 创建成员变更管理器
+	membership := NewMembershipManager(state, &peers)
+
+	// 创建客户端管理器
+	client := NewClientManager(state, peers)
+
 	node := &RaftNode{
 		config:     config,
 		state:      state,
 		election:   election,
 		replicator: replicator,
+		snapshot:   snapshot,
+		membership: membership,
+		client:     client,
 		peers:      peers,
 		applyCh:    applyCh,
 		stopCh:     make(chan struct{}),
@@ -117,6 +132,12 @@ func (rn *RaftNode) Start() error {
 	// 启动日志复制器
 	rn.replicator.Start()
 
+	// 启动成员变更管理器
+	rn.membership.Start()
+
+	// 启动客户端管理器
+	rn.client.Start()
+
 	log.Printf("Node %d started", rn.config.ID)
 	return nil
 }
@@ -126,6 +147,8 @@ func (rn *RaftNode) Stop() {
 	close(rn.stopCh)
 	rn.election.Stop()
 	rn.replicator.Stop()
+	rn.membership.Stop()
+	rn.client.Stop()
 	if rn.grpcServer != nil {
 		rn.grpcServer.GracefulStop()
 	}
@@ -142,6 +165,33 @@ func (rn *RaftNode) AppendEntries(req *pb.AppendEntriesRequest) (*pb.AppendEntri
 	// 重置选举定时器
 	rn.election.ResetElectionTimer()
 	return rn.replicator.HandleAppendEntries(req), nil
+}
+
+// InstallSnapshot 处理快照安装请求（gRPC 接口）
+func (rn *RaftNode) InstallSnapshot(req *pb.InstallSnapshotRequest) (*pb.InstallSnapshotResponse, error) {
+	// 重置选举定时器
+	rn.election.ResetElectionTimer()
+
+	// 检查任期
+	if req.Term < rn.state.GetCurrentTerm() {
+		return &pb.InstallSnapshotResponse{
+			Term: rn.state.GetCurrentTerm(),
+		}, nil
+	}
+
+	// 更新任期
+	if req.Term > rn.state.GetCurrentTerm() {
+		rn.state.SetCurrentTerm(req.Term)
+		rn.state.SetNodeState(Follower)
+		rn.state.SetVotedFor(-1)
+	}
+
+	// 安装快照
+	rn.snapshot.InstallSnapshot(req)
+
+	return &pb.InstallSnapshotResponse{
+		Term: rn.state.GetCurrentTerm(),
+	}, nil
 }
 
 // Put 设置键值对（客户端接口）
@@ -168,4 +218,51 @@ func (rn *RaftNode) GetLeader() int64 {
 // GetID 获取节点 ID
 func (rn *RaftNode) GetID() int64 {
 	return rn.state.GetID()
+}
+
+// CreateSnapshot 创建快照
+func (rn *RaftNode) CreateSnapshot(lastIncludedIndex int64, data []byte) {
+	rn.snapshot.CreateSnapshot(lastIncludedIndex, data)
+}
+
+// GetSnapshot 获取快照
+func (rn *RaftNode) GetSnapshot() (int64, int64, []byte) {
+	return rn.snapshot.GetSnapshot()
+}
+
+// AddNode 添加节点到集群
+func (rn *RaftNode) AddNode(nodeID int64, address string) error {
+	return rn.membership.RequestChange(MembershipChange{
+		Type:    AddNode,
+		NodeID:  nodeID,
+		Address: address,
+	})
+}
+
+// RemoveNode 从集群移除节点
+func (rn *RaftNode) RemoveNode(nodeID int64) error {
+	return rn.membership.RequestChange(MembershipChange{
+		Type:   RemoveNode,
+		NodeID: nodeID,
+	})
+}
+
+// GetClusterMembers 获取集群成员
+func (rn *RaftNode) GetClusterMembers() []int64 {
+	return rn.membership.GetClusterMembers()
+}
+
+// SubmitCommand 提交命令
+func (rn *RaftNode) SubmitCommand(command interface{}, commandID int64) ClientResponse {
+	return rn.client.SubmitCommand(command, commandID)
+}
+
+// LinearizableRead 线性一致性读
+func (rn *RaftNode) LinearizableRead(key interface{}) (interface{}, error) {
+	return rn.client.LinearizableRead(key)
+}
+
+// GetLeaderAddress 获取领导者地址
+func (rn *RaftNode) GetLeaderAddress() (int64, string, error) {
+	return rn.client.GetLeaderAddress()
 }

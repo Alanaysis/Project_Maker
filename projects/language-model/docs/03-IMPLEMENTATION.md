@@ -2,7 +2,7 @@
 
 ## 1. 实现概述
 
-本文档记录 N-gram 语言模型的实现细节，包括关键代码片段、设计决策和实现难点。
+本文档记录语言模型的实现细节，包括 N-gram 模型、平滑技术、神经语言模型、评估指标和应用模块。
 
 ## 2. 词汇表实现
 
@@ -11,347 +11,191 @@
 ```python
 @staticmethod
 def tokenize(text: str) -> List[str]:
-    """简单分词：按空格分割，转换为小写"""
     return text.lower().split()
 ```
 
-**实现要点**：
-- 使用空格分割，简单高效
-- 转换为小写，统一大小写
-- 适用于英文文本，中文需要额外分词
-
 ### 2.2 词汇表构建
 
-```python
-def build(self, corpus: List[List[str]]) -> "Vocabulary":
-    """从语料库构建词汇表"""
-    # 统计词频
-    self._token_freq = Counter()
-    for sentence in corpus:
-        self._token_freq.update(sentence)
-
-    # 按词频排序，添加到词汇表
-    idx = len(self.SPECIAL_TOKENS)
-    for token, freq in self._token_freq.most_common():
-        if freq >= self.min_freq and token not in self._token2id:
-            self._token2id[token] = idx
-            self._id2token[idx] = token
-            idx += 1
-
-    self._built = True
-    return self
-```
-
-**实现要点**：
-- 使用 Counter 统计词频
-- 按词频降序排列
-- 过滤低频词
-- 特殊标记占前 4 个 ID
-
-### 2.3 编码和解码
-
-```python
-def encode(self, tokens: List[str]) -> List[int]:
-    """将词列表转换为ID列表"""
-    unk_id = self.unk_id
-    token2id = self._token2id
-    return [token2id.get(t, unk_id) for t in tokens]
-
-def decode(self, ids: List[int]) -> List[str]:
-    """将ID列表转换为词列表"""
-    id2token = self._id2token
-    unk = self.UNK
-    return [id2token.get(i, unk) for i in ids]
-```
-
-**实现要点**：
-- 未知词映射到 UNK
-- 使用字典查找，O(1) 复杂度
+使用 `Counter` 统计词频，按词频降序排列，过滤低频词，特殊标记占前 4 个 ID。
 
 ## 3. N-gram 模型实现
 
 ### 3.1 训练
 
-```python
-def train(self, corpus: List[List[str]]) -> "NGramModel":
-    """训练 N-gram 模型"""
-    self._ngram_counts = Counter()
-    self._context_counts = Counter()
-    self._vocab = set()
-
-    for sentence in corpus:
-        # 收集词汇
-        self._vocab.update(sentence)
-
-        # 添加开始和结束标记
-        padded = ["<BOS>"] * (self.n - 1) + sentence + ["<EOS>"]
-
-        # 统计 N-gram
-        for i in range(len(padded) - self.n + 1):
-            ngram = tuple(padded[i:i + self.n])
-            context = ngram[:-1]
-            self._ngram_counts[ngram] += 1
-            self._context_counts[context] += 1
-
-    self._trained = True
-    return self
-```
-
-**实现要点**：
-- 添加 `<BOS>` 和 `<EOS>` 标记
-- 使用滑动窗口提取 N-gram
-- 同时统计 N-gram 和上下文计数
-- 使用 Counter 简化计数
+添加 `<BOS>` 和 `<EOS>` 标记，使用滑动窗口提取 N-gram，同时统计 N-gram 和上下文计数。
 
 ### 3.2 概率计算
 
-```python
-def probability(self, ngram: Tuple[str, ...]) -> float:
-    """计算 N-gram 的条件概率"""
-    context = ngram[:-1]
-    ngram_count = self._ngram_counts.get(ngram, 0)
-    context_count = self._context_counts.get(context, 0)
-
-    if self.smoothing == "none":
-        if context_count == 0:
-            return 0.0
-        return ngram_count / context_count
-
-    elif self.smoothing == "add_k":
-        denominator = context_count + self.k * self.vocab_size
-        if denominator == 0:
-            return 0.0
-        return (ngram_count + self.k) / denominator
-```
-
-**实现要点**：
-- 支持无平滑和 Add-k 平滑
-- 处理零计数情况
-- 返回浮点数概率
+支持无平滑和 Add-k 平滑，处理零计数情况。
 
 ### 3.3 困惑度计算
 
-```python
-def perplexity(self, corpus: List[List[str]]) -> float:
-    """计算困惑度"""
-    total_log_prob = 0.0
-    total_words = 0
-
-    for sentence in corpus:
-        padded = ["<BOS>"] * (self.n - 1) + sentence + ["<EOS>"]
-
-        for i in range(self.n - 1, len(padded)):
-            ngram = tuple(padded[i - self.n + 1:i + 1])
-            prob = self.probability(ngram)
-
-            if prob <= 0:
-                return float('inf')
-
-            total_log_prob += math.log(prob)
-            total_words += 1
-
-    if total_words == 0:
-        return float('inf')
-
-    avg_log_prob = total_log_prob / total_words
-    return math.exp(-avg_log_prob)
-```
-
-**实现要点**：
-- 在对数空间计算，避免数值下溢
-- 处理零概率情况
-- 计算平均对数概率后取指数
+在对数空间计算，避免数值下溢。PPL = exp(-avg_log_prob)。
 
 ### 3.4 文本生成
 
-```python
-def generate(self, max_length=50, temperature=1.0, seed=None):
-    """生成文本"""
-    # 初始化上下文
-    if seed is not None:
-        context = ["<BOS>"] * (self.n - 2) + [seed.lower()]
-    else:
-        context = ["<BOS>"] * (self.n - 1)
+支持种子词、温度控制。温度在对数空间应用，减去最大值避免溢出，归一化确保概率和为 1。
 
-    generated = []
+## 4. 平滑技术实现
 
-    for _ in range(max_length):
-        # 获取下一个词的概率分布
-        candidates = self._get_next_word_probs(
-            tuple(context[-(self.n - 1):])
-        )
-
-        if not candidates:
-            break
-
-        # 应用温度
-        if temperature != 1.0:
-            candidates = self._apply_temperature(candidates, temperature)
-
-        # 采样
-        next_word = self._sample(candidates)
-
-        if next_word == "<EOS>":
-            break
-
-        generated.append(next_word)
-        context.append(next_word)
-
-    return generated
-```
-
-**实现要点**：
-- 支持种子词
-- 支持温度控制
-- 遇到 `<EOS>` 停止
-
-### 3.5 温度采样
+### 4.1 拉普拉斯平滑 (LaplaceSmoothing)
 
 ```python
-@staticmethod
-def _apply_temperature(probs, temperature):
-    """应用温度参数"""
-    adjusted = {}
-    for word, prob in probs.items():
-        adjusted[word] = math.log(prob) / temperature
-
-    # 转换回概率空间并归一化
-    max_log = max(adjusted.values())
-    total = 0.0
-    for word in adjusted:
-        adjusted[word] = math.exp(adjusted[word] - max_log)
-        total += adjusted[word]
-
-    for word in adjusted:
-        adjusted[word] /= total
-
-    return adjusted
+P(w|c) = (C(c,w) + k) / (C(c) + k * V)
 ```
 
-**实现要点**：
-- 在对数空间应用温度
-- 减去最大值避免溢出
-- 归一化确保概率和为 1
+最简单的平滑方法。k=1 为标准拉普拉斯平滑。
 
-### 3.6 累积分布采样
+### 4.2 Good-Turing 平滑 (GoodTuringSmoothing)
 
 ```python
-@staticmethod
-def _sample(probs):
-    """根据概率分布采样"""
-    words = list(probs.keys())
-    weights = list(probs.values())
-
-    # 归一化
-    total = sum(weights)
-    weights = [w / total for w in weights]
-
-    # 累积分布采样
-    r = random.random()
-    cumulative = 0.0
-    for word, weight in zip(words, weights):
-        cumulative += weight
-        if r <= cumulative:
-            return word
-
-    return words[-1]
+r_star = (r + 1) * N_{r+1} / N_r
 ```
 
-**实现要点**：
-- 使用累积分布函数 (CDF)
-- 随机数落在哪个区间就选哪个词
-- 最后一个词作为兜底
+核心步骤：
+1. 统计频率分布 N_r（出现恰好 r 次的 N-gram 数量）
+2. 计算调整计数 r* = (r+1) * N_{r+1} / N_r
+3. 使用 r* 替代原始计数
+4. 对高频计数 (r > k_threshold) 不做调整，避免稀疏数据导致的不稳定
 
-## 4. 语言模型实现
-
-### 4.1 训练流程
+### 4.3 Kneser-Ney 平滑 (KneserNeySmoothing)
 
 ```python
-def train(self, texts: List[str]) -> "LanguageModel":
-    """训练语言模型"""
-    # 分词
-    tokenized = [Vocabulary.tokenize(text) for text in texts]
-
-    # 构建词汇表
-    self.vocabulary.build(tokenized)
-
-    # 训练 N-gram 模型
-    self.ngram_model.train(tokenized)
-
-    return self
+P_KN(w|w_{i-1}) = max(C(w_{i-1},w) - d, 0) / C(w_{i-1}) + lambda * P_continuation(w)
 ```
 
-### 4.2 全面评估
+核心思想：低阶分布基于词的"续接能力"而非词频。
+- P_continuation(w) = |{v: C(v,w)>0}| / |{(v',w'): C(v',w')>0}|
+- 折扣 d 通常取 0.75
+
+## 5. 神经语言模型实现
+
+### 5.1 前馈神经网络 (FeedforwardNeuralLM)
+
+基于 Bengio et al. (2003) 的经典架构：
+
+```
+输入: N-1 个词的嵌入拼接
+  → 隐藏层 (tanh 激活)
+  → 输出层 (softmax)
+```
+
+**前向传播**:
+1. 查找词嵌入并拼接: x = [emb(w1), emb(w2), ..., emb(w_{N-1})]
+2. 隐藏层: h = tanh(x @ W_hidden + b_hidden)
+3. 输出层: y = softmax(h @ W_output + b_output)
+
+**反向传播**:
+1. 输出层梯度: d_y = probs - one_hot(target)
+2. 隐藏层梯度: d_h = (d_y @ W_output.T) * tanh'(z_hidden)
+3. 嵌入梯度: 通过 d_x 传播到对应的嵌入向量
+
+### 5.2 RNN 语言模型 (RNNLanguageModel)
+
+```
+输入词嵌入 → RNN 隐藏层 → 输出层 (softmax)
+```
+
+**RNN 更新**:
+```
+h_t = tanh(x_t @ W_xh + h_{t-1} @ W_hh + b_h)
+y_t = softmax(h_t @ W_hy + b_y)
+```
+
+**BPTT 训练**:
+- 从最后一个时间步向前传播梯度
+- 梯度裁剪 (-5, 5) 防止梯度爆炸
+
+### 5.3 LSTM 语言模型 (LSTMLanguageModel)
+
+```
+输入词嵌入 → LSTM 门控层 → 输出层 (softmax)
+```
+
+**LSTM 单步计算**:
+```python
+concat = [x_t, h_{t-1}]
+f = sigmoid(concat @ W[:, :H] + b[:H])           # 遗忘门
+i = sigmoid(concat @ W[:, H:2H] + b[H:2H])       # 输入门
+g = tanh(concat @ W[:, 2H:3H] + b[2H:3H])        # 候选值
+o = sigmoid(concat @ W[:, 3H:4H] + b[3H:4H])     # 输出门
+c_t = f * c_{t-1} + i * g                          # 更新记忆
+h_t = o * tanh(c_t)                                 # 隐藏状态
+```
+
+**设计要点**:
+- 遗忘门偏置初始化为 1.0，帮助学习长期依赖
+- 4 个门共享一个权重矩阵 W，减少参数量
+- BPTT 反向传播通过时间展开
+
+## 6. 评估指标实现
+
+### 6.1 困惑度 (Perplexity)
 
 ```python
-def evaluate(self, test_texts: List[str]) -> Dict[str, float]:
-    """全面评估模型"""
-    ppl = self.perplexity(test_texts)
-
-    # 计算平均句子长度
-    total_words = sum(len(Vocabulary.tokenize(t)) for t in test_texts)
-    avg_len = total_words / len(test_texts) if test_texts else 0
-
-    # 计算词汇覆盖率
-    test_tokens = set()
-    for text in test_texts:
-        test_tokens.update(Vocabulary.tokenize(text))
-    train_vocab = self.ngram_model.get_vocab()
-    covered = test_tokens & train_vocab
-    coverage = len(covered) / len(test_tokens) if test_tokens else 0
-
-    return {
-        "perplexity": ppl,
-        "avg_sentence_length": avg_len,
-        "vocab_coverage": coverage,
-        "test_vocab_size": len(test_tokens),
-        "train_vocab_size": len(train_vocab),
-    }
+PPL = exp(-1/N * sum(log P(w_i | context)))
 ```
 
-## 5. 实现难点
+### 6.2 交叉熵 (Cross-Entropy)
 
-### 5.1 零概率问题
+```python
+H = -1/N * sum(log_b P(w_i | context))
+PPL = b^H
+```
 
-**问题**：未见过的 N-gram 概率为零
+支持任意底数（默认 base=2，单位为 bit）。
 
-**解决方案**：
-- Add-k 平滑：给每个计数加上 k
-- 对数空间计算：避免 log(0)
+### 6.3 BLEU 分数
 
-### 5.2 数值下溢
+```python
+BLEU = BP * exp(sum(w_n * log p_n))
+```
 
-**问题**：连乘很多小概率导致浮点下溢
+- BP: Brevity Penalty，惩罚过短的翻译
+- p_n: n-gram 精度
+- 跳过无法提取的 n-gram 阶数
 
-**解决方案**：
-- 使用对数空间：log(P1 * P2) = log(P1) + log(P2)
-- 困惑度计算在对数空间进行
+### 6.4 词错误率 (WER)
 
-### 5.3 生成质量
+使用编辑距离（动态规划）计算：WER = (S + D + I) / N
 
-**问题**：简单的 N-gram 生成可能不够流畅
+## 7. 应用实现
 
-**解决方案**：
-- 温度控制：调节随机性
-- 贪婪生成：选择最可能的词
-- 增加训练数据
+### 7.1 拼写纠错 (SpellingCorrector)
 
-## 6. 测试策略
+```
+1. 生成候选词:
+   - 编辑距离 1: 删除、交换、替换、插入
+   - 编辑距离 2: 两次编辑距离 1 操作
+2. 过滤出词汇表中的已知词
+3. 使用语言模型对候选词评分
+4. 返回概率最高的候选词
+```
 
-### 6.1 单元测试
+优先返回已知词 > 编辑距离 1 > 编辑距离 2。
 
-- 词汇表：构建、编码、解码、特殊标记
-- N-gram：训练、计数、概率、生成
-- 边界条件：空输入、未训练状态
+### 7.2 输入法 (InputMethod)
 
-### 6.2 集成测试
+```
+1. 前缀补全: 找到以输入前缀开头的所有词
+2. 使用语言模型对候选词排序
+3. 支持上下文感知的预测
+```
 
-- 完整训练-评估-生成流程
-- 不同 N 值和参数组合
-- 模型质量验证
+## 8. 实现难点
 
-### 6.3 测试数据
+### 8.1 零概率问题
+- 平滑技术避免零概率
+- 对数空间计算避免 log(0)
 
-- 简单语料：验证基本功能
-- 重复语料：验证计数正确性
-- 新语料：验证泛化能力
+### 8.2 数值下溢
+- 连乘小概率导致浮点下溢
+- 解决: 对数空间计算
+
+### 8.3 梯度消失/爆炸
+- RNN 中长序列的梯度问题
+- 解决: LSTM 门控机制 + 梯度裁剪
+
+### 8.4 LSTM 维度匹配
+- 拼接向量 [x, h] 的维度分割需注意 embedding_dim 与 hidden_dim 的区别
+- 反向传播中 d_concat 的前 embedding_dim 维是输入梯度，后 hidden_dim 维是隐藏状态梯度

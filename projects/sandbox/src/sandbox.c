@@ -242,6 +242,48 @@ static const int default_whitelist[] = {
 #ifdef __NR_fcntl
     __NR_fcntl,
 #endif
+#ifdef __NR_openat
+    __NR_openat,
+#endif
+#ifdef __NR_open
+    __NR_open,
+#endif
+#ifdef __NR_faccessat
+    __NR_faccessat,
+#endif
+#ifdef __NR_set_robust_list
+    __NR_set_robust_list,
+#endif
+#ifdef __NR_getrandom
+    __NR_getrandom,
+#endif
+#ifdef __NR_prlimit64
+    __NR_prlimit64,
+#endif
+#ifdef __NR_statfs
+    __NR_statfs,
+#endif
+#ifdef __NR_readlinkat
+    __NR_readlinkat,
+#endif
+#ifdef __NR_getdents64
+    __NR_getdents64,
+#endif
+#ifdef __NR_execve
+    __NR_execve,
+#endif
+#ifdef __NR_rseq
+    __NR_rseq,
+#endif
+#ifdef __NR_newfstatat
+    __NR_newfstatat,
+#endif
+#ifdef __NR_set_robust_list
+    __NR_set_robust_list,
+#endif
+#ifdef __NR_getrandom
+    __NR_getrandom,
+#endif
     -1  /* sentinel */
 };
 
@@ -339,7 +381,21 @@ static struct sock_filter *build_bpf_program(sandbox_ctx_t *ctx, size_t *out_len
     /* Load architecture and verify */
     prog[pc++] = SANDBOX_BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
                            offsetof(struct seccomp_data, arch));
-    prog[pc++] = SANDBOX_BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0);
+
+    /* Get the correct architecture constant for the current system */
+    #if defined(__x86_64__)
+        #define SANDBOX_AUDIT_ARCH AUDIT_ARCH_X86_64
+    #elif defined(__aarch64__)
+        #define SANDBOX_AUDIT_ARCH AUDIT_ARCH_AARCH64
+    #elif defined(__i386__)
+        #define SANDBOX_AUDIT_ARCH AUDIT_ARCH_I386
+    #elif defined(__arm__)
+        #define SANDBOX_AUDIT_ARCH AUDIT_ARCH_ARM
+    #else
+        #define SANDBOX_AUDIT_ARCH AUDIT_ARCH_X86_64
+    #endif
+
+    prog[pc++] = SANDBOX_BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SANDBOX_AUDIT_ARCH, 1, 0);
     prog[pc++] = SANDBOX_BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
 
     /* Load syscall number */
@@ -355,19 +411,27 @@ static struct sock_filter *build_bpf_program(sandbox_ctx_t *ctx, size_t *out_len
 
     if (ctx->mode == SANDBOX_MODE_WHITELIST) {
         /* In whitelist mode, each "allow" rule jumps to ALLOW */
+        /* Calculate the position of ALLOW instruction */
+        /* ALLOW is at position: 4 + num_rules + 1 (KILL) */
+        int allow_pos = 4 + ctx->num_rules + 1;
+
         for (int i = 0; i < ctx->num_rules; i++) {
             const sandbox_syscall_rule_t *rule = &ctx->rules[i];
             if (rule->allow) {
                 /* Jump forward to ALLOW if match; skip to next rule if not */
-                int jump_to_allow = ctx->num_rules - i + 1;  /* instructions to skip */
+                /* Current position is 4 + i */
+                /* Offset = allow_pos - (4 + i) - 1 = num_rules - i */
+                int jump_to_allow = allow_pos - (4 + i) - 1;
                 prog[pc++] = SANDBOX_BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
                                        (uint32_t)rule->syscall_nr, jump_to_allow, 0);
             } else {
                 /* Blocked syscall - jump to KILL */
+                /* KILL is at position 4 + num_rules */
+                /* Current position is 4 + i */
+                /* Offset = (4 + num_rules) - (4 + i) - 1 = num_rules - i - 1 */
+                int jump_to_kill = (4 + ctx->num_rules) - (4 + i) - 1;
                 prog[pc++] = SANDBOX_BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
-                                       (uint32_t)rule->syscall_nr, 0, 0);
-                /* Kill immediately */
-                prog[pc++] = SANDBOX_BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
+                                       (uint32_t)rule->syscall_nr, jump_to_kill, 0);
             }
         }
         /* Default: kill (whitelist) */

@@ -158,3 +158,144 @@ func TestMessageQueueWithFileStore(t *testing.T) {
 		t.Errorf("expected 'durable', got %q", string(msgs[0].Payload))
 	}
 }
+
+func TestMessageQueueCreateQueueTopic(t *testing.T) {
+	cfg := DefaultConfig()
+	mq, _ := New(cfg)
+	defer mq.Close()
+
+	err := mq.CreateQueueTopic("queue-test")
+	if err != nil {
+		t.Fatalf("create queue topic: %v", err)
+	}
+
+	_, err = mq.GetTopic("queue-test")
+	if err != nil {
+		t.Fatalf("get topic: %v", err)
+	}
+
+	// Queue topics should be in queue mode.
+	// Note: We can't directly check mode from API, but we can verify
+	// that messages are delivered to only one consumer.
+}
+
+func TestMessageQueueConsumerGroup(t *testing.T) {
+	cfg := DefaultConfig()
+	mq, _ := New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("group-test")
+
+	cg, err := mq.CreateConsumerGroup("test-group", "group-test")
+	if err != nil {
+		t.Fatalf("create consumer group: %v", err)
+	}
+
+	if cg.ConsumerCount() != 0 {
+		t.Errorf("expected 0 consumers, got %d", cg.ConsumerCount())
+	}
+}
+
+func TestMessageQueueGetConsumerGroup(t *testing.T) {
+	cfg := DefaultConfig()
+	mq, _ := New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("group-test")
+	mq.CreateConsumerGroup("test-group", "group-test")
+
+	cg, err := mq.GetConsumerGroup("test-group")
+	if err != nil {
+		t.Fatalf("get consumer group: %v", err)
+	}
+	if cg.Name != "test-group" {
+		t.Errorf("expected group name 'test-group', got %q", cg.Name)
+	}
+}
+
+func TestMessageQueueDeadLetterQueue(t *testing.T) {
+	cfg := DefaultConfig()
+	mq, _ := New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("dlq-test")
+
+	dlq := mq.GetDeadLetterQueue("dlq-test")
+	if dlq == nil {
+		t.Fatal("expected non-nil DLQ")
+	}
+}
+
+func TestMessageQueuePull(t *testing.T) {
+	cfg := DefaultConfig()
+	mq, _ := New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("pull-test")
+
+	p := mq.NewProducer()
+	p.PublishString("pull-test", "msg1")
+
+	msg, err := mq.Pull("pull-test", 1*time.Second)
+	if err != nil {
+		t.Fatalf("pull: %v", err)
+	}
+	if string(msg.Payload) != "msg1" {
+		t.Errorf("expected 'msg1', got %q", string(msg.Payload))
+	}
+}
+
+func TestMessageQueuePriority(t *testing.T) {
+	cfg := DefaultConfig()
+	mq, _ := New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("priority-test")
+
+	p := mq.NewProducer()
+	p.PublishWithPriority("priority-test", []byte("low"), protocol.PriorityLow)
+	p.PublishWithPriority("priority-test", []byte("high"), protocol.PriorityHigh)
+	p.PublishWithPriority("priority-test", []byte("normal"), protocol.PriorityNormal)
+
+	topic, _ := mq.GetTopic("priority-test")
+	msgs := topic.Messages()
+
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(msgs))
+	}
+
+	// Should be ordered by priority.
+	if string(msgs[0].Payload) != "high" {
+		t.Errorf("expected first message 'high', got %q", string(msgs[0].Payload))
+	}
+}
+
+func TestMessageQueueFilteredSubscribe(t *testing.T) {
+	cfg := DefaultConfig()
+	mq, _ := New(cfg)
+	defer mq.Close()
+
+	mq.CreateTopic("filtered-test")
+
+	var received int32
+	handler := func(msg *protocol.Message) error {
+		atomic.AddInt32(&received, 1)
+		return nil
+	}
+
+	c := mq.NewConsumer("c1", handler)
+	defer c.Close()
+
+	filter := map[string]string{"type": "alert"}
+	c.SubscribeWithFilter("filtered-test", filter)
+
+	p := mq.NewProducer()
+	p.PublishWithHeaders("filtered-test", []byte("alert"), map[string]string{"type": "alert"})
+	p.PublishWithHeaders("filtered-test", []byte("info"), map[string]string{"type": "info"})
+
+	time.Sleep(500 * time.Millisecond)
+
+	if atomic.LoadInt32(&received) != 1 {
+		t.Errorf("expected 1 received (filtered), got %d", atomic.LoadInt32(&received))
+	}
+}

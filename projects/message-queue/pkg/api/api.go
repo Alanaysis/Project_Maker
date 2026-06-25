@@ -2,6 +2,8 @@
 package api
 
 import (
+	"time"
+
 	"github.com/example/message-queue/internal/consumer"
 	"github.com/example/message-queue/internal/persistence"
 	"github.com/example/message-queue/internal/producer"
@@ -23,13 +25,19 @@ type Config struct {
 	SubscriberBufSize int
 	// DataDir is the filesystem path for persistent storage. Empty = memory only.
 	DataDir string
+	// DeadLetterCapacity is the max messages per dead letter queue.
+	DeadLetterCapacity int
+	// RetryCheckInterval is how often to check for retryable messages.
+	RetryCheckInterval time.Duration
 }
 
 // DefaultConfig returns sensible defaults.
 func DefaultConfig() Config {
 	return Config{
-		TopicCapacity:     10000,
-		SubscriberBufSize: 256,
+		TopicCapacity:      10000,
+		SubscriberBufSize:  256,
+		DeadLetterCapacity: 1000,
+		RetryCheckInterval: 5 * time.Second,
 	}
 }
 
@@ -48,8 +56,10 @@ func New(cfg Config) (*MessageQueue, error) {
 	}
 
 	brokerCfg := queue.BrokerConfig{
-		TopicCapacity:     cfg.TopicCapacity,
-		SubscriberBufSize: cfg.SubscriberBufSize,
+		TopicCapacity:      cfg.TopicCapacity,
+		SubscriberBufSize:  cfg.SubscriberBufSize,
+		DeadLetterCapacity: cfg.DeadLetterCapacity,
+		RetryCheckInterval: cfg.RetryCheckInterval,
 	}
 
 	broker := queue.NewBroker(brokerCfg, store)
@@ -75,9 +85,34 @@ func (mq *MessageQueue) NewConsumer(id string, handler consumer.Handler) *consum
 	return consumer.New(id, mq.broker, handler)
 }
 
-// CreateTopic explicitly creates a topic.
+// CreateTopic explicitly creates a pub/sub topic.
 func (mq *MessageQueue) CreateTopic(name string) error {
 	return mq.broker.CreateTopic(name)
+}
+
+// CreateQueueTopic creates a point-to-point topic.
+func (mq *MessageQueue) CreateQueueTopic(name string) error {
+	return mq.broker.CreateQueueTopic(name)
+}
+
+// CreateConsumerGroup creates a consumer group for a topic.
+func (mq *MessageQueue) CreateConsumerGroup(groupName, topicName string) (*queue.ConsumerGroup, error) {
+	return mq.broker.CreateConsumerGroup(groupName, topicName)
+}
+
+// GetConsumerGroup returns a consumer group by name.
+func (mq *MessageQueue) GetConsumerGroup(name string) (*queue.ConsumerGroup, error) {
+	return mq.broker.GetConsumerGroup(name)
+}
+
+// GetDeadLetterQueue returns the dead letter queue for a topic.
+func (mq *MessageQueue) GetDeadLetterQueue(topicName string) *queue.DeadLetterQueue {
+	return mq.broker.GetDeadLetterQueue(topicName)
+}
+
+// Pull retrieves the next available message from a topic (pull mode).
+func (mq *MessageQueue) Pull(topicName string, timeout time.Duration) (*protocol.Message, error) {
+	return mq.broker.Pull(topicName, timeout)
 }
 
 // GetTopic returns a topic by name for inspection.

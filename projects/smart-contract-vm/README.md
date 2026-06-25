@@ -7,7 +7,11 @@
 - **基本操作码支持**: 算术运算、比较、位运算
 - **栈和内存管理**: 完整的栈操作和动态内存扩展
 - **Gas 计算**: 防止无限循环和资源滥用
+- **合约功能**: 状态存储、函数调用、事件触发
+- **环境操作码**: ADDRESS、CALLER、CALLVALUE、CALLDATALOAD、CALLDATASIZE、CALLDATACOPY
+- **日志操作**: LOG0-LOG4 事件触发
 - **汇编器**: 提供高级接口构建字节码
+- **代币合约示例**: ERC20 风格的代币合约实现
 - **完整的错误处理**: 支持各种异常情况
 
 ## 项目结构
@@ -127,6 +131,9 @@ let code = Assembler::new()
 - `SUB` (0x03) - 减法
 - `DIV` (0x04) - 除法
 - `MOD` (0x05) - 取模
+- `ADDMOD` (0x06) - 加法取模
+- `MULMOD` (0x07) - 乘法取模
+- `EXP` (0x08) - 幂运算
 
 ### 比较操作
 - `LT` (0x10) - 小于
@@ -139,6 +146,16 @@ let code = Assembler::new()
 - `OR` (0x17) - 按位或
 - `XOR` (0x18) - 按位异或
 - `NOT` (0x19) - 按位取反
+- `SHL` (0x1b) - 左移
+- `SHR` (0x1c) - 右移
+
+### 环境操作
+- `ADDRESS` (0x30) - 获取合约地址
+- `CALLER` (0x33) - 获取调用者地址
+- `CALLVALUE` (0x34) - 获取转账金额
+- `CALLDATALOAD` (0x35) - 读取调用数据
+- `CALLDATASIZE` (0x36) - 获取调用数据大小
+- `CALLDATACOPY` (0x37) - 复制调用数据到内存
 
 ### 栈操作
 - `POP` (0x50) - 弹出栈顶
@@ -148,6 +165,7 @@ let code = Assembler::new()
 ### 内存操作
 - `MLOAD` (0x51) - 从内存加载
 - `MSTORE` (0x52) - 存储到内存
+- `MSIZE` (0x59) - 获取内存大小
 
 ### 存储操作
 - `SLOAD` (0x54) - 从存储加载
@@ -156,10 +174,22 @@ let code = Assembler::new()
 ### 跳转操作
 - `JUMP` (0x56) - 无条件跳转
 - `JUMPI` (0x57) - 条件跳转
+- `PC` (0x58) - 获取程序计数器
 - `JUMPDEST` (0x5b) - 跳转目标标记
+
+### 日志操作
+- `LOG0` (0xa0) - 无主题日志
+- `LOG1` (0xa1) - 1个主题日志
+- `LOG2` (0xa2) - 2个主题日志
+- `LOG3` (0xa3) - 3个主题日志
+- `LOG4` (0xa4) - 4个主题日志
 
 ### Push 操作
 - `PUSH1-PUSH32` (0x60-0x7f) - 将数据压入栈
+
+### 系统操作
+- `RETURN` (0xf3) - 返回数据
+- `REVERT` (0xfd) - 回滚执行
 
 ## 使用示例
 
@@ -260,6 +290,9 @@ cargo test test_simple_add
 ## 文档
 
 - [市场调研](docs/01-RESEARCH.md) - 智能合约虚拟机市场调研和技术对比
+- [需求分析](docs/02-REQUIREMENTS.md) - 功能需求和非功能需求
+- [系统设计](docs/02-DESIGN.md) - 整体架构和组件设计
+- [实现细节](docs/03-IMPLEMENTATION.md) - 模块结构和关键实现
 - [EVM 概述](docs/01-evm-overview.md) - EVM 核心概念和架构
 - [字节码执行](docs/02-bytecode-execution.md) - 取指-译码-执行循环
 - [栈和内存管理](docs/03-stack-memory.md) - 栈、内存和存储模型
@@ -290,6 +323,9 @@ cargo run --example conditional
 
 # 内存操作
 cargo run --example memory_operations
+
+# 代币合约 (ERC20)
+cargo run --example token_contract
 ```
 
 示例代码位于 `examples/` 目录，展示了虚拟机的各种功能：
@@ -300,6 +336,7 @@ cargo run --example memory_operations
 - **loop_counter.rs**: 计数器循环和累加
 - **conditional.rs**: 条件分支和比较运算
 - **memory_operations.rs**: 内存读写操作（MSTORE、MLOAD）
+- **token_contract.rs**: ERC20 代币合约（部署、转账、事件日志）
 
 ## 依赖
 
@@ -308,11 +345,12 @@ cargo run --example memory_operations
 ## 未来改进
 
 - [ ] 支持完整 256 位整数
-- [ ] 实现完整的系统调用
-- [ ] 支持合约部署和调用
-- [ ] 实现日志操作
+- [ ] 实现完整的系统调用 (CALL, DELEGATECALL, STATICCALL)
+- [ ] 支持合约间调用
+- [ ] 实现 CREATE 操作码
 - [ ] 添加调试功能
 - [ ] 性能优化
+- [ ] 支持更复杂的合约 ABI
 
 ## 许可证
 

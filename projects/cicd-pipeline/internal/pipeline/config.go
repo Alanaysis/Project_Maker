@@ -17,15 +17,57 @@ import (
 // PipelineConfig 流水线配置文件的顶层结构
 // 对应 YAML 配置文件的整体结构
 type PipelineConfig struct {
-	Name     string        `yaml:"name"`     // 流水线名称
-	Stages   []StageConfig `yaml:"stages"`   // 阶段列表（按定义顺序）
+	Name      string          `yaml:"name"`      // 流水线名称
+	Trigger   TriggerConfig   `yaml:"trigger"`   // 触发配置
+	Variables map[string]string `yaml:"variables"` // 全局变量
+	Stages    []StageConfig   `yaml:"stages"`    // 阶段列表（按定义顺序）
+}
+
+// TriggerConfig 触发配置
+type TriggerConfig struct {
+	// Git Push 触发
+	Push *PushTrigger `yaml:"push,omitempty"`
+	// 定时触发 (Cron 表达式)
+	Schedule string `yaml:"schedule,omitempty"`
+	// 手动触发
+	Manual bool `yaml:"manual,omitempty"`
+}
+
+// PushTrigger Git Push 触发配置
+type PushTrigger struct {
+	Branches []string `yaml:"branches"` // 触发的分支列表
+	Paths    []string `yaml:"paths,omitempty"`    // 触发的文件路径模式
+}
+
+// DeployConfig 部署配置
+type DeployConfig struct {
+	Strategy string            `yaml:"strategy"` // 部署策略: rolling, blue-green, canary
+	Targets  []DeployTarget    `yaml:"targets"`  // 部署目标
+	Rollback RollbackConfig    `yaml:"rollback"` // 回滚配置
+	Env      map[string]string `yaml:"env"`      // 部署环境变量
+}
+
+// DeployTarget 部署目标
+type DeployTarget struct {
+	Name    string `yaml:"name"`    // 目标名称
+	URL     string `yaml:"url"`     // 目标 URL
+	Region  string `yaml:"region"` // 区域
+	Weight  int    `yaml:"weight"`  // 流量权重 (金丝雀部署)
+}
+
+// RollbackConfig 回滚配置
+type RollbackConfig struct {
+	Enabled     bool `yaml:"enabled"`      // 是否启用自动回滚
+	MaxVersions int  `yaml:"max_versions"` // 保留的历史版本数
+	HealthCheck int  `yaml:"health_check"` // 健康检查超时(秒)
 }
 
 // StageConfig 阶段配置
 type StageConfig struct {
-	Name     string      `yaml:"name"`     // 阶段名称，如 build、test、deploy
-	DependsOn []string   `yaml:"depends_on"` // 依赖的前置阶段列表
-	Tasks    []TaskConfig `yaml:"tasks"`    // 阶段内的任务列表（串行执行）
+	Name      string       `yaml:"name"`       // 阶段名称，如 build、test、deploy
+	DependsOn []string     `yaml:"depends_on"` // 依赖的前置阶段列表
+	Tasks     []TaskConfig `yaml:"tasks"`      // 阶段内的任务列表（串行执行）
+	Deploy    *DeployConfig `yaml:"deploy,omitempty"` // 部署配置（仅 deploy 阶段）
 }
 
 // TaskConfig 任务配置

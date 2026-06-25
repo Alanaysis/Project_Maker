@@ -13,10 +13,14 @@ projects/kmeans/
 │   └── 05-DEVELOPMENT.md  # 开发记录
 ├── src/                   # 源代码
 │   ├── __init__.py
-│   ├── kmeans.py          # 核心算法
+│   ├── kmeans.py          # 核心算法 (KMeans, MiniBatchKMeans)
 │   ├── distance.py        # 距离度量
 │   ├── visualization.py   # 可视化工具
-│   └── utils.py           # 工具函数
+│   └── utils.py           # 工具函数和评估指标
+├── examples/              # 实际应用示例
+│   ├── image_color_compression.py  # 图像颜色压缩
+│   ├── customer_segmentation.py    # 客户分群
+│   └── clustering_visualization.py # 聚类可视化
 ├── tests/                 # 测试代码
 │   ├── __init__.py
 │   ├── test_kmeans.py     # 核心算法测试
@@ -55,11 +59,26 @@ def cosine_distance(x, y):
 **类设计**：
 ```python
 class KMeans:
-    def __init__(self, n_clusters=3, max_iter=100, tol=1e-4, distance='euclidean'):
+    def __init__(self, n_clusters=3, max_iter=100, tol=1e-4, distance='euclidean',
+                 init='random', random_state=None):
         """初始化参数"""
 
     def fit(self, X):
         """训练模型"""
+
+    def predict(self, X):
+        """预测簇标签"""
+
+    def fit_predict(self, X):
+        """训练并预测"""
+
+class MiniBatchKMeans:
+    def __init__(self, n_clusters=3, batch_size=100, max_iter=100, tol=1e-4,
+                 init='random', random_state=None, n_init=1):
+        """初始化参数"""
+
+    def fit(self, X):
+        """训练模型（使用小批量数据）"""
 
     def predict(self, X):
         """预测簇标签"""
@@ -79,6 +98,7 @@ class KMeans:
 - `_assign_clusters(X, centroids)`：分配簇
 - `_update_centroids(X, labels)`：更新簇中心
 - `_compute_wcss(X, labels, centroids)`：计算 WCSS
+- `_get_mini_batch(X, rng)`：获取小批量数据（MiniBatchKMeans）
 
 ### 2.3 可视化模块 (visualization.py)
 
@@ -101,7 +121,7 @@ def plot_3d_clusters(X, labels, centroids):
 
 ### 2.4 工具模块 (utils.py)
 
-**职责**：提供辅助功能
+**职责**：提供辅助功能和评估指标
 
 **接口设计**：
 ```python
@@ -113,6 +133,18 @@ def normalize_data(X):
 
 def compute_wcss(X, labels, centroids):
     """计算簇内平方和"""
+
+def compute_silhouette_score_fast(X, labels):
+    """计算轮廓系数（优化版本）"""
+
+def compute_calinski_harabasz(X, labels):
+    """计算 Calinski-Harabasz 指数"""
+
+def evaluate_clustering(X, labels, method='all'):
+    """综合评估聚类结果"""
+
+def find_optimal_k_elbow(X, k_range=None, max_k=10, distance='euclidean', random_state=None):
+    """使用肘部法则寻找最优 K 值"""
 ```
 
 ## 3. 数据流
@@ -156,13 +188,21 @@ def compute_wcss(X, labels, centroids):
 ## 6. 性能考虑
 
 ### 6.1 计算复杂度
+
+**标准 K-Means**：
 - 时间复杂度：O(n * K * d * max_iter)
 - 空间复杂度：O(n * d + K * d)
+
+**Mini-Batch K-Means**：
+- 时间复杂度：O(batch_size * K * d * max_iter)
+- 空间复杂度：O(batch_size * d + K * d)
 
 ### 6.2 优化策略
 - 使用 NumPy 向量化
 - 提前收敛判断
 - 批量处理大数据集
+- 增量更新中心点（Mini-Batch）
+- 预计算距离矩阵（评估指标）
 
 ## 7. 扩展性
 

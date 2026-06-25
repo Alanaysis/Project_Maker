@@ -66,23 +66,30 @@ SSTable 文件格式:
 │  Index 1: ...                        │
 │  (每 16 个 key 一个索引)             │
 ├──────────────────────────────────────┤
-│           Footer (32 bytes)          │
+│           Bloom Filter               │
+│  [m: 8] [k: 4] [n: 8] [bits: ...]  │
+│  (快速判断键是否不存在)              │
+├──────────────────────────────────────┤
+│           Footer (40 bytes)          │
 │  [index_offset: 8]                   │
+│  [bloom_offset: 8]                   │
+│  [bloom_len: 8]                      │
 │  [entry_count: 8]                    │
-│  [index_count: 8]                    │
-│  [level: 8]                          │
+│  [index_count: 4]                    │
+│  [level: 4]                          │
 └──────────────────────────────────────┘
 ```
 
 接口设计:
 ```go
 type SSTable interface {
-    Get(key []byte) ([]byte, bool, error) // 查找 key
+    Get(key []byte) ([]byte, bool, error) // 查找 key (使用布隆过滤器加速)
     NewIterator() (*SSTableIterator, error) // 迭代器
     Close() error                           // 关闭文件
     FilePath() string                       // 文件路径
     EntryCount() uint64                     // entry 数量
     Level() int                             // 所在层级
+    BloomFilter() *BloomFilter              // 获取布隆过滤器
 }
 ```
 
@@ -110,7 +117,7 @@ func WALReplay(filePath string, memTable *MemTable) error // 重放 WAL
 ### 4. Compaction 设计
 
 ```
-Compaction 策略:
+Leveled Compaction 策略:
 1. Level 0: 收集所有 SSTables (可能重叠)
 2. Level 1+: 选择重叠的 SSTables
 3. 归并排序所有 entries
@@ -120,6 +127,16 @@ Compaction 策略:
 触发条件:
 - Level 0: 超过 4 个文件
 - Level N: 超过 10^N 个文件
+
+Size-Tiered Compaction 策略:
+1. 按文件大小分组 (每组覆盖 2x 大小区间)
+2. 当某组积累足够多文件 (>= 4 个) 时触发合并
+3. 合并所有文件到一个更大的文件
+4. 删除旧文件
+
+优点:
+- Leveled: 读放大低，适合读密集场景
+- Size-Tiered: 写放大低，适合写密集场景
 ```
 
 ## 数据流设计

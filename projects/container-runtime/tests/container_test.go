@@ -58,6 +58,16 @@ func TestContainerManager(t *testing.T) {
 		t.Errorf("Expected ID '%s', got '%s'", cont.Config.ID, getCont.Config.ID)
 	}
 
+	// 测试按名称获取容器
+	getCont, err = mgr.Get("test-container")
+	if err != nil {
+		t.Fatalf("Failed to get container by name: %v", err)
+	}
+
+	if getCont.Config.Name != "test-container" {
+		t.Errorf("Expected name 'test-container', got '%s'", getCont.Config.Name)
+	}
+
 	// 测试列出容器
 	containers := mgr.List()
 	if len(containers) != 1 {
@@ -79,11 +89,13 @@ func TestContainerManager(t *testing.T) {
 // TestContainerConfig 测试容器配置
 func TestContainerConfig(t *testing.T) {
 	config := &container.ContainerConfig{
-		Name:    "test",
-		Image:   "alpine",
-		Command: []string{"/bin/sh", "-c", "echo hello"},
-		Env:     []string{"PATH=/usr/bin"},
-		WorkDir: "/tmp",
+		Name:      "test",
+		Image:     "alpine",
+		Command:   []string{"/bin/sh", "-c", "echo hello"},
+		Env:       []string{"PATH=/usr/bin"},
+		WorkDir:   "/tmp",
+		Hostname:  "test-host",
+		Namespaces: []string{"pid", "mount", "uts", "ipc", "net"},
 	}
 
 	// 验证配置
@@ -97,6 +109,14 @@ func TestContainerConfig(t *testing.T) {
 
 	if len(config.Command) != 3 {
 		t.Errorf("Expected 3 command args, got %d", len(config.Command))
+	}
+
+	if config.Hostname != "test-host" {
+		t.Errorf("Expected hostname 'test-host', got '%s'", config.Hostname)
+	}
+
+	if len(config.Namespaces) != 5 {
+		t.Errorf("Expected 5 namespaces, got %d", len(config.Namespaces))
 	}
 }
 
@@ -261,5 +281,141 @@ func TestMount(t *testing.T) {
 
 	if mount.Destination != "/container/path" {
 		t.Errorf("Expected destination '/container/path', got '%s'", mount.Destination)
+	}
+
+	if mount.Type != "bind" {
+		t.Errorf("Expected type 'bind', got '%s'", mount.Type)
+	}
+}
+
+// TestContainerCreateDuplicateName 测试创建重复名称的容器
+func TestContainerCreateDuplicateName(t *testing.T) {
+	tempDir := t.TempDir()
+	containerDir := filepath.Join(tempDir, "containers")
+
+	mgr, err := container.NewContainerManager(containerDir)
+	if err != nil {
+		t.Fatalf("Failed to create container manager: %v", err)
+	}
+
+	// 创建第一个容器
+	config1 := &container.ContainerConfig{
+		Name:  "duplicate-name",
+		Image: "alpine",
+	}
+
+	_, err = mgr.Create(config1)
+	if err != nil {
+		t.Fatalf("Failed to create first container: %v", err)
+	}
+
+	// 创建同名容器应该失败
+	config2 := &container.ContainerConfig{
+		Name:  "duplicate-name",
+		Image: "ubuntu",
+	}
+
+	_, err = mgr.Create(config2)
+	if err == nil {
+		t.Error("Expected error when creating container with duplicate name")
+	}
+}
+
+// TestContainerDeleteRunning 测试删除运行中的容器
+func TestContainerDeleteRunning(t *testing.T) {
+	tempDir := t.TempDir()
+	containerDir := filepath.Join(tempDir, "containers")
+
+	mgr, err := container.NewContainerManager(containerDir)
+	if err != nil {
+		t.Fatalf("Failed to create container manager: %v", err)
+	}
+
+	// 创建容器
+	config := &container.ContainerConfig{
+		Name:  "running-container",
+		Image: "alpine",
+	}
+
+	cont, err := mgr.Create(config)
+	if err != nil {
+		t.Fatalf("Failed to create container: %v", err)
+	}
+
+	// 手动设置状态为运行中
+	cont.Status = container.StatusRunning
+
+	// 删除运行中的容器应该失败
+	err = mgr.Delete(cont.Config.ID)
+	if err == nil {
+		t.Error("Expected error when deleting running container")
+	}
+}
+
+// TestContainerGetNotFound 测试获取不存在的容器
+func TestContainerGetNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	containerDir := filepath.Join(tempDir, "containers")
+
+	mgr, err := container.NewContainerManager(containerDir)
+	if err != nil {
+		t.Fatalf("Failed to create container manager: %v", err)
+	}
+
+	_, err = mgr.Get("nonexistent")
+	if err == nil {
+		t.Error("Expected error when getting nonexistent container")
+	}
+}
+
+// TestNamespaceFlags 测试命名空间标志
+func TestNamespaceFlags(t *testing.T) {
+	// 测试所有命名空间
+	allNs := []string{"pid", "mount", "uts", "ipc", "net"}
+	flags := container.GetNamespaceFlags(allNs)
+
+	// 验证标志不为零
+	if flags == 0 {
+		t.Error("Expected non-zero flags for all namespaces")
+	}
+}
+
+// TestContainerDefaults 测试容器默认值
+func TestContainerDefaults(t *testing.T) {
+	tempDir := t.TempDir()
+	containerDir := filepath.Join(tempDir, "containers")
+
+	mgr, err := container.NewContainerManager(containerDir)
+	if err != nil {
+		t.Fatalf("Failed to create container manager: %v", err)
+	}
+
+	// 创建容器（不设置默认值）
+	config := &container.ContainerConfig{
+		Image:   "alpine",
+		Command: []string{"/bin/sh"},
+	}
+
+	cont, err := mgr.Create(config)
+	if err != nil {
+		t.Fatalf("Failed to create container: %v", err)
+	}
+
+	// 验证默认值已设置
+	if cont.Config.Hostname == "" {
+		t.Error("Expected hostname to be set")
+	}
+
+	if cont.Config.Namespaces == nil {
+		t.Error("Expected namespaces to be set")
+	}
+
+	if cont.Config.Resources == nil {
+		t.Error("Expected resources to be set")
+	}
+
+	// 验证默认资源限制
+	if cont.Config.Resources.MemoryLimit != 256*1024*1024 {
+		t.Errorf("Expected default memory limit 256MB, got %d", cont.Config.Resources.MemoryLimit)
 	}
 }

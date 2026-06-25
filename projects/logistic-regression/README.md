@@ -9,7 +9,7 @@
 - Sigmoid激活函数的作用
 - 交叉熵损失函数的意义
 - 梯度下降优化算法
-- 二分类问题的解决方法
+- 多分类问题的解决方法
 
 ## 核心循环
 
@@ -22,23 +22,27 @@
 ```
 logistic-regression/
 ├── src/                        # 源代码
-│   ├── logistic_regression.py # 逻辑回归实现
-│   └── metrics.py             # 评估指标
-├── tests/                      # 测试代码
-│   ├── test_logistic_regression.py
-│   └── test_metrics.py
+│   ├── logistic_regression.py  # 基础逻辑回归实现
+│   ├── multiclass.py           # 多分类实现
+│   ├── regularization.py       # 正则化实现
+│   ├── metrics.py              # 评估指标
+│   ├── feature_engineering.py  # 特征工程
+│   └── optimizers.py           # 优化算法
 ├── examples/                   # 示例代码
-│   ├── basic_usage.py
-│   └── compare_sklearn.py
+│   ├── basic_usage.py          # 基本使用
+│   ├── spam_classification.py  # 垃圾邮件分类
+│   ├── disease_diagnosis.py    # 疾病诊断
+│   └── credit_scoring.py       # 信用评分
+├── tests/                      # 测试代码
 ├── docs/                       # 文档
-│   ├── 01-RESEARCH.md         # 调研报告
-│   ├── 02-DESIGN.md           # 设计文档
-│   ├── 03-IMPLEMENTATION.md   # 实现细节
-│   ├── 04-TESTING.md          # 测试文档
-│   └── 05-DEVELOPMENT.md      # 开发日志
+│   ├── 01_RESEARCH.md          # 调研报告
+│   ├── 02_REQUIREMENTS.md      # 需求分析
+│   ├── 03_DESIGN.md            # 技术设计
+│   ├── 04_PRODUCT.md           # 产品思考
+│   └── 05_DEVELOPMENT.md       # 开发手册
 ├── main.py                     # 主入口
 ├── README.md                   # 本文件
-└── LEARNING_NOTES.md           # 学习笔记
+└── requirements.txt            # 依赖
 ```
 
 ## 快速开始
@@ -51,7 +55,7 @@ logistic-regression/
 ### 安装依赖
 
 ```bash
-pip install numpy
+pip install -r requirements.txt
 ```
 
 ### 运行示例
@@ -60,8 +64,10 @@ pip install numpy
 # 运行基本示例
 python main.py
 
-# 运行与sklearn对比
-python examples/compare_sklearn.py
+# 运行实际应用示例
+python examples/spam_classification.py
+python examples/disease_diagnosis.py
+python examples/credit_scoring.py
 ```
 
 ### 运行测试
@@ -111,6 +117,99 @@ y_pred = np.array([1, 0, 0, 1, 1])
 print(classification_report(y_true, y_pred))
 ```
 
+### 使用ROC曲线和AUC
+
+```python
+from src import roc_curve, auc_score
+import numpy as np
+
+y_true = np.array([1, 1, 0, 0, 1])
+y_scores = np.array([0.9, 0.8, 0.3, 0.1, 0.7])
+
+fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+auc = auc_score(fpr, tpr)
+print(f"AUC: {auc:.4f}")
+```
+
+### 多分类
+
+```python
+from src import OneVsRestClassifier, SoftmaxRegression
+import numpy as np
+
+# One-vs-Rest
+X = np.array([[1, 2], [2, 3], [3, 4], [4, 5]])
+y = np.array([0, 1, 2, 0])
+
+ovr = OneVsRestClassifier(learning_rate=0.1, n_iterations=1000)
+ovr.fit(X, y)
+predictions = ovr.predict(X)
+```
+
+### 正则化
+
+```python
+from src import LogisticRegressionL1, LogisticRegressionL2, ElasticNet
+import numpy as np
+
+X = np.array([[1, 2], [2, 3], [3, 4], [4, 5]])
+y = np.array([0, 0, 1, 1])
+
+# L1正则化
+model_l1 = LogisticRegressionL1(learning_rate=0.1, n_iterations=1000, lambda_param=0.1)
+model_l1.fit(X, y)
+
+# L2正则化
+model_l2 = LogisticRegressionL2(learning_rate=0.1, n_iterations=1000, lambda_param=0.1)
+model_l2.fit(X, y)
+
+# Elastic Net
+model_en = ElasticNet(learning_rate=0.1, n_iterations=1000, l1_ratio=0.5, lambda_param=0.1)
+model_en.fit(X, y)
+```
+
+### 特征工程
+
+```python
+from src import StandardScaler, MinMaxScaler, cross_validate
+import numpy as np
+
+X = np.array([[1, 2], [2, 3], [3, 4], [4, 5]])
+y = np.array([0, 0, 1, 1])
+
+# 标准化
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# 交叉验证
+from src import LogisticRegression
+model = LogisticRegression(learning_rate=0.1, n_iterations=1000)
+scores = cross_validate(model, X, y, cv=5)
+print(f"交叉验证分数: {scores}")
+```
+
+### 优化算法
+
+```python
+from src import BatchGradientDescent, StochasticGradientDescent, MiniBatchGradientDescent
+import numpy as np
+
+X = np.array([[1, 2], [2, 3], [3, 4], [4, 5]])
+y = np.array([0, 0, 1, 1])
+
+# 批量梯度下降
+model_bgd = BatchGradientDescent(learning_rate=0.1, n_iterations=1000)
+model_bgd.fit(X, y)
+
+# 随机梯度下降
+model_sgd = StochasticGradientDescent(learning_rate=0.01, n_iterations=100)
+model_sgd.fit(X, y)
+
+# 小批量梯度下降
+model_mbgd = MiniBatchGradientDescent(learning_rate=0.1, n_iterations=1000, batch_size=32)
+model_mbgd.fit(X, y)
+```
+
 ## 核心API
 
 ### LogisticRegression类
@@ -140,6 +239,8 @@ print(classification_report(y_true, y_pred))
 | f1_score(y_true, y_pred) | F1分数 |
 | confusion_matrix(y_true, y_pred) | 混淆矩阵 |
 | classification_report(y_true, y_pred) | 分类报告 |
+| roc_curve(y_true, y_scores) | ROC曲线 |
+| auc_score(fpr, tpr) | AUC分数 |
 
 ## 学习目标
 
@@ -153,7 +254,7 @@ print(classification_report(y_true, y_pred))
 2. **损失函数**
    - 交叉熵损失的推导
    - 为什么选择交叉熵而非MSE
-   - L2正则化
+   - L1/L2正则化
 
 3. **优化算法**
    - 梯度下降原理
@@ -163,24 +264,15 @@ print(classification_report(y_true, y_pred))
 4. **评估指标**
    - 混淆矩阵
    - 准确率、精确率、召回率、F1
-   - 不同指标的适用场景
-
-## 与scikit-learn对比
-
-本项目实现与scikit-learn的LogisticRegression对比：
-
-```python
-from examples.compare_sklearn import main
-main()
-```
+   - ROC曲线和AUC
 
 ## 文档说明
 
-- [调研报告](docs/01-RESEARCH.md)：算法原理与背景
-- [设计文档](docs/02-DESIGN.md)：架构设计与接口定义
-- [实现细节](docs/03-IMPLEMENTATION.md)：核心代码解析
-- [测试文档](docs/04-TESTING.md)：测试策略与用例
-- [开发日志](docs/05-DEVELOPMENT.md)：开发过程记录
+- [调研报告](docs/01_RESEARCH.md)：算法原理与背景
+- [需求分析](docs/02_REQUIREMENTS.md)：功能需求与算法清单
+- [技术设计](docs/03_DESIGN.md)：架构设计与接口定义
+- [产品思考](docs/04_PRODUCT.md)：学习目标与关键要点
+- [开发手册](docs/05_DEVELOPMENT.md)：环境配置与运行方式
 
 ## 参考资源
 

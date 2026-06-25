@@ -6,6 +6,7 @@
 - 线性核 (Linear Kernel): K(x, y) = x · y
 - RBF 核 (Radial Basis Function): K(x, y) = exp(-gamma * ||x - y||^2)
 - 多项式核 (Polynomial Kernel): K(x, y) = (x · y + coef0)^degree
+- Sigmoid 核 (Sigmoid Kernel): K(x, y) = tanh(gamma * x · y + coef0)
 
 核函数的作用是将数据映射到高维空间，使得在低维空间中线性不可分的数据
 在高维空间中变得线性可分。这就是"核技巧"(Kernel Trick)。
@@ -76,6 +77,33 @@ def polynomial_kernel(
 
     def kernel(x: np.ndarray, y: np.ndarray) -> float:
         return (np.dot(x, y) + coef0) ** degree
+    return kernel
+
+
+def sigmoid_kernel(
+    gamma: float = 1.0,
+    coef0: float = 0.0
+) -> Callable[[np.ndarray, np.ndarray], float]:
+    """
+    Sigmoid 核函数: K(x, y) = tanh(gamma * x · y + coef0)
+
+    Sigmoid 核来源于神经网络中的激活函数，它与感知机模型有密切联系。
+    当参数选取适当时，Sigmoid 核的行为类似于 RBF 核。
+    该核函数在某些条件下不满足 Mercer 条件，因此其核矩阵可能不是半正定的，
+    但在实际应用中仍然广泛使用。
+
+    参数:
+        gamma: 核函数的缩放参数，必须为正数
+        coef0: 核函数的偏移参数
+
+    返回:
+        核函数，接受两个向量，返回它们的 Sigmoid 核值
+    """
+    if gamma <= 0:
+        raise ValueError("gamma 必须为正数")
+
+    def kernel(x: np.ndarray, y: np.ndarray) -> float:
+        return np.tanh(gamma * np.dot(x, y) + coef0)
     return kernel
 
 

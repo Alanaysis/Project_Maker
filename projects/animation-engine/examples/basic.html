@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animation Engine - Basic Example</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 { margin-bottom: 30px; color: #e94560; }
+    .stage {
+      width: 600px;
+      height: 400px;
+      background: #16213e;
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 30px;
+      border: 2px solid #0f3460;
+    }
+    .box {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      position: absolute;
+      top: 50%;
+      left: 50px;
+      transform: translateY(-50%);
+    }
+    .box-1 { background: #e94560; }
+    .box-2 { background: #0f3460; top: 30%; }
+    .box-3 { background: #533483; top: 70%; }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      background: #e94560;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    button:hover { background: #c73e54; }
+    button:disabled { background: #555; cursor: not-allowed; }
+    .info {
+      background: #16213e;
+      padding: 15px 20px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      width: 600px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Animation Engine - Basic Example</h1>
+
+  <div class="stage">
+    <div class="box box-1" id="box1"></div>
+    <div class="box box-2" id="box2"></div>
+    <div class="box box-3" id="box3"></div>
+  </div>
+
+  <div class="controls">
+    <button id="btnPlay">Play</button>
+    <button id="btnPause">Pause</button>
+    <button id="btnResume">Resume</button>
+    <button id="btnReset">Reset</button>
+  </div>
+
+  <div class="info" id="info">Ready. Click "Play" to start animations.</div>
+
+  <script type="module">
+    // Import from built source (in real usage, use npm package)
+    // For this demo, we inline the core logic
+
+    // ============================================================
+    // Easing Functions
+    // ============================================================
+    const linear = t => t;
+    const easeOutCubic = t => (--t) * t * t + 1;
+    const easeOutBounce = t => {
+      const n1 = 7.5625, d1 = 2.75;
+      if (t < 1/d1) return n1*t*t;
+      if (t < 2/d1) return n1*(t-=1.5/d1)*t+0.75;
+      if (t < 2.5/d1) return n1*(t-=2.25/d1)*t+0.9375;
+      return n1*(t-=2.625/d1)*t+0.984375;
+    };
+    const easeOutElastic = t => {
+      if (t===0||t===1) return t;
+      return Math.pow(2,-10*t)*Math.sin((t-0.075)*(2*Math.PI)/0.3)+1;
+    };
+
+    // ============================================================
+    // Simple Animation Runner
+    // ============================================================
+    class SimpleAnimation {
+      constructor(config) {
+        this.element = config.element;
+        this.from = config.from;
+        this.to = config.to;
+        this.duration = config.duration;
+        this.easing = config.easing || easeOutCubic;
+        this.onUpdate = config.onUpdate;
+        this.progress = 0;
+        this.running = false;
+        this.startTime = 0;
+      }
+
+      start() {
+        this.running = true;
+        this.startTime = performance.now();
+        this.loop();
+      }
+
+      pause() { this.running = false; }
+
+      loop() {
+        if (!this.running) return;
+        const elapsed = performance.now() - this.startTime;
+        const raw = Math.min(elapsed / this.duration, 1);
+        const eased = this.easing(raw);
+        this.progress = eased;
+
+        // Apply styles
+        for (const [key, [from, to]] of Object.entries(this.from).map(
+          (k, i) => [k, [Object.values(this.from)[i], Object.values(this.to)[i]]]
+        )) {
+          // Simplified: just handle transform translateX
+        }
+
+        // Manual style application for demo
+        const x = this.from.x + (this.to.x - this.from.x) * eased;
+        const y = this.from.y + (this.to.y - this.from.y) * eased;
+        const scale = this.from.scale + (this.to.scale - this.from.scale) * eased;
+        const opacity = this.from.opacity + (this.to.opacity - this.from.opacity) * eased;
+
+        this.element.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+        this.element.style.opacity = opacity;
+
+        this.onUpdate?.(raw, eased);
+
+        if (raw < 1) {
+          requestAnimationFrame(() => this.loop());
+        }
+      }
+    }
+
+    // ============================================================
+    // Demo
+    // ============================================================
+    const box1 = document.getElementById('box1');
+    const box2 = document.getElementById('box2');
+    const box3 = document.getElementById('box3');
+    const info = document.getElementById('info');
+
+    let anim1, anim2, anim3;
+
+    function createAnimations() {
+      anim1 = new SimpleAnimation({
+        element: box1,
+        from: { x: 0, y: 0, scale: 1, opacity: 1 },
+        to: { x: 450, y: 0, scale: 1.5, opacity: 0.7 },
+        duration: 2000,
+        easing: easeOutBounce,
+        onUpdate: (raw, eased) => {
+          updateInfo(`Box 1 (Bounce): raw=${raw.toFixed(2)} eased=${eased.toFixed(2)}`);
+        },
+      });
+
+      anim2 = new SimpleAnimation({
+        element: box2,
+        from: { x: 0, y: 0, scale: 1, opacity: 1 },
+        to: { x: 450, y: 50, scale: 0.5, opacity: 0.5 },
+        duration: 1500,
+        easing: easeOutElastic,
+      });
+
+      anim3 = new SimpleAnimation({
+        element: box3,
+        from: { x: 0, y: 0, scale: 1, opacity: 1 },
+        to: { x: 450, y: -50, scale: 2, opacity: 0.3 },
+        duration: 1000,
+        easing: easeOutCubic,
+      });
+    }
+
+    function updateInfo(text) {
+      info.textContent = text;
+    }
+
+    document.getElementById('btnPlay').addEventListener('click', () => {
+      createAnimations();
+      anim1.start();
+      anim2.start();
+      anim3.start();
+      updateInfo('Animations started...');
+    });
+
+    document.getElementById('btnPause').addEventListener('click', () => {
+      anim1?.pause();
+      anim2?.pause();
+      anim3?.pause();
+      updateInfo('Animations paused.');
+    });
+
+    document.getElementById('btnResume').addEventListener('click', () => {
+      if (anim1) { anim1.start(); anim2.start(); anim3.start(); }
+      updateInfo('Animations resumed.');
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      [box1, box2, box3].forEach(box => {
+        box.style.transform = '';
+        box.style.opacity = '1';
+      });
+      updateInfo('Reset. Click "Play" to start again.');
+    });
+  </script>
+</body>
+</html>

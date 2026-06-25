@@ -113,6 +113,141 @@ The processor achieves exactly-once by:
 2. Recording the result AFTER successful processing
 3. Using the same IdempotencyKey for all deliveries of the same operation
 
+## Consume Implementation
+
+### Manual Acknowledgment Flow
+
+```go
+func (c *Consumer) Process(msg *Message) error {
+    cm := c.Receive(msg)  // Register as PENDING
+
+    err := c.handler(cm)
+    if err != nil {
+        cm.LastError = err.Error()
+        return c.handleFailure(cm, err)
+    }
+
+    c.Ack(cm)  // Mark as ACKED
+    return nil
+}
+```
+
+### Retry with Backoff
+
+```go
+func (rp RetryPolicy) Backoff(attempt int) time.Duration {
+    backoff := rp.InitialBackoff
+    for i := 0; i < attempt; i++ {
+        backoff = time.Duration(float64(backoff) * rp.BackoffMultiplier)
+        if backoff > rp.MaxBackoff {
+            return rp.MaxBackoff
+        }
+    }
+    return backoff
+}
+```
+
+Exponential backoff prevents overwhelming downstream systems during retries.
+
+### Batch Processing
+
+```go
+func (bc *BatchConsumer) ProcessBatch() error {
+    batch := bc.pending
+    bc.pending = make([]*ConsumedMessage, 0)
+
+    for _, cm := range batch {
+        if err := bc.handler(cm); err != nil {
+            cm.AckStatus = AckStatusNacked
+            failedMsgs = append(failedMsgs, cm)
+        } else {
+            cm.AckStatus = AckStatusAcked
+        }
+    }
+
+    // Return error if any messages in batch failed
+    if len(failedMsgs) > 0 {
+        return fmt.Errorf("batch partially failed: %d/%d", len(failedMsgs), len(batch))
+    }
+    return nil
+}
+```
+
+### Dead Letter Queue
+
+Messages that exhaust all retries are marked as `REJECTED` and can be routed to a dead letter queue:
+
+```go
+consume.New(handler,
+    consume.WithOnReject(func(msg *ConsumedMessage) {
+        dlq.Add(msg)  // Route to dead letter queue
+    }),
+)
+```
+
+## Outbox Implementation
+
+### Transactional Outbox Pattern
+
+```go
+// 1. Save business data AND outbox message in same transaction
+outbox.Save("entry-001", "orders", msg, "txn-001")
+
+// 2. After transaction commits, publish outbox entries
+outbox.PublishPending()
+```
+
+### Outbox Entry State Machine
+
+```
+PENDING ──▶ PUBLISHING ──▶ PUBLISHED
+    │            │
+    │            ▼
+    └──────── FAILED (retry up to max)
+                 │
+                 └──▶ FAILED (exhausted)
+```
+
+### Publisher Interface
+
+```go
+type Publisher func(topic string, msg *Message) error
+
+outbox := outbox.New(outbox.WithPublisher(func(topic string, msg *Message) error {
+    // Publish to message broker (Kafka, RabbitMQ, etc.)
+    return broker.Publish(topic, msg)
+}))
+```
+
+### TransactionalOutbox Integration
+
+```go
+to := outbox.NewTransactionalOutbox(ob)
+
+// Begin transaction
+txn := to.Begin("txn-001")
+
+// Add business logic
+txn.Add(&transaction.Operation{
+    Name: "update-order",
+    Execute: func() (interface{}, error) {
+        return db.UpdateOrder(orderID, "confirmed")
+    },
+    Undo: func() error {
+        return db.UpdateOrder(orderID, "pending")
+    },
+})
+
+// Save event to outbox
+to.SaveMessage("txn-001", "out-001", "order-events", eventMsg)
+
+// Execute transaction atomically
+txn.Execute()
+
+// Publish outbox entries (async in production)
+to.PublishOutbox()
+```
+
 ## Transaction Implementation
 
 ### Two-Phase Commit
@@ -196,7 +331,9 @@ func (t *Tracker) GetByState(state State) []string {
 
 - Each dedup entry: ~200 bytes
 - Each tracking record: ~500 bytes + events
-- With 10K messages: ~7MB total
+- Each outbox entry: ~300 bytes
+- Each consumed message: ~250 bytes
+- With 10K messages: ~12MB total
 
 ### Concurrency
 
@@ -221,3 +358,5 @@ func (t *Tracker) GetByState(state State) []string {
 4. **Best-effort rollback**: Failed undo operations are logged but not retried. Production systems would need compensating transactions.
 
 5. **No message ordering**: Messages are processed in arrival order but there's no global ordering guarantee.
+
+6. **Synchronous outbox relay**: In production, the outbox relay would run as a separate goroutine or process.

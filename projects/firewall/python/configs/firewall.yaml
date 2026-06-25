@@ -1,0 +1,38 @@
+# 防火墙配置文件
+
+# 基本配置
+name: PythonFirewall
+version: "1.0.0"
+
+# 日志配置
+log_dir: logs
+log_level: info  # debug, info, warning, error
+
+# 连接配置
+max_connections: 10000
+
+# 规则文件
+rules_file: rules.json
+
+# 功能开关
+enable_stateful: true  # 启用状态检测
+enable_ids: true       # 启用入侵检测
+
+# 默认动作 (accept 或 drop)
+default_action: drop
+
+# 监听接口
+interfaces:
+  - eth0
+
+# 超时配置 (秒)
+timeouts:
+  tcp: 300      # TCP 连接超时
+  udp: 60       # UDP 超时
+  icmp: 30      # ICMP 超时
+
+# 入侵检测配置
+ids:
+  max_connections_per_minute: 100  # 每分钟最大连接数
+  max_ports_per_minute: 20         # 每分钟最大端口扫描数
+  syn_flood_threshold: 1000        # SYN Flood 阈值

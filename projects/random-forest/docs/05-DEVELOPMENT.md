@@ -22,22 +22,30 @@ pip install numpy pytest
 
 ```
 random-forest/
-├── README.md                    # 项目说明
-├── LEARNING_NOTES.md            # 学习笔记
+├── README.md                           # 项目说明
+├── LEARNING_NOTES.md                   # 学习笔记
 ├── docs/
-│   ├── 01-RESEARCH.md          # 调研文档
-│   ├── 02-DESIGN.md            # 设计文档
-│   ├── 03-IMPLEMENTATION.md    # 实现文档
-│   ├── 04-TESTING.md           # 测试文档
-│   └── 05-DEVELOPMENT.md       # 开发文档 (本文件)
+│   ├── 01-RESEARCH.md                 # 调研文档
+│   ├── 02-DESIGN.md                   # 设计文档
+│   ├── 03-IMPLEMENTATION.md           # 实现文档
+│   ├── 04-TESTING.md                  # 测试文档
+│   └── 05-DEVELOPMENT.md              # 开发文档 (本文件)
 ├── src/
 │   ├── __init__.py
-│   ├── decision_tree.py        # 决策树实现
-│   └── random_forest.py        # 随机森林实现
-└── tests/
-    ├── __init__.py
-    ├── test_decision_tree.py    # 决策树测试
-    └── test_random_forest.py    # 随机森林测试
+│   ├── decision_tree.py               # 决策树分类器
+│   ├── random_forest.py               # 随机森林分类器
+│   ├── random_forest_regressor.py     # 决策树回归器 + 随机森林回归器
+│   └── evaluation.py                  # 评估指标模块
+├── tests/
+│   ├── __init__.py
+│   ├── test_decision_tree.py          # 决策树测试 (21 tests)
+│   ├── test_random_forest.py          # 随机森林分类器测试 (19 tests)
+│   ├── test_random_forest_regressor.py # 回归器测试 (21 tests)
+│   └── test_evaluation.py             # 评估指标测试 (42 tests)
+└── examples/
+    ├── iris_classification.py          # 鸢尾花分类实战
+    ├── house_price_prediction.py       # 房价预测实战
+    └── feature_importance_analysis.py  # 特征重要性分析
 ```
 
 ## 3. 开发流程
@@ -174,13 +182,14 @@ feature_importances = sum(tree.feature_importances_ for tree in trees) / n_trees
 
 ## 7. 扩展计划
 
-### 7.1 短期扩展
+### 7.1 已完成
 
-- [ ] 回归支持 (RandomForestRegressor)
-- [ ] 更多分裂准则
-- [ ] 特征重要性的置换方法
+- [x] 回归支持 (DecisionTreeRegressor + RandomForestRegressor)
+- [x] 特征重要性的置换方法 (permutation_importance)
+- [x] 模型评估模块 (accuracy, precision, recall, F1, MSE, RMSE, MAE, R2)
+- [x] 实际应用示例 (鸢尾花分类, 房价预测, 特征重要性分析)
 
-### 7.2 长期扩展
+### 7.2 未来扩展
 
 - [ ] 并行训练 (n_jobs)
 - [ ] 增量学习

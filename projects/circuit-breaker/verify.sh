@@ -29,6 +29,8 @@ source_files=(
     "src/states.go"
     "src/metrics.go"
     "src/fallback.go"
+    "src/ratelimiter.go"
+    "src/retry.go"
 )
 
 for file in "${source_files[@]}"; do
@@ -47,6 +49,8 @@ test_files=(
     "tests/circuit_breaker_test.go"
     "tests/states_test.go"
     "tests/metrics_test.go"
+    "tests/ratelimiter_test.go"
+    "tests/retry_test.go"
 )
 
 for file in "${test_files[@]}"; do
@@ -83,11 +87,18 @@ echo ""
 
 # 检查示例文件
 echo "5. 检查示例文件..."
-if [ -f "examples/main.go" ]; then
-    echo "   ✓ examples/main.go 存在"
-else
-    echo "   ✗ examples/main.go 缺失"
-fi
+example_files=(
+    "examples/main.go"
+    "examples/api_gateway.go"
+)
+
+for file in "${example_files[@]}"; do
+    if [ -f "$file" ]; then
+        echo "   ✓ $file 存在"
+    else
+        echo "   ✗ $file 缺失"
+    fi
+done
 
 echo ""
 

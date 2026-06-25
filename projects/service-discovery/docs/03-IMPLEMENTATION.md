@@ -183,6 +183,37 @@ func (d *Discoverer) GetServices(name) []*Service {
 }
 ```
 
+### Tag-Based Filtering
+
+Filter services by metadata tags (AND logic):
+```go
+func (d *Discoverer) GetServicesByTags(name string, tags map[string]string) []*Service {
+    for _, svc := range d.services[name] {
+        if svc.Status != StatusUp {
+            continue
+        }
+        if matchTags(svc, tags) {
+            result = append(result, svc)
+        }
+    }
+    return result
+}
+
+func matchTags(svc *Service, tags map[string]string) bool {
+    for k, v := range tags {
+        if svc.Metadata[k] != v {
+            return false
+        }
+    }
+    return true
+}
+```
+
+Use cases:
+- Environment routing: `env=prod` vs `env=staging`
+- Version routing: `version=2.0` for API versioning
+- Canary deployments: `canary=true` for testing new releases
+
 ## Load Balancer Implementation
 
 ### Round Robin

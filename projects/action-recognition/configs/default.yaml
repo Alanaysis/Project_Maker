@@ -1,0 +1,48 @@
+# Action Recognition - Default Configuration
+
+# Data
+data:
+  root: "data"
+  num_frames: 8
+  frame_size: [224, 224]
+  sampler:
+    strategy: "uniform"
+    stride: 1
+
+# Model
+model:
+  backbone: "resnet18"
+  pretrained: true
+  temporal_arch: "lstm"
+  hidden_dim: 256
+  num_layers: 2
+  dropout: 0.3
+  freeze_backbone: false
+
+# Training
+training:
+  batch_size: 8
+  epochs: 30
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler:
+    type: "step"
+    step_size: 10
+    gamma: 0.5
+
+# Evaluation
+evaluation:
+  top_k: 5
+  batch_size: 16
+
+# System
+system:
+  device: null  # auto-detect
+  num_workers: 4
+  seed: 42
+
+# Logging
+logging:
+  log_interval: 10
+  save_dir: "checkpoints"
+  save_best: true

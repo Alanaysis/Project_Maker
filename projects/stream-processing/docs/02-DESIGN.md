@@ -235,11 +235,103 @@ This enables pipelining: Op1 can process event N+1 while Op2 processes event N.
 | Map-keyed state | Simple | No automatic cleanup |
 | Epoch-aligned windows | Deterministic | May not match business logic |
 
+## Time Semantics
+
+### Time Characteristics
+
+Three modes for time progression:
+
+| Mode | Source | Use Case |
+|------|--------|----------|
+| ProcessingTime | System clock | Simple, low latency |
+| EventTime | Event timestamp | Deterministic, handles out-of-order |
+| IngestionTime | Ingestion time | Middle ground |
+
+### Watermark
+
+Tracks event-time progress:
+
+```go
+type Watermark struct {
+    currentTime       time.Time
+    maxOutOfOrderness time.Duration
+}
+```
+
+The watermark is computed as: `max(event_timestamps) - maxOutOfOrderness`
+
+When `watermark >= window.End`, the window is complete.
+
+### Late Events
+
+Events arriving after the watermark are "late":
+
+| Policy | Behavior |
+|--------|----------|
+| DropLateEvents | Discard late events |
+| AllowLateEvents | Process within allowed lateness |
+| SideOutputLateEvents | Send to side output |
+
+## Data Sources
+
+### Source Interface
+
+```go
+type Source interface {
+    Name() string
+    Open() (*Stream, error)
+    Stop() error
+}
+```
+
+### Implementations
+
+| Source | Data | Key Feature |
+|--------|------|-------------|
+| FileSource | Files | Configurable parsing |
+| SocketSource | TCP/UDP | Real-time ingestion |
+| KafkaSource | Kafka topics | Mock for testing |
+
+## State Management
+
+### KeyedState
+
+Per-key state with checkpointing:
+
+```go
+type KeyedState struct {
+    states   map[string]*StateStore
+    metadata map[string]KeyMetadata
+}
+```
+
+Features:
+- Per-key state isolation
+- Snapshot/restore for checkpointing
+- Automatic key expiration
+
+### CheckpointManager
+
+Periodic state checkpointing:
+
+```go
+type CheckpointManager struct {
+    stores      []Checkpointable
+    interval    time.Duration
+    retention   int
+    checkpoints []*Checkpoint
+}
+```
+
+Features:
+- Configurable interval and retention
+- Manual and automatic triggers
+- Combined snapshots across multiple stores
+
 ## Future Extensions
 
 1. **Generics**: Replace `interface{}` with type parameters
-2. **Checkpointing**: Periodic state snapshots for fault tolerance
-3. **Session Windows**: Gap-based dynamic windows
-4. **Joins**: Combine multiple input streams
-5. **Triggers**: Custom window firing policies
-6. **Metrics**: Operator-level latency and throughput tracking
+2. **Joins**: Combine multiple input streams
+3. **Triggers**: Custom window firing policies
+4. **Metrics**: Operator-level latency and throughput tracking
+5. **Distributed Execution**: Multi-node support

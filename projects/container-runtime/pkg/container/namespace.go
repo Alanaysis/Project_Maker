@@ -10,13 +10,6 @@
 // - Network: 网络栈隔离
 // - User: 用户和组 ID 隔离
 // - Cgroup: Cgroup 根目录隔离
-//
-// 💡 思考：为什么需要这些隔离？
-// - PID: 容器只能看到自己的进程
-// - Mount: 容器有自己的文件系统视图
-// - UTS: 容器有自己的主机名
-// - IPC: 容器间通信隔离
-// - Network: 容器有自己的网络栈
 package container
 
 import (
@@ -46,14 +39,14 @@ const (
 
 // Mount 标志
 const (
-	MS_BIND     = 4096
-	MS_REC      = 16384
-	MS_PRIVATE  = 1 << 18
-	MS_RDONLY   = 1
-	MS_NOSUID   = 2
-	MS_NODEV    = 4
+	MS_BIND        = 4096
+	MS_REC         = 16384
+	MS_PRIVATE     = 1 << 18
+	MS_RDONLY      = 1
+	MS_NOSUID      = 2
+	MS_NODEV       = 4
 	MS_STRICTATIME = 1 << 24
-	MNT_DETACH  = 2
+	MNT_DETACH     = 2
 )
 
 // 设备类型
@@ -61,10 +54,8 @@ const (
 	S_IFCHR = 0020000
 )
 
-// getNamespaceFlags 将 namespace 名称转换为 clone 系统调用的标志
-//
-// ⭐ 重点：这些标志对应 clone() 系统调用的 CLONE_NEW* 参数
-func getNamespaceFlags(namespaces []string) uintptr {
+// GetNamespaceFlags 将 namespace 名称转换为 clone 系统调用的标志
+func GetNamespaceFlags(namespaces []string) uintptr {
 	var flags uintptr
 
 	for _, ns := range namespaces {
@@ -92,6 +83,7 @@ func getNamespaceFlags(namespaces []string) uintptr {
 // SetupNamespaces 在容器子进程中设置命名空间
 //
 // ⭐ 重点：这个函数在容器进程内部执行，设置隔离环境
+// 它由 child 命令调用，此时进程已经在新的 namespace 中
 func SetupNamespaces(config *ContainerConfig) error {
 	// 1. 设置主机名（UTS namespace）
 	if contains(config.Namespaces, NamespaceUTS) {
@@ -107,6 +99,11 @@ func SetupNamespaces(config *ContainerConfig) error {
 		}
 	}
 
+	// 3. 处理用户自定义挂载点
+	if err := setupVolumeMounts(config); err != nil {
+		return fmt.Errorf("failed to setup volume mounts: %w", err)
+	}
+
 	return nil
 }
 
@@ -115,15 +112,17 @@ func SetupNamespaces(config *ContainerConfig) error {
 // ⭐ 重点：这是容器文件系统隔离的关键
 //
 // 步骤：
-// 1. 创建新的 mount namespace
-// 2. 重新挂载 /proc, /sys, /dev 等
-// 3. 切换根文件系统（pivot_root）
-// 4. 卸载旧的根文件系统
+// 1. 重新挂载根文件系统为私有，防止挂载传播
+// 2. 绑定挂载新的根文件系统
+// 3. 挂载 /proc, /sys, /dev
+// 4. 创建设备节点
+// 5. 使用 pivot_root 切换根文件系统
+// 6. 卸载旧的根文件系统
 func setupMountNamespace(config *ContainerConfig) error {
 	// 获取新的根文件系统路径
 	newRoot := config.RootFS
 	if newRoot == "" {
-		newRoot = filepath.Join("/var/lib/minicontainer/rootfs", config.ID)
+		newRoot = filepath.Join("/var/lib/minicontainer/merged", config.ID)
 	}
 
 	// 确保新根目录存在
@@ -136,7 +135,7 @@ func setupMountNamespace(config *ContainerConfig) error {
 		return fmt.Errorf("failed to make root private: %w", err)
 	}
 
-	// 挂载新的根文件系统
+	// 挂载新的根文件系统（绑定挂载）
 	if err := mount(newRoot, newRoot, "", MS_BIND|MS_REC, ""); err != nil {
 		return fmt.Errorf("failed to bind mount rootfs: %w", err)
 	}
@@ -150,20 +149,20 @@ func setupMountNamespace(config *ContainerConfig) error {
 		}
 	}
 
-	// 挂载 /proc
+	// 挂载 /proc（容器内进程信息）
 	procPath := filepath.Join(newRoot, "proc")
 	if err := mount("proc", procPath, "proc", 0, ""); err != nil {
 		return fmt.Errorf("failed to mount proc: %w", err)
 	}
 
-	// 挂载 /sys
+	// 挂载 /sys（内核信息）
 	sysPath := filepath.Join(newRoot, "sys")
 	if err := mount("sysfs", sysPath, "sysfs", MS_RDONLY, ""); err != nil {
 		// sysfs 挂载可能失败，忽略
 		fmt.Printf("Warning: failed to mount sysfs: %v\n", err)
 	}
 
-	// 挂载 /dev
+	// 挂载 /dev（设备文件）
 	devPath := filepath.Join(newRoot, "dev")
 	if err := mount("tmpfs", devPath, "tmpfs", MS_NOSUID|MS_STRICTATIME, "mode=755"); err != nil {
 		return fmt.Errorf("failed to mount dev: %w", err)
@@ -174,7 +173,7 @@ func setupMountNamespace(config *ContainerConfig) error {
 		return fmt.Errorf("failed to create dev nodes: %w", err)
 	}
 
-	// 切换根文件系统
+	// 切换根文件系统（pivot_root）
 	oldRoot := filepath.Join(newRoot, "oldroot")
 	if err := pivotRoot(newRoot, oldRoot); err != nil {
 		return fmt.Errorf("failed to pivot_root: %w", err)
@@ -192,7 +191,50 @@ func setupMountNamespace(config *ContainerConfig) error {
 
 	// 删除旧根目录
 	if err := os.Remove("/oldroot"); err != nil {
-		return fmt.Errorf("failed to remove oldroot: %w", err)
+		// 忽略错误
+	}
+
+	return nil
+}
+
+// setupVolumeMounts 设置用户自定义的卷挂载
+//
+// ⭐ 重点：卷挂载允许容器访问宿主机的目录
+// 这是容器持久化存储和数据共享的基础
+func setupVolumeMounts(config *ContainerConfig) error {
+	for _, m := range config.Mounts {
+		// 确保容器内的挂载点存在
+		if err := os.MkdirAll(m.Destination, 0755); err != nil {
+			return fmt.Errorf("failed to create mount point %s: %w", m.Destination, err)
+		}
+
+		// 根据挂载类型处理
+		switch m.Type {
+		case "bind":
+			// 绑定挂载：将宿主机目录挂载到容器内
+			flags := uintptr(MS_BIND | MS_REC)
+			for _, opt := range m.Options {
+				switch opt {
+				case "ro":
+					flags |= uintptr(MS_RDONLY)
+				}
+			}
+			if err := mount(m.Source, m.Destination, "", flags, ""); err != nil {
+				return fmt.Errorf("failed to bind mount %s -> %s: %w",
+					m.Source, m.Destination, err)
+			}
+		case "tmpfs":
+			// tmpfs 挂载：内存文件系统
+			if err := mount("tmpfs", m.Destination, "tmpfs", uintptr(MS_NOSUID|MS_NODEV), ""); err != nil {
+				return fmt.Errorf("failed to mount tmpfs on %s: %w", m.Destination, err)
+			}
+		default:
+			// 默认为绑定挂载
+			if err := mount(m.Source, m.Destination, "", uintptr(MS_BIND|MS_REC), ""); err != nil {
+				return fmt.Errorf("failed to mount %s -> %s: %w",
+					m.Source, m.Destination, err)
+			}
+		}
 	}
 
 	return nil
@@ -241,10 +283,8 @@ func createDevNodes(devPath string) error {
 
 // JoinNamespace 加入已存在的命名空间
 //
-// 💡 思考：什么时候需要加入已存在的命名空间？
-// - 容器 exec 命令
-// - 容器调试
-// - 容器网络配置
+// ⭐ 重点：这是 exec 命令的核心机制
+// 通过 setns() 加入容器的 namespace，然后在容器环境中执行命令
 func JoinNamespace(pid int, namespace string) error {
 	nsPath := fmt.Sprintf("/proc/%d/ns/%s", pid, namespace)
 

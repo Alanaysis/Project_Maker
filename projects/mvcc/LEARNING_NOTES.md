@@ -1,280 +1,198 @@
-# 学习笔记：MVCC 并发控制
+# MVCC 并发控制 - 学习笔记
 
-## 核心概念
+## 核心概念理解
 
-### 什么是 MVCC？
+### 1. MVCC 的本质
 
-MVCC（Multi-Version Concurrency Control）是一种并发控制方法，通过维护数据的多个版本来实现事务隔离。
+MVCC 的核心思想是: **用空间换时间**。
 
-**核心思想**:
-- 每个写操作创建一个新版本，而不是覆盖旧版本
-- 读操作根据时间戳读取特定版本
-- 读写操作互不阻塞
+传统锁机制中，读写操作需要互相等待:
+- 读操作需要获取共享锁，阻塞写操作
+- 写操作需要获取排他锁，阻塞读操作
 
-### 为什么需要 MVCC？
+MVCC 通过维护数据的多个版本，让读操作看到某个时间点的快照，从而实现:
+- 读操作不阻塞写操作
+- 写操作不阻塞读操作
 
-**传统锁机制的问题**:
-```
-Writer 持有写锁 → Reader 必须等待
-Reader 持有读锁 → Writer 必须等待
-→ 系统吞吐量下降
-```
+### 2. 版本链的作用
 
-**MVCC 的优势**:
-```
-Writer 写入新版本 → Reader 读取旧版本
-→ 读写不阻塞 → 高并发
-```
-
-## 关键概念
-
-### 1. 版本（Version）
-
-每个数据项有多个版本：
+版本链是 MVCC 的数据基础。每条数据记录都有一个版本链，存储该数据的所有历史版本。
 
 ```
-Key: "balance"
-  Version 1: $1000  (txn=1, ts=10)
-  Version 2: $1500  (txn=2, ts=15)
-  Version 3: $1200  (txn=3, ts=20)
+版本链结构 (新版本在前):
+  v3 (ts=6) → v2 (ts=4) → v1 (ts=1)
+
+查找快照 ts=3 时的可见版本:
+  v3: ts=6 > 3，不可见
+  v2: ts=4 > 3，不可见
+  v1: ts=1 <= 3，可见！
 ```
 
-### 2. 时间戳（Timestamp）
+### 3. 快照隔离的实现
 
-每个事务有两个时间戳：
-- **Start Timestamp**: 事务开始时的快照时间戳
-- **Commit Timestamp**: 事务提交时获得的时间戳
-
-### 3. 快照（Snapshot）
-
-事务在开始时获取一个一致性快照：
-- 看到所有在 Start Timestamp 之前提交的事务的修改
-- 看不到在 Start Timestamp 之后提交的事务的修改
-- 看不到未提交事务的修改
-
-### 4. 可见性（Visibility）
-
-版本 V 对事务 T 可见的条件：
-1. V.CreatedAt <= T.StartTimestamp
-2. V 未被删除，或 V.DeletedAt > T.StartTimestamp
-3. V.CreatedBy 已提交
-
-### 5. 冲突（Conflict）
-
-写写冲突：两个事务同时修改同一个 key
+快照隔离的关键是在事务开始时捕获数据库状态:
 
 ```
-T1 (read_ts=1): Read(key) → v1
-T2 (read_ts=2): Read(key) → v2
-T1: Write(key, new_val) → Commit OK
-T2: Write(key, another_val) → Commit FAIL (conflict)
-```
-
-## 实现细节
-
-### 1. 版本存储
-
-使用 `map[string][]*Version` 存储：
-
-```go
-type Store struct {
-    versions map[string][]*Version  // key -> 版本链
+快照 = {
+  timestamp: 5,           # 快照时间戳
+  active_txns: {2, 3, 4}  # 活跃事务集合
 }
 ```
 
-**版本链按创建时间排序**，便于查找。
+可见性判断:
+1. 创建事务在活跃集合中 → 不可见（事务还未提交）
+2. 创建时间 > 快照时间 → 不可见（未来版本）
+3. 已被删除且删除时间 <= 快照时间 → 不可见
 
-### 2. 读取操作
+### 4. 写缓冲的意义
 
-```go
-func (s *Store) Get(key string, readTimestamp uint64) ([]byte, bool) {
-    versions := s.versions[key]
-    // 从最新版本向旧版本搜索
-    for i := len(versions) - 1; i >= 0; i-- {
-        v := versions[i]
-        if v.IsVisible(readTimestamp) {
-            return v.Value, true
-        }
-    }
-    return nil, false
-}
-```
-
-**优化**: 从最新版本开始搜索，通常能快速找到可见版本。
-
-### 3. 写入操作
-
-```go
-func (s *Store) Put(key string, value []byte, txnID uint64, timestamp uint64) {
-    version := &Version{
-        Key:       key,
-        Value:     value,
-        CreatedBy: txnID,
-        CreatedAt: timestamp,
-        Status:    VersionActive,
-    }
-    s.versions[key] = append(s.versions[key], version)
-}
-```
-
-**注意**: 写入操作创建新版本，不覆盖旧版本。
-
-### 4. 删除操作
-
-使用 tombstone（墓碑）标记删除：
-
-```go
-func (s *Store) Delete(key string, txnID uint64, timestamp uint64) bool {
-    for i := len(versions) - 1; i >= 0; i-- {
-        v := versions[i]
-        if v.Status == VersionActive && v.CreatedAt <= timestamp {
-            v.DeletedBy = txnID
-            v.DeletedAt = timestamp
-            v.Status = VersionDeleted
-            return true
-        }
-    }
-    return false
-}
-```
-
-**注意**: 删除操作不直接删除版本，而是标记为已删除。
-
-### 5. 冲突检测
-
-```go
-func (s *Store) HasConflict(key string, readTimestamp uint64, txnID uint64) bool {
-    for _, v := range s.versions[key] {
-        // 其他事务在本事务开始后写入了该 key
-        if v.CreatedBy != txnID && v.CreatedAt > readTimestamp {
-            return true
-        }
-    }
-    return false
-}
-```
-
-**时机**: 冲突检测在提交时进行。
-
-### 6. 垃圾回收
-
-```go
-func (s *Store) RemoveVersions(minActiveTimestamp uint64) int {
-    for key, versions := range s.versions {
-        var remaining []*Version
-        for _, v := range versions {
-            if v.CreatedAt >= minActiveTimestamp || v.Status == VersionActive {
-                remaining = append(remaining, v)
-            } else {
-                removed++
-            }
-        }
-        s.versions[key] = remaining
-    }
-    return removed
-}
-```
-
-**SafePoint**: min(所有活跃事务的 StartTimestamp)
-
-## 隔离级别
-
-### Read Uncommitted
-
-最低隔离级别，允许读取未提交的数据。
-
-### Read Committed
-
-只读取已提交的数据。每个 SQL 语句使用新的快照。
-
-### Repeatable Read
-
-在整个事务期间使用相同的快照。可能出现幻读。
-
-### Snapshot Isolation
-
-MVCC 最常用的隔离级别：
-
-**优点**:
-- 读写不阻塞
-- 一致性快照
-- 避免脏读、不可重复读
-
-**缺点**:
-- 可能出现写偏斜（Write Skew）
-
-### Serializable
-
-最高隔离级别，完全避免所有并发异常。
-
-## 写偏斜问题
-
-### 什么是写偏斜？
+写缓冲解决了"事务能看到自己的写入"的问题:
 
 ```
-初始状态: account_A = 1000, account_B = 1000
-约束: A + B >= 0
+如果没有写缓冲:
+  txn.write("k", 1)  → 直接写入版本链
+  txn.read("k")      → 从版本链查找
+  问题: 自己写入的版本可能被其他版本"遮挡"
 
-T1: 读取 A=1000, B=1000; 写入 A = A - 1500 = -500
-T2: 读取 A=1000, B=1000; 写入 B = B - 1500 = -500
-
-两个事务都成功，但 A + B = -1000，违反约束！
+有了写缓冲:
+  txn.write("k", 1)  → 写入缓冲区
+  txn.read("k")      → 先检查缓冲区
+  正确: 优先读取自己的写入
 ```
 
-### 解决方案
+### 5. 冲突检测时机
 
-1. **S2PL (Strict Two-Phase Locking)**: 使用锁防止写偏斜
-2. **Serializable Snapshot Isolation (SSI)**: PostgreSQL 的实现
-3. **Application-level locks**: 应用层加锁
+MVCC 采用乐观并发控制策略:
+- 写入时不检测冲突（只缓存）
+- 提交时才检测冲突
 
-## 实际应用
+这样做的好处:
+- 读操作完全没有开销
+- 写操作只增加缓存开销
+- 冲突检测集中在提交阶段
+
+### 6. Write Skew 问题
+
+Write Skew 是快照隔离的经典问题:
+
+```
+场景: 两个医生请假，确保至少一人值班
+
+初始: doctor_A = "on", doctor_B = "on"
+
+事务1: 读A, 读B, 写A = "off"
+事务2: 读A, 读B, 写B = "off"
+
+两个事务都看到对方"在值班"，所以都成功提交。
+结果: 两个医生都请假了，无人值班！
+
+这是读写冲突的一种形式。
+```
+
+### 7. 垃圾回收的必要性
+
+旧版本需要清理的原因:
+1. 存储空间有限
+2. 版本链过长影响查找性能
+3. 不再有事务需要访问旧版本
+
+安全点计算:
+```
+安全点 = min(所有活跃事务的开始时间戳)
+```
+安全点之前的版本，如果没有活跃事务需要访问，可以安全清理。
+
+## 实现中的关键决策
+
+### 1. 版本链使用单链表
+
+选择单链表而非数组的原因:
+- 插入新版本 O(1)（链头插入）
+- 遍历查找符合自然顺序
+- 内存分配灵活
+
+### 2. 快照使用 frozenset
+
+使用 frozenset 存储活跃事务集合:
+- 不可变性保证快照不会被意外修改
+- 可以作为字典键
+- 高效的集合操作
+
+### 3. 冲突检测在提交时进行
+
+乐观并发控制策略:
+- 写入阶段: 只记录到写缓冲
+- 提交阶段: 检测冲突，无冲突则应用
+
+vs 悲观并发控制:
+- 写入阶段: 加锁，检测冲突
+- 提交阶段: 释放锁
+
+### 4. GC 保留最新版本
+
+垃圾回收时保留每条链的最新版本:
+- 确保数据不会完全丢失
+- 新事务仍然可以读取最新值
+- 只清理历史版本
+
+## 与真实数据库的对比
 
 ### PostgreSQL MVCC
 
-```sql
--- 每行有 xmin 和 xmax
--- xmin: 创建该行的事务 ID
--- xmax: 删除该行的事务 ID（0 表示未删除）
+```
+PostgreSQL 方式:
+- 每个 tuple 有 xmin, xmax
+- xmin: 创建该 tuple 的事务 ID
+- xmax: 删除该 tuple 的事务 ID
+- 旧版本存在同一个表中
+- VACUUM 清理旧版本
 
-SELECT xmin, xmax, * FROM users;
+本项目方式:
+- 每个 Version 有 create_txn_id, delete_txn_id
+- 类似 xmin/xmax 的语义
+- 旧版本通过版本链串联
+- GC 清理旧版本
 ```
 
 ### MySQL InnoDB MVCC
 
 ```
--- 基于 undo log 实现
--- 每行有隐藏列: DB_TRX_ID, DB_ROLL_PTR
--- 读取时根据 undo log 构建历史版本
+InnoDB 方式:
+- 当前版本在聚簇索引中
+- 旧版本在 Undo Log 中
+- 通过 Read View 判断可见性
+- Purge 线程清理旧版本
+
+本项目方式:
+- 当前版本在版本链头部
+- 所有版本通过链表串联
+- 通过 Snapshot 判断可见性
+- GC 清理旧版本
 ```
 
-## 常见问题
+## 学习建议
 
-### Q: MVCC 的性能如何？
+1. **先理解概念**: 版本链、快照、冲突检测
+2. **再看代码**: 从 version.py 开始，逐步理解每个模块
+3. **运行测试**: 通过测试理解各种边界情况
+4. **修改代码**: 尝试修改参数，观察行为变化
+5. **参考论文**: 阅读 MVCC 相关论文，理解理论基础
 
-**A**: MVCC 的性能取决于：
-- 版本链长度（越短越好）
-- 冲突频率（越低越好）
-- GC 频率（适中最好）
+## 常见误区
 
-### Q: MVCC 的存储开销如何？
+1. **MVCC 不是银弹**: 写写冲突仍然需要处理
+2. **快照不是锁**: 快照只是一个时间点的视图
+3. **写缓冲不是缓存**: 写缓冲是事务私有的暂存区
+4. **GC 不是实时的**: GC 是异步的，可能有延迟
 
-**A**: MVCC 需要存储多个版本，存储开销较大。但通过 GC 可以清理旧版本。
+## 进阶学习
 
-### Q: MVCC 适合什么场景？
+1. **隔离级别**: 了解 Read Uncommitted, Read Committed, Repeatable Read, Serializable
+2. **分布式 MVCC**: 了解 Spanner, CockroachDB 的实现
+3. **混合并发控制**: 了解 MVCC + 2PL 的结合
+4. **内存 MVCC**: 了解 Hekaton, FOEDUS 的实现
 
-**A**: MVCC 适合：
-- 读多写少的场景
-- 需要高并发的场景
-- 需要一致性快照的场景
-
-### Q: MVCC 不适合什么场景？
-
-**A**: MVCC 不适合：
-- 写多读少的场景（冲突频繁）
-- 需要严格可序列化的场景
-- 存储空间受限的场景
-
-## 学习资源
+## 参考资源
 
 ### 论文
 
@@ -290,14 +208,3 @@ SELECT xmin, xmax, * FROM users;
 
 - [PostgreSQL MVCC Documentation](https://www.postgresql.org/docs/current/mvcc.html)
 - [CMU 15-445: Concurrency Control](https://15445.courses.cs.cmu.edu/)
-
-## 总结
-
-MVCC 是现代数据库系统的核心技术，通过：
-
-1. **多版本存储**: 维护数据的历史版本
-2. **快照隔离**: 每个事务看到一致的数据快照
-3. **时间戳机制**: 使用时间戳确定版本可见性
-4. **垃圾回收**: 定期清理不再需要的旧版本
-
-实现了读写不阻塞的高并发访问，是构建高性能数据库系统的关键技术。

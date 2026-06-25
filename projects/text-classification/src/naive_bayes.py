@@ -94,9 +94,12 @@ class NaiveBayesClassifier:
             )
 
             # Feature probabilities with smoothing: P(x|y)
-            total_count = sum(feature_counts[cls]) + self.alpha * n_features
+            # Use absolute values to handle negative features (e.g., from TF-IDF normalization)
+            total_count = sum(abs(v) for v in feature_counts[cls]) + self.alpha * n_features
+            if total_count == 0:
+                total_count = self.alpha * n_features
             self.feature_log_prob_[cls] = [
-                math.log((feature_counts[cls][j] + self.alpha) / total_count)
+                math.log(max((abs(feature_counts[cls][j]) + self.alpha) / total_count, 1e-10))
                 for j in range(n_features)
             ]
 
@@ -199,9 +202,10 @@ class NaiveBayesClassifier:
             score = self.class_log_prior_[cls]
 
             # Add log likelihood of features
+            # Use absolute value for negative features (e.g., from TF-IDF normalization)
             for j, value in enumerate(x):
                 if value != 0:
-                    score += value * self.feature_log_prob_[cls][j]
+                    score += abs(value) * self.feature_log_prob_[cls][j]
 
             if score > best_score:
                 best_score = score
@@ -297,7 +301,7 @@ class NaiveBayesClassifier:
                     score = self.class_log_prior_[cls]
                     for j, value in enumerate(x):
                         if value != 0:
-                            score += value * self.feature_log_prob_[cls][j]
+                            score += abs(value) * self.feature_log_prob_[cls][j]
                 else:
                     score = self.class_log_prior_[cls]
                     for j, value in enumerate(x):

@@ -149,6 +149,97 @@ func TestBinPackingStrategy(t *testing.T) {
 }
 ```
 
+#### 测试 Random 策略
+```go
+func TestRandomStrategy(t *testing.T) {
+    s := scheduler.NewScheduler(scheduler.StrategyRandom)
+
+    // 添加节点
+    node1 := container.NewNode("node-1", "192.168.1.1", container.Resources{
+        CPU: 50.0, Memory: 100 * 1024 * 1024 * 1024,
+    })
+    node2 := container.NewNode("node-2", "192.168.1.2", container.Resources{
+        CPU: 50.0, Memory: 100 * 1024 * 1024 * 1024,
+    })
+
+    s.AddNode(node1)
+    s.AddNode(node2)
+
+    // 调度多个容器 - 应该随机分布
+    scheduled := make(map[string]int)
+    for i := 0; i < 20; i++ {
+        c := container.NewContainer("test", "nginx:latest", container.Resources{
+            CPU: 1.0, Memory: 1 * 1024 * 1024 * 1024,
+        })
+        node, err := s.Schedule(c)
+        assert.NoError(t, err)
+        scheduled[node.ID]++
+    }
+
+    // 两个节点都应该有容器
+    assert.True(t, scheduled[node1.ID] > 0)
+    assert.True(t, scheduled[node2.ID] > 0)
+}
+```
+
+#### 测试 Resource Aware 策略
+```go
+func TestResourceAwareStrategy(t *testing.T) {
+    s := scheduler.NewScheduler(scheduler.StrategyResourceAware)
+
+    // 添加不同资源的节点
+    node1 := container.NewNode("node-1", "192.168.1.1", container.Resources{
+        CPU: 2.0, Memory: 4 * 1024 * 1024 * 1024,
+    })
+    node2 := container.NewNode("node-2", "192.168.1.2", container.Resources{
+        CPU: 8.0, Memory: 16 * 1024 * 1024 * 1024,
+    })
+
+    s.AddNode(node1)
+    s.AddNode(node2)
+
+    // 调度容器 - 应该选择资源更多的 node2
+    c := container.NewContainer("test", "nginx:latest", container.Resources{
+        CPU: 1.0, Memory: 2 * 1024 * 1024 * 1024,
+    })
+
+    node, err := s.Schedule(c)
+    assert.NoError(t, err)
+    assert.Equal(t, node2.ID, node.ID)
+}
+```
+
+#### 测试 Affinity 策略
+```go
+func TestAffinityStrategy(t *testing.T) {
+    s := scheduler.NewScheduler(scheduler.StrategyAffinity)
+
+    // 添加带标签的节点
+    node1 := container.NewNode("node-1", "192.168.1.1", container.Resources{
+        CPU: 4.0, Memory: 8 * 1024 * 1024 * 1024,
+    })
+    node1.Labels = map[string]string{"zone": "us-east-1a"}
+
+    node2 := container.NewNode("node-2", "192.168.1.2", container.Resources{
+        CPU: 4.0, Memory: 8 * 1024 * 1024 * 1024,
+    })
+    node2.Labels = map[string]string{"zone": "us-east-1b"}
+
+    s.AddNode(node1)
+    s.AddNode(node2)
+
+    // 调度带匹配标签的容器
+    c := container.NewContainer("test", "nginx:latest", container.Resources{
+        CPU: 1.0, Memory: 1024 * 1024 * 1024,
+    })
+    c.Labels = map[string]string{"zone": "us-east-1a"}
+
+    node, err := s.Schedule(c)
+    assert.NoError(t, err)
+    assert.Equal(t, node1.ID, node.ID)
+}
+```
+
 ### 服务发现测试（discovery_test.go）
 
 #### 测试服务注册
@@ -230,6 +321,52 @@ func TestHealthCheck(t *testing.T) {
 }
 ```
 
+#### 测试存活探针
+```go
+func TestLivenessProbe(t *testing.T) {
+    checker := health.NewHTTPHealthChecker(&mockHTTPClient{})
+    monitor := health.NewHealthMonitor(checker)
+
+    c := container.NewContainer("test", "nginx:latest", container.Resources{})
+    c.SetState(container.StateRunning)
+    monitor.AddContainer(c)
+
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+    monitor.Start(ctx, 50*time.Millisecond)
+
+    time.Sleep(200 * time.Millisecond)
+
+    result, err := monitor.GetLiveness(c.ID)
+    assert.NoError(t, err)
+    assert.Equal(t, health.StateHealthy, result.State)
+    assert.Equal(t, health.ProbeLiveness, result.ProbeType)
+}
+```
+
+#### 测试就绪探针
+```go
+func TestReadinessProbe(t *testing.T) {
+    checker := health.NewHTTPHealthChecker(&mockHTTPClient{})
+    monitor := health.NewHealthMonitor(checker)
+
+    c := container.NewContainer("test", "nginx:latest", container.Resources{})
+    c.SetState(container.StateRunning)
+    monitor.AddContainer(c)
+
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+    monitor.Start(ctx, 50*time.Millisecond)
+
+    time.Sleep(200 * time.Millisecond)
+
+    result, err := monitor.GetReadiness(c.ID)
+    assert.NoError(t, err)
+    assert.Equal(t, health.StateHealthy, result.State)
+    assert.Equal(t, health.ProbeReadiness, result.ProbeType)
+}
+```
+
 ### 扩缩容测试（scaler_test.go）
 
 #### 测试手动扩缩容
@@ -288,6 +425,47 @@ func TestEvaluate(t *testing.T) {
     decisions := s.Evaluate()
     assert.Len(t, decisions, 1)
     assert.Equal(t, scaler.ScaleUp, decisions[0].Direction)
+}
+```
+
+#### 测试自定义指标扩缩容
+```go
+func TestCustomMetrics(t *testing.T) {
+    scaleFunc := func(serviceID string, desiredReplicas int) error {
+        return nil
+    }
+
+    s := scaler.NewScaler(scaleFunc)
+    s.RegisterService("service-1", 3, &scaler.ScalingPolicy{
+        MinReplicas:     1,
+        MaxReplicas:     10,
+        ScaleUpCPU:      0.8,
+        ScaleDownCPU:    0.2,
+        Cooldown:        0,
+        CustomMetricRules: []scaler.CustomMetricRule{
+            {
+                MetricName:       "requests_per_second",
+                ScaleUpThreshold: 1000,
+                ScaleDownThreshold: 100,
+            },
+        },
+    })
+
+    // 更新指标 - 自定义指标超过阈值
+    s.UpdateMetrics("service-1", &scaler.ServiceMetrics{
+        CPUUsage:    0.3,
+        MemoryUsage: 0.3,
+        CustomMetrics: map[string]float64{
+            "requests_per_second": 1500,
+        },
+        Timestamp: time.Now(),
+    })
+
+    // 评估 - 应该触发扩容
+    decisions := s.Evaluate()
+    assert.Len(t, decisions, 1)
+    assert.Equal(t, scaler.ScaleUp, decisions[0].Direction)
+    assert.Contains(t, decisions[0].Reason, "requests_per_second")
 }
 ```
 

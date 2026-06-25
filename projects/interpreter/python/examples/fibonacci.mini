@@ -1,0 +1,62 @@
+// 斐波那契数列 - 递归、闭包和记忆化示例
+
+// 递归方式
+let fib = fn(n) {
+    if n <= 1 {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+};
+
+println("斐波那契数列 (递归):");
+for i in range(10) {
+    print(str(fib(i)) + " ");
+}
+println("");
+
+// 闭包方式 - 记忆化
+let makeFib = fn() {
+    let memo = {};
+    fn fib(n) {
+        let key = str(n);
+        if memo[key] != null {
+            return memo[key];
+        }
+        let result;
+        if n <= 1 {
+            result = n;
+        } else {
+            result = fib(n - 1) + fib(n - 2);
+        }
+        memo[key] = result;
+        return result;
+    }
+};
+
+let fastFib = makeFib();
+println("\n斐波那契数列 (记忆化):");
+for i in range(10) {
+    print(str(fastFib(i)) + " ");
+}
+println("");
+
+// 闭包方式 - 生成器
+let makeFibGenerator = fn() {
+    let a = 0;
+    let b = 1;
+    fn() {
+        let temp = a;
+        a = b;
+        b = temp + b;
+        return temp;
+    }
+};
+
+let nextFib = makeFibGenerator();
+println("\n斐波那契数列 (闭包生成器):");
+let i = 0;
+while i < 10 {
+    print(str(nextFib()) + " ");
+    i += 1;
+}
+println("");

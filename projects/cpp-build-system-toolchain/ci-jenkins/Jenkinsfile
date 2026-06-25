@@ -1,0 +1,187 @@
+// ============================================================================
+// Jenkins Pipeline 配置
+// 本文件展示如何使用 Jenkins Pipeline 进行 C++ 项目的 CI/CD
+// ============================================================================
+
+pipeline {
+    agent any
+
+    environment {
+        BUILD_TYPE = 'Release'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    stages {
+        // ====================================================================
+        // 1. 检出代码
+        // ====================================================================
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'git submodule update --init --recursive'
+            }
+        }
+
+        // ====================================================================
+        // 2. 构建
+        // ====================================================================
+        stage('Build') {
+            parallel {
+                stage('GCC') {
+                    steps {
+                        sh '''
+                            cmake -B build-gcc -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+                            cmake --build build-gcc
+                        '''
+                    }
+                }
+                stage('Clang') {
+                    steps {
+                        sh '''
+                            cmake -B build-clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+                            cmake --build build-clang
+                        '''
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // 3. 测试
+        // ====================================================================
+        stage('Test') {
+            parallel {
+                stage('GCC Tests') {
+                    steps {
+                        sh 'cd build-gcc && ctest -C ${BUILD_TYPE} --output-on-failure'
+                    }
+                    post {
+                        always {
+                            junit 'build-gcc/test-results/*.xml'
+                        }
+                    }
+                }
+                stage('Clang Tests') {
+                    steps {
+                        sh 'cd build-clang && ctest -C ${BUILD_TYPE} --output-on-failure'
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // 4. 代码分析
+        // ====================================================================
+        stage('Analysis') {
+            parallel {
+                stage('Clang-Tidy') {
+                    steps {
+                        sh '''
+                            cmake -B build-analysis -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+                            find src -name "*.cpp" -exec clang-tidy -p build-analysis {} \\;
+                        '''
+                    }
+                }
+                stage('Cppcheck') {
+                    steps {
+                        sh 'cppcheck --enable=all --suppress=missingIncludeSystem src/'
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // 5. 覆盖率
+        // ====================================================================
+        stage('Coverage') {
+            steps {
+                sh '''
+                    cmake -B build-coverage -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+                    cmake --build build-coverage
+                    cd build-coverage && ctest --output-on-failure
+                    lcov --capture --directory . --output-file coverage.info
+                    lcov --remove coverage.info '/usr/*' '*/test/*' --output-file coverage_filtered.info
+                    genhtml coverage_filtered.info --output-directory coverage_report
+                '''
+            }
+            post {
+                always {
+                    publishHTML(target: [
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'build-coverage/coverage_report',
+                        reportFiles: 'index.html',
+                        reportName: 'Code Coverage'
+                    ])
+                }
+            }
+        }
+
+        // ====================================================================
+        // 6. Sanitizers
+        // ====================================================================
+        stage('Sanitizers') {
+            parallel {
+                stage('AddressSanitizer') {
+                    steps {
+                        sh '''
+                            cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON
+                            cmake --build build-asan
+                            cd build-asan && ctest --output-on-failure
+                        '''
+                    }
+                }
+                stage('UBSan') {
+                    steps {
+                        sh '''
+                            cmake -B build-ubsan -DCMAKE_BUILD_TYPE=Debug -DENABLE_UBSAN=ON
+                            cmake --build build-ubsan
+                            cd build-ubsan && ctest --output-on-failure
+                        '''
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // 7. 部署
+        // ====================================================================
+        stage('Deploy') {
+            when {
+                tag pattern: "v\\d+\\.\\d+\\.\\d+", comparator: "REGEXP"
+            }
+            steps {
+                sh '''
+                    mkdir -p deploy
+                    cp build-gcc/bin/* deploy/
+                '''
+                archiveArtifacts artifacts: 'deploy/**', fingerprint: true
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            emailext(
+                subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "构建成功: ${env.BUILD_URL}",
+                to: 'team@example.com'
+            )
+        }
+        failure {
+            emailext(
+                subject: "FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "构建失败: ${env.BUILD_URL}",
+                to: 'team@example.com'
+            )
+        }
+    }
+}

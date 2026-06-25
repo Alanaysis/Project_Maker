@@ -12,10 +12,14 @@ raft-consensus/
 │   │   ├── raft.go              # Raft 核心实现
 │   │   ├── election.go          # 领导者选举
 │   │   ├── log_replication.go   # 日志复制
-│   │   └── state.go             # 状态管理
+│   │   ├── state.go             # 状态管理
+│   │   ├── snapshot.go          # 快照管理
+│   │   ├── membership.go        # 成员变更
+│   │   └── client.go            # 客户端交互
 │   ├── pb/
 │   │   ├── raft.proto           # gRPC 服务定义
-│   │   └── raft.pb.go           # 生成的代码
+│   │   ├── raft.pb.go           # 生成的代码
+│   │   └── raft_grpc.pb.go      # gRPC 服务代码
 │   ├── statemachine/
 │   │   └── kv.go                # KV 状态机实现
 │   └── storage/
@@ -25,6 +29,10 @@ raft-consensus/
 ├── test/
 │   ├── election_test.go         # 选举测试
 │   ├── log_replication_test.go  # 日志复制测试
+│   ├── snapshot_test.go         # 快照测试
+│   ├── membership_test.go       # 成员变更测试
+│   ├── network_partition_test.go # 网络分区测试
+│   ├── node_failure_test.go     # 节点故障测试
 │   └── integration_test.go      # 集成测试
 └── docs/
     ├── 01-RESEARCH.md           # 市场调研
@@ -114,7 +122,77 @@ func (lr *LogReplicator) AppendEntries(command interface{}) {
 }
 ```
 
-### 2.4 gRPC 服务 (pb/raft.proto)
+### 2.4 快照管理 (snapshot.go)
+
+快照模块实现日志压缩：
+
+1. **创建快照**：保存状态机当前状态
+2. **日志截断**：删除快照点之前的日志
+3. **快照传输**：发送快照给落后太多的跟随者
+4. **快照安装**：从领导者接收并安装快照
+
+关键功能：
+```go
+func (sm *SnapshotManager) CreateSnapshot(lastIncludedIndex int64, data []byte) {
+    // 1. 获取 lastIncludedIndex 处的任期
+    // 2. 保存快照数据
+    // 3. 截断日志
+}
+
+func (sm *SnapshotManager) InstallSnapshot(req *pb.InstallSnapshotRequest) {
+    // 1. 更新快照元数据
+    // 2. 重置日志
+    // 3. 更新 commitIndex 和 lastApplied
+}
+```
+
+### 2.5 成员变更 (membership.go)
+
+成员变更模块支持集群动态调整：
+
+1. **添加节点**：向集群添加新节点
+2. **移除节点**：从集群移除节点
+3. **安全性检查**：确保变更过程中保持一致性
+
+关键功能：
+```go
+func (mm *MembershipManager) RequestChange(change MembershipChange) error {
+    // 1. 检查是否是领导者
+    // 2. 验证变更请求
+    // 3. 执行变更
+}
+
+func (mm *MembershipManager) handleAddNode(change MembershipChange) {
+    // 1. 检查节点是否已存在
+    // 2. 初始化 nextIndex 和 matchIndex
+    // 3. 添加到 peers 映射
+}
+```
+
+### 2.6 客户端交互 (client.go)
+
+客户端模块提供用户接口：
+
+1. **命令提交**：提交写命令到集群
+2. **线性一致性读**：确保读取最新数据
+3. **命令转发**：非领导者自动转发请求
+
+关键功能：
+```go
+func (cm *ClientManager) SubmitCommand(command interface{}, commandID int64) ClientResponse {
+    // 1. 检查是否是领导者
+    // 2. 如果不是，转发到领导者
+    // 3. 等待命令提交
+}
+
+func (cm *ClientManager) LinearizableRead(key interface{}) (interface{}, error) {
+    // 1. 确认领导权
+    // 2. 等待 commitIndex 被应用
+    // 3. 执行读操作
+}
+```
+
+### 2.7 gRPC 服务 (pb/raft.proto)
 
 定义 Raft 节点间的 RPC 接口：
 
@@ -122,6 +200,7 @@ func (lr *LogReplicator) AppendEntries(command interface{}) {
 service RaftService {
     rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse);
     rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
+    rpc InstallSnapshot(InstallSnapshotRequest) returns (InstallSnapshotResponse);
 }
 ```
 
@@ -131,6 +210,8 @@ service RaftService {
 - `AppendEntriesRequest`：日志复制请求
 - `AppendEntriesResponse`：日志复制响应
 - `LogEntry`：日志条目
+- `InstallSnapshotRequest`：快照安装请求
+- `InstallSnapshotResponse`：快照安装响应
 
 ### 2.5 状态机 (statemachine/kv.go)
 

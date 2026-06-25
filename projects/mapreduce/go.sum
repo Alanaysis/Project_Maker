@@ -1,0 +1,6 @@
+github.com/google/uuid v1.6.0 h1:NIvaJDOOjASRiX1AcHjReH3OjUqUVRD4kMJJjGdZk40=
+github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoMYpNnQ7lfJmLhgCRQIHtO0=
+gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:Y9m5UNVFzONMIGBOxfElDHoUOPkuRktMAJymGFRCOMpE=
+gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqwNdp8JlEiCbBxIG0mJR3f6htTMmE=
+gopkg.in/yaml.v3 v3.0.1 h1:fxm/G0OFR0bZj2BGUc2MRM0CCiEHQP0wMTfWGiCIm6s=
+gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=

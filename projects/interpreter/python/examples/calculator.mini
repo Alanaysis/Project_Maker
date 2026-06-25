@@ -1,0 +1,44 @@
+// 简单计算器 - 展示数学运算和函数
+
+println("=== Mini 语言计算器 ===");
+println("");
+
+// 数学函数
+let square = fn(x) { return x * x; };
+let cube = fn(x) { return x * x * x; };
+let factorial = fn(n) {
+    if n <= 1 { return 1; }
+    return n * factorial(n - 1);
+};
+
+// 演示各种运算
+println("基本运算:");
+println("  2 + 3 = " + str(2 + 3));
+println("  10 - 4 = " + str(10 - 4));
+println("  6 * 7 = " + str(6 * 7));
+println("  15 / 3 = " + str(15 / 3));
+println("  17 % 5 = " + str(17 % 5));
+println("  2 ** 10 = " + str(2 ** 10));
+println("");
+
+println("数学函数:");
+println("  square(5) = " + str(square(5)));
+println("  cube(3) = " + str(cube(3)));
+println("  factorial(6) = " + str(factorial(6)));
+println("  sqrt(144) = " + str(sqrt(144)));
+println("  abs(-42) = " + str(abs(-42)));
+println("  floor(3.7) = " + str(floor(3.7)));
+println("  ceil(3.2) = " + str(ceil(3.2)));
+println("");
+
+println("比较运算:");
+println("  5 > 3 = " + str(5 > 3));
+println("  5 == 5 = " + str(5 == 5));
+println("  3 != 4 = " + str(3 != 4));
+println("");
+
+println("字符串操作:");
+let name = "Mini";
+println("  upper(\"" + name + "\") = " + upper(name));
+println("  len(\"" + name + "\") = " + str(len(name)));
+println("  contains(\"" + name + "\", \"in\") = " + str(contains(name, "in")));
