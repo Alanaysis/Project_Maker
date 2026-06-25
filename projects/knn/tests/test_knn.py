@@ -383,7 +383,7 @@ class TestKNNClassifier:
         knn = KNNClassifier(k=5, metric='manhattan')
         params = knn.get_params()
 
-        assert params == {'k': 5, 'metric': 'manhattan'}
+        assert params == {'k': 5, 'metric': 'manhattan', 'weights': 'uniform'}
 
     def test_set_params(self):
         """测试设置参数"""
@@ -420,7 +420,7 @@ class TestKNNClassifier:
     def test_repr(self):
         """测试字符串表示"""
         knn = KNNClassifier(k=5, metric='manhattan')
-        assert repr(knn) == "KNNClassifier(k=5, metric='manhattan')"
+        assert repr(knn) == "KNNClassifier(k=5, metric='manhattan', weights='uniform')"
 
     def test_chain_calling(self):
         """测试链式调用"""

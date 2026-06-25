@@ -11,14 +11,10 @@ def euclidean(x1, x2):
     计算欧氏距离
 
     公式: d(x, y) = sqrt(Σ(xi - yi)²)
-
-    Args:
-        x1, x2: 输入向量
-
-    Returns:
-        欧氏距离值
     """
-    return np.sqrt(np.sum((x1 - x2) ** 2))
+    x1 = np.asarray(x1, dtype=float)
+    x2 = np.asarray(x2, dtype=float)
+    return float(np.sqrt(np.sum((x1 - x2) ** 2)))
 ```
 
 **实现要点**：
@@ -35,19 +31,9 @@ def manhattan(x1, x2):
     计算曼哈顿距离
 
     公式: d(x, y) = Σ|xi - yi|
-
-    Args:
-        x1, x2: 输入向量
-
-    Returns:
-        曼哈顿距离值
     """
-    return np.sum(np.abs(x1 - x2))
+    return float(np.sum(np.abs(x1 - x2)))
 ```
-
-**实现要点**：
-- `np.abs` 计算绝对值
-- 适用于网格状路径
 
 ### 3. 闵可夫斯基距离 (Minkowski Distance)
 
@@ -59,22 +45,16 @@ def minkowski(x1, x2, p=2):
 
     公式: d(x, y) = (Σ|xi - yi|^p)^(1/p)
 
-    Args:
-        x1, x2: 输入向量
-        p: 距离参数 (p=1: 曼哈顿, p=2: 欧氏)
-
-    Returns:
-        闵可夫斯基距离值
+    p=1: 曼哈顿距离
+    p=2: 欧氏距离
+    p=inf: 切比雪夫距离
     """
-    return np.sum(np.abs(x1 - x2) ** p) ** (1 / p)
+    if p == float('inf'):
+        return float(np.max(np.abs(x1 - x2)))
+    return float(np.sum(np.abs(x1 - x2) ** p) ** (1 / p))
 ```
 
-**实现要点**：
-- 参数 `p` 控制距离类型
-- `p=1` 时等价于曼哈顿距离
-- `p=2` 时等价于欧氏距离
-
-### 4. 余弦相似度 (Cosine Similarity)
+### 4. 余弦距离 (Cosine Distance)
 
 ```python
 @staticmethod
@@ -83,28 +63,22 @@ def cosine(x1, x2):
     计算余弦相似度
 
     公式: similarity = (x·y) / (||x|| * ||y||)
-
-    Args:
-        x1, x2: 输入向量
-
-    Returns:
-        余弦相似度值 (0 到 1)
+    余弦距离 = 1 - similarity
     """
     dot_product = np.dot(x1, x2)
     norm_x1 = np.linalg.norm(x1)
     norm_x2 = np.linalg.norm(x2)
 
-    # 避免除零
     if norm_x1 == 0 or norm_x2 == 0:
         return 0.0
 
-    return dot_product / (norm_x1 * norm_x2)
-```
+    return float(dot_product / (norm_x1 * norm_x2))
 
-**实现要点**：
-- `np.dot` 计算点积
-- `np.linalg.norm` 计算范数
-- 处理零向量的边界情况
+@staticmethod
+def cosine_distance(x1, x2):
+    """余弦距离 = 1 - 余弦相似度"""
+    return 1 - DistanceMetrics.cosine(x1, x2)
+```
 
 ## KNN 分类器实现
 
@@ -112,166 +86,118 @@ def cosine(x1, x2):
 
 ```python
 class KNNClassifier:
-    """KNN 分类器"""
-
-    def __init__(self, k=3, metric='euclidean'):
+    def __init__(self, k=3, metric='euclidean', weights='uniform'):
         """
         初始化分类器
 
         Args:
-            k: 近邻数量 (默认: 3)
-            metric: 距离度量方式 (默认: 'euclidean')
+            k: 近邻数量
+            metric: 距离度量方式
+            weights: 权重策略
+                - 'uniform': 等权投票（多数投票）
+                - 'distance': 距离加权投票
         """
         self.k = k
         self.metric = metric
-        self.X_train = None
-        self.y_train = None
-        self.classes_ = None
+        self.weights = weights
 ```
 
-**设计考虑**：
-- K 默认值为 3（常用值）
-- 支持多种距离度量
-- 存储训练数据供预测使用
+### 投票机制
 
-### 训练方法
+#### 多数投票
 
 ```python
-def fit(self, X, y):
+def _vote(self, neighbor_labels):
     """
-    训练模型（存储训练数据）
+    多数投票
 
-    Args:
-        X: 训练特征矩阵 (n_samples, n_features)
-        y: 训练标签 (n_samples,)
-
-    Returns:
-        self: 返回自身，支持链式调用
+    统计 K 个近邻中各类别出现次数，返回出现次数最多的类别。
     """
-    # 输入验证
-    X = np.array(X)
-    y = np.array(y)
-
-    if X.ndim != 2:
-        raise ValueError("X must be a 2D array")
-
-    if y.ndim != 1:
-        raise ValueError("y must be a 1D array")
-
-    if X.shape[0] != y.shape[0]:
-        raise ValueError("X and y must have the same number of samples")
-
-    if self.k <= 0:
-        raise ValueError("k must be positive")
-
-    if self.k > X.shape[0]:
-        raise ValueError("k must be less than or equal to number of training samples")
-
-    # 存储训练数据
-    self.X_train = X
-    self.y_train = y
-    self.classes_ = np.unique(y)
-
-    return self
+    unique_labels, counts = np.unique(neighbor_labels, return_counts=True)
+    return unique_labels[np.argmax(counts)]
 ```
 
-**实现要点**：
-- 输入验证确保数据格式正确
-- 存储训练数据供预测使用
-- 记录所有类别用于概率计算
-
-### 预测方法
+#### 距离加权投票
 
 ```python
-def predict(self, X):
+def _weighted_vote(self, neighbor_labels, distances):
     """
-    预测新样本
+    距离加权投票
 
-    Args:
-        X: 测试特征矩阵 (n_samples, n_features)
-
-    Returns:
-        predictions: 预测标签 (n_samples,)
+    权重 = 1 / distance，距离越近权重越大。
+    计算各类别的加权得分，返回得分最高的类别。
     """
-    # 检查是否已训练
-    if self.X_train is None:
-        raise RuntimeError("Model must be fitted before prediction")
+    # 避免除零
+    weights = np.where(distances == 0, 1e10, 1.0 / distances)
 
-    # 输入验证
-    X = np.array(X)
+    # 计算各类别的加权得分
+    weighted_scores = {}
+    for label, weight in zip(neighbor_labels, weights):
+        if label in weighted_scores:
+            weighted_scores[label] += weight
+        else:
+            weighted_scores[label] = weight
 
-    if X.ndim == 1:
-        X = X.reshape(1, -1)
-
-    if X.shape[1] != self.X_train.shape[1]:
-        raise ValueError("Number of features must match training data")
-
-    # 批量预测
-    predictions = np.array([self._predict_single(x) for x in X])
-
-    return predictions
+    return max(weighted_scores, key=weighted_scores.get)
 ```
 
-**实现要点**：
-- 检查模型是否已训练
-- 支持单个样本和批量样本
-- 使用列表推导式简化代码
-
-### 单样本预测
+### 概率预测
 
 ```python
-def _predict_single(self, x):
+def _predict_proba_single(self, x):
     """
-    预测单个样本
+    预测单个样本的概率
 
-    Args:
-        x: 单个样本 (n_features,)
+    对于 'uniform' 权重：
+        P(class) = count(class in K neighbors) / K
 
-    Returns:
-        prediction: 预测标签
+    对于 'distance' 权重：
+        P(class) = Σ(1/d_i for neighbor i with class) / Σ(1/d_i)
     """
-    # 计算距离
     distances = self._compute_distances(x)
-
-    # 选择 K 个近邻
     k_nearest_indices = np.argsort(distances)[:self.k]
     k_nearest_labels = self.y_train[k_nearest_indices]
+    k_nearest_distances = distances[k_nearest_indices]
 
-    # 投票分类
-    prediction = self._vote(k_nearest_labels)
+    probabilities = np.zeros(len(self.classes_))
 
-    return prediction
+    if self.weights == 'distance':
+        weights = np.where(k_nearest_distances == 0, 1e10,
+                           1.0 / k_nearest_distances)
+        total_weight = np.sum(weights)
+        for i, cls in enumerate(self.classes_):
+            mask = k_nearest_labels == cls
+            probabilities[i] = np.sum(weights[mask]) / total_weight
+    else:
+        for i, cls in enumerate(self.classes_):
+            probabilities[i] = np.sum(k_nearest_labels == cls) / self.k
+
+    return probabilities
 ```
 
-**实现要点**：
-- `np.argsort` 返回排序后的索引
-- 取前 K 个索引对应的标签
-- 调用投票方法确定最终预测
-
-### 距离计算
+### 距离计算优化
 
 ```python
 def _compute_distances(self, x):
     """
     计算与所有训练样本的距离
 
-    Args:
-        x: 单个样本 (n_features,)
-
-    Returns:
-        distances: 距离数组 (n_samples,)
+    对欧氏距离和曼哈顿距离使用向量化计算，提高性能。
     """
-    # 获取距离函数
-    distance_func = DistanceMetrics.get_metric(self.metric)
-
-    # 向量化计算
-    if self.metric == 'minkowski':
-        # 闵可夫斯基距离需要额外参数
+    if self.metric == 'euclidean':
+        # 向量化欧氏距离
+        distances = np.sqrt(np.sum((self.X_train - x) ** 2, axis=1))
+    elif self.metric == 'manhattan':
+        # 向量化曼哈顿距离
+        distances = np.sum(np.abs(self.X_train - x), axis=1)
+    elif self.metric == 'minkowski':
+        distance_func = DistanceMetrics.get_metric('minkowski')
         distances = np.array([
             distance_func(x, x_train, p=2)
             for x_train in self.X_train
         ])
     else:
+        distance_func = DistanceMetrics.get_metric(self.metric)
         distances = np.array([
             distance_func(x, x_train)
             for x_train in self.X_train
@@ -280,223 +206,327 @@ def _compute_distances(self, x):
     return distances
 ```
 
-**实现要点**：
-- 根据度量类型选择距离函数
-- 使用列表推导式计算所有距离
-- 处理需要额外参数的度量方式
+## KNN 回归器实现
 
-### 投票机制
+### 预测机制
 
-```python
-def _vote(self, neighbor_labels):
-    """
-    投票机制（多数投票）
-
-    Args:
-        neighbor_labels: 近邻标签列表
-
-    Returns:
-        最终预测类别
-    """
-    # 统计各类别出现次数
-    unique_labels, counts = np.unique(neighbor_labels, return_counts=True)
-
-    # 返回出现次数最多的类别
-    return unique_labels[np.argmax(counts)]
-```
-
-**实现要点**：
-- `np.unique` 统计唯一值和出现次数
-- `np.argmax` 返回最大值的索引
-- 处理平票情况（取第一个出现的）
-
-### 概率预测
+#### 简单平均
 
 ```python
-def predict_proba(self, X):
-    """
-    预测概率
-
-    Args:
-        X: 测试特征矩阵 (n_samples, n_features)
-
-    Returns:
-        probabilities: 各类别的概率 (n_samples, n_classes)
-    """
-    # 检查是否已训练
-    if self.X_train is None:
-        raise RuntimeError("Model must be fitted before prediction")
-
-    # 输入验证
-    X = np.array(X)
-
-    if X.ndim == 1:
-        X = X.reshape(1, -1)
-
-    if X.shape[1] != self.X_train.shape[1]:
-        raise ValueError("Number of features must match training data")
-
-    # 计算概率
-    probabilities = []
-    for x in X:
-        distances = self._compute_distances(x)
-        k_nearest_indices = np.argsort(distances)[:self.k]
-        k_nearest_labels = self.y_train[k_nearest_indices]
-
-        # 统计各类别出现次数
-        proba = np.zeros(len(self.classes_))
-        for i, cls in enumerate(self.classes_):
-            proba[i] = np.sum(k_nearest_labels == cls) / self.k
-
-        probabilities.append(proba)
-
-    return np.array(probabilities)
+def _simple_average(self, values):
+    """简单平均"""
+    return float(np.mean(values))
 ```
 
-**实现要点**：
-- 计算每个类别的概率
-- 概率 = 该类别出现次数 / K
-- 返回 (n_samples, n_classes) 形状的数组
+#### 距离加权平均
 
-## 关键算法优化
+```python
+def _weighted_average(self, values, distances):
+    """
+    距离加权平均
+
+    权重 = 1 / distance
+    预测值 = Σ(w_i * y_i) / Σ(w_i)
+    """
+    # 避免除零
+    weights = np.where(distances == 0, 1e10, 1.0 / distances)
+
+    weighted_sum = np.sum(weights * values)
+    weight_total = np.sum(weights)
+
+    return float(weighted_sum / weight_total)
+```
+
+### R² 评分
+
+```python
+def score(self, X, y):
+    """
+    计算 R² 决定系数
+
+    R² = 1 - SS_res / SS_tot
+    其中:
+        SS_res = Σ(y_true - y_pred)²
+        SS_tot = Σ(y_true - mean(y_true))²
+    """
+    predictions = self.predict(X)
+    ss_res = np.sum((y - predictions) ** 2)
+    ss_tot = np.sum((y - np.mean(y)) ** 2)
+
+    if ss_tot == 0:
+        return 0.0
+
+    return float(1 - ss_res / ss_tot)
+```
+
+## KD-Tree 实现
+
+### 建树算法
+
+```python
+def _build_recursive(self, X, y, indices, depth):
+    """
+    递归构建 KD-Tree
+
+    1. 选择分割维度（循环选择）
+    2. 按分割维度排序
+    3. 选择中位数作为分割点
+    4. 递归构建左右子树
+    """
+    if len(indices) == 0:
+        return None
+
+    # 选择分割维度
+    axis = depth % self.n_features
+
+    # 按分割维度排序
+    sorted_idx = indices[np.argsort(X[indices, axis])]
+
+    # 选择中位数
+    median_idx = len(sorted_idx) // 2
+
+    # 创建节点
+    node = KDNode(
+        point=X[sorted_idx[median_idx]].copy(),
+        label=y[sorted_idx[median_idx]],
+        axis=axis,
+        depth=depth
+    )
+
+    # 递归构建子树
+    node.left = self._build_recursive(X, y, sorted_idx[:median_idx], depth + 1)
+    node.right = self._build_recursive(X, y, sorted_idx[median_idx + 1:], depth + 1)
+
+    return node
+```
+
+### 搜索算法
+
+```python
+def _search_recursive(self, node, point, k, neighbors):
+    """
+    递归搜索最近邻
+
+    1. 计算当前节点与查询点的距离
+    2. 更新近邻列表
+    3. 先搜索近侧子树
+    4. 检查远侧子树是否可能包含更近的点
+    """
+    if node is None:
+        return
+
+    # 计算距离
+    dist = self._distance(point, node.point)
+
+    # 更新近邻列表
+    neighbors.append((-dist, id(node), node.label))
+    if len(neighbors) > k:
+        neighbors.sort(key=lambda x: x[0])
+        neighbors.pop()
+
+    # 计算到分割超平面的距离
+    plane_dist = abs(point[node.axis] - node.point[node.axis])
+
+    # 确定搜索顺序
+    if point[node.axis] < node.point[node.axis]:
+        first, second = node.left, node.right
+    else:
+        first, second = node.right, node.left
+
+    # 先搜索近侧
+    self._search_recursive(first, point, k, neighbors)
+
+    # 检查远侧
+    max_dist = -neighbors[-1][0] if len(neighbors) >= k else float('inf')
+    if len(neighbors) < k or plane_dist < max_dist:
+        self._search_recursive(second, point, k, neighbors)
+```
+
+## Ball Tree 实现
+
+### 建树算法
+
+```python
+def _build_recursive(self, indices):
+    """
+    递归构建 Ball Tree
+
+    1. 计算质心和半径
+    2. 如果数据量小于叶节点大小，创建叶节点
+    3. 选择两个最远的点作为分裂种子
+    4. 将数据点分配到最近的种子
+    5. 递归构建左右子树
+    """
+    X_subset = self.X_train[indices]
+
+    # 计算质心和半径
+    center = np.mean(X_subset, axis=0)
+    radius = np.max(self._batch_distances(X_subset, center))
+
+    node = BallNode(center=center, radius=radius)
+
+    # 叶节点
+    if len(indices) <= self.leaf_size:
+        node.is_leaf = True
+        node.indices = indices.copy()
+        return node
+
+    # 选择分裂种子
+    seed1, seed2 = self._select_seeds(X_subset)
+
+    # 分配数据点
+    dist_to_seed1 = self._batch_distances(X_subset, X_subset[seed1])
+    dist_to_seed2 = self._batch_distances(X_subset, X_subset[seed2])
+    left_mask = dist_to_seed1 <= dist_to_seed2
+
+    # 递归构建
+    node.left = self._build_recursive(indices[left_mask])
+    node.right = self._build_recursive(indices[~left_mask])
+
+    return node
+```
+
+### 种子选择
+
+```python
+def _select_seeds(self, X):
+    """
+    选择分裂种子（两个最远的点）
+
+    使用两遍扫描的贪心算法：
+    1. 选择离质心最远的点作为第一个种子
+    2. 选择离第一个种子最远的点作为第二个种子
+    """
+    center = np.mean(X, axis=0)
+
+    # 第一遍：找离质心最远的点
+    dists_to_center = self._batch_distances(X, center)
+    seed1 = np.argmax(dists_to_center)
+
+    # 第二遍：找离第一个种子最远的点
+    dists_to_seed1 = self._batch_distances(X, X[seed1])
+    seed2 = np.argmax(dists_to_seed1)
+
+    return int(seed1), int(seed2)
+```
+
+## 模型选择实现
+
+### K-Fold 交叉验证
+
+```python
+class KFold:
+    def split(self, X):
+        """
+        生成训练/验证索引对
+
+        1. 生成索引数组
+        2. 可选打乱
+        3. 分成 K 份
+        4. 轮流作为验证集
+        """
+        n_samples = X.shape[0]
+        indices = np.arange(n_samples)
+
+        if self.shuffle:
+            rng = np.random.RandomState(self.random_state)
+            rng.shuffle(indices)
+
+        fold_size = n_samples // self.n_splits
+        remainder = n_samples % self.n_splits
+
+        splits = []
+        start = 0
+        for i in range(self.n_splits):
+            current_fold_size = fold_size + (1 if i < remainder else 0)
+            end = start + current_fold_size
+            val_indices = indices[start:end]
+            train_indices = np.concatenate([indices[:start], indices[end:]])
+            splits.append((train_indices, val_indices))
+            start = end
+
+        return splits
+```
+
+### K 值选择
+
+```python
+def select_k(self, X, y, k_range, metric, task):
+    """
+    选择最优 K 值
+
+    1. 对每个 K 值进行交叉验证
+    2. 计算平均分数
+    3. 返回最优 K 值
+    """
+    k_scores = {}
+    for k in k_range:
+        if task == 'classification':
+            estimator = KNNClassifier(k=k, metric=metric)
+        else:
+            estimator = KNNRegressor(k=k, metric=metric, weights=weights)
+
+        results = self.cross_val_score(estimator, X, y)
+        k_scores[k] = results['mean_score']
+
+    best_k = max(k_scores, key=k_scores.get)
+    return {'best_k': best_k, 'best_score': k_scores[best_k], 'k_scores': k_scores}
+```
+
+## 性能优化
 
 ### 1. 向量化距离计算
 
 ```python
-# 原始实现（逐样本计算）
-distances = np.array([
-    distance_func(x, x_train)
-    for x_train in self.X_train
-])
+# 欧氏距离
+distances = np.sqrt(np.sum((self.X_train - x) ** 2, axis=1))
 
-# 优化实现（向量化计算）
-if self.metric == 'euclidean':
-    distances = np.sqrt(np.sum((self.X_train - x) ** 2, axis=1))
+# 曼哈顿距离
+distances = np.sum(np.abs(self.X_train - x), axis=1)
 ```
 
-**优化效果**：
-- 减少 Python 循环开销
-- 利用 NumPy 底层优化
-- 速度提升 10-100 倍
+### 2. 加速结构选择
 
-### 2. 高效 K 近邻选择
+| 数据特点 | 推荐结构 | 原因 |
+|---------|---------|------|
+| 低维 (d < 20) | KD-Tree | 分割效率高 |
+| 高维 (d >= 20) | Ball Tree | 对维度不敏感 |
+| 非欧氏距离 | Ball Tree | 支持任意距离度量 |
+| 大规模数据 | LSH | 近似搜索，速度快 |
 
-```python
-# 原始实现（完全排序）
-k_nearest_indices = np.argsort(distances)[:self.k]
-
-# 优化实现（部分排序）
-k_nearest_indices = np.argpartition(distances, self.k)[:self.k]
-```
-
-**优化效果**：
-- `np.argpartition` 时间复杂度 O(n)
-- `np.argsort` 时间复杂度 O(n log n)
-- 大数据集时性能提升显著
-
-### 3. 批量预测优化
+### 3. 数值稳定性
 
 ```python
-# 原始实现（逐样本预测）
-predictions = np.array([self._predict_single(x) for x in X])
-
-# 优化实现（批量距离计算）
-# 一次性计算所有距离矩阵
-distances = self._batch_compute_distances(X)
-```
-
-## 边界情况处理
-
-### 1. 空数组处理
-
-```python
-if len(self.X_train) == 0:
-    raise ValueError("Training data cannot be empty")
-```
-
-### 2. 零向量处理
-
-```python
-# 余弦相似度中的零向量
-if norm_x1 == 0 or norm_x2 == 0:
-    return 0.0
-```
-
-### 3. 平票处理
-
-```python
-# 当多个类别票数相同时
-unique_labels, counts = np.unique(neighbor_labels, return_counts=True)
-max_count = np.max(counts)
-max_labels = unique_labels[counts == max_count]
-
-# 返回第一个出现的（默认行为）
-return max_labels[0]
-```
-
-### 4. 数值稳定性
-
-```python
-# 避免除零错误
-weights = 1 / (distances + 1e-8)
+# 避免除零
+weights = np.where(distances == 0, 1e10, 1.0 / distances)
 
 # 避免数值溢出
 log_probs = np.log(probabilities + 1e-10)
 ```
 
-## 性能考虑
+## 时间复杂度分析
 
-### 时间复杂度
+### 暴力搜索
 
-- **训练**：O(1) - 仅存储数据
-- **预测**：O(n * d * k) - n: 样本数, d: 特征数, k: 近邻数
+- **训练**: O(1)
+- **预测**: O(n * d) per query
 
-### 空间复杂度
+### KD-Tree
 
-- **训练**：O(n * d) - 存储所有训练数据
-- **预测**：O(n * k) - 存储距离和近邻索引
+- **建树**: O(n log n)
+- **查询**: O(log n) 平均，O(n) 最坏
 
-### 优化建议
+### Ball Tree
 
-1. **使用 KD 树**：适用于低维数据
-2. **使用 Ball 树**：适用于高维数据
-3. **使用 LSH**：适用于大规模数据
-4. **并行计算**：多进程预测
-
-## 测试策略
-
-### 单元测试覆盖
-
-1. **距离计算测试**
-   - 验证各种距离计算正确性
-   - 测试边界情况（零向量、相同向量）
-
-2. **分类器测试**
-   - 验证 fit/predict 流程
-   - 测试不同 K 值
-   - 测试不同距离度量
-
-3. **错误处理测试**
-   - 测试输入验证
-   - 测试异常情况
-
-### 集成测试
-
-1. **鸢尾花数据集测试**
-   - 验证分类准确率
-   - 测试不同参数组合
-
-2. **自定义数据集测试**
-   - 线性可分数据
-   - 非线性可分数据
-   - 多分类数据
+- **建树**: O(n log n)
+- **查询**: O(log n) 平均
 
 ## 总结
 
-实现过程中需要注意：
+实现过程中的关键决策：
 
-1. **输入验证**：确保数据格式正确
-2. **边界处理**：处理各种特殊情况
-3. **性能优化**：使用向量化计算
-4. **代码清晰**：保持接口简洁直观
-5. **测试覆盖**：确保代码质量
+1. **接口设计**：遵循 scikit-learn 风格的 fit/predict 接口
+2. **权重策略**：支持 uniform 和 distance 两种策略
+3. **加速结构**：实现 KD-Tree 和 Ball Tree
+4. **模型选择**：实现 K-Fold 交叉验证和 K 值选择
+5. **数值稳定性**：处理除零、溢出等边界情况

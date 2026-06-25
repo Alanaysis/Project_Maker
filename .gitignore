@@ -173,6 +173,168 @@ docs/_build/
 site/
 _public/
 
+# ==================== Go ====================
+go.sum
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go/bin/
+go/pkg/
+
+# ==================== Rust ====================
+Cargo.lock
+target/
+**/*.rs.bk
+
+# ==================== C/C++ ====================
+*.d
+*.gch
+*.pch
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+*.ninja
+.ninja_deps
+.ninja_log
+compile_commands.json
+
+# ==================== Java ====================
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# ==================== 模型和数据文件 ====================
+*.pth
+*.pt
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.pb
+*.tflite
+*.onnx
+*.model
+*.bin
+*.dat
+*.weights
+*.ckpt
+*.safetensors
+data/
+datasets/
+models/
+checkpoints/
+pretrained/
+
+# ==================== 大文件 ====================
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.bz2
+*.xz
+*.dmg
+*.iso
+*.img
+
+# ==================== 音视频文件 ====================
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wav
+*.flac
+*.aac
+*.ogg
+*.wma
+*.webm
+
+# ==================== 图片文件 ====================
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.ico
+*.svg
+*.webp
+*.tiff
+*.psd
+
+# ==================== 文档文件 ====================
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# ==================== 虚拟环境 ====================
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+*.conda
+conda-meta/
+
+# ==================== 包管理锁文件 ====================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+Pipfile.lock
+poetry.lock
+Gemfile.lock
+composer.lock
+mix.lock
+
+# ==================== 运行时数据 ====================
+*.pid
+*.seed
+*.pid.lock
+*.sock
+*.socket
+run/
+runtime/
+pids/
+sessions/
+
+# ==================== 缓存 ====================
+.cache/
+*.cache
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.dmypy.json/
+node_modules/.cache/
+
+# ==================== 输出目录 ====================
+output/
+outputs/
+results/
+reports/
+artifacts/
+export/
+exports/
+
 # ==================== 其他 ====================
 *.swp
 *.swo

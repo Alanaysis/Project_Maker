@@ -40,7 +40,8 @@ class KNNClassifier:
         >>> predictions = knn.predict(np.array([[2, 3]]))
     """
 
-    def __init__(self, k: int = 3, metric: str = 'euclidean'):
+    def __init__(self, k: int = 3, metric: str = 'euclidean',
+                 weights: str = 'uniform'):
         """
         初始化 KNN 分类器
 
@@ -48,10 +49,14 @@ class KNNClassifier:
             k: 近邻数量 (默认: 3)
             metric: 距离度量方式 (默认: 'euclidean')
                 支持: 'euclidean', 'manhattan', 'minkowski', 'cosine'
+            weights: 权重策略 (默认: 'uniform')
+                - 'uniform': 等权投票（多数投票）
+                - 'distance': 距离加权投票
 
         Raises:
             ValueError: K 值不是正整数
             ValueError: 不支持的距离度量
+            ValueError: 不支持的权重策略
         """
         # 验证 K 值
         if not isinstance(k, int) or k <= 0:
@@ -65,8 +70,17 @@ class KNNClassifier:
                 f"Supported metrics: {valid_metrics}"
             )
 
+        # 验证权重策略
+        valid_weights = ['uniform', 'distance']
+        if weights not in valid_weights:
+            raise ValueError(
+                f"Unsupported weights: {weights}. "
+                f"Supported weights: {valid_weights}"
+            )
+
         self.k = k
         self.metric = metric
+        self.weights = weights
         self.X_train = None
         self.y_train = None
         self.classes_ = None
@@ -212,9 +226,13 @@ class KNNClassifier:
         # 选择 K 个近邻
         k_nearest_indices = np.argsort(distances)[:self.k]
         k_nearest_labels = self.y_train[k_nearest_indices]
+        k_nearest_distances = distances[k_nearest_indices]
 
         # 投票分类
-        prediction = self._vote(k_nearest_labels)
+        if self.weights == 'distance':
+            prediction = self._weighted_vote(k_nearest_labels, k_nearest_distances)
+        else:
+            prediction = self._vote(k_nearest_labels)
 
         return prediction
 
@@ -234,11 +252,24 @@ class KNNClassifier:
         # 选择 K 个近邻
         k_nearest_indices = np.argsort(distances)[:self.k]
         k_nearest_labels = self.y_train[k_nearest_indices]
+        k_nearest_distances = distances[k_nearest_indices]
 
         # 计算各类别概率
         probabilities = np.zeros(len(self.classes_))
-        for i, cls in enumerate(self.classes_):
-            probabilities[i] = np.sum(k_nearest_labels == cls) / self.k
+
+        if self.weights == 'distance':
+            # 距离加权概率
+            safe_distances = np.where(k_nearest_distances == 0, 1e-10,
+                                      k_nearest_distances)
+            weights = 1.0 / safe_distances
+            total_weight = np.sum(weights)
+            for i, cls in enumerate(self.classes_):
+                mask = k_nearest_labels == cls
+                probabilities[i] = np.sum(weights[mask]) / total_weight
+        else:
+            # 等权概率
+            for i, cls in enumerate(self.classes_):
+                probabilities[i] = np.sum(k_nearest_labels == cls) / self.k
 
         return probabilities
 
@@ -293,6 +324,36 @@ class KNNClassifier:
         # 返回出现次数最多的类别
         return unique_labels[np.argmax(counts)]
 
+    def _weighted_vote(self, neighbor_labels: np.ndarray,
+                       distances: np.ndarray) -> int:
+        """
+        距离加权投票
+
+        距离越近的邻居权重越大，权重 = 1 / distance。
+
+        Args:
+            neighbor_labels: 近邻标签列表
+            distances: 近邻距离列表
+
+        Returns:
+            最终预测类别
+        """
+        # 计算权重（距离越近权重越大）
+        # 避免除零
+        safe_distances = np.where(distances == 0, 1e-10, distances)
+        weights = 1.0 / safe_distances
+
+        # 计算各类别的加权得分
+        weighted_scores = {}
+        for label, weight in zip(neighbor_labels, weights):
+            if label in weighted_scores:
+                weighted_scores[label] += weight
+            else:
+                weighted_scores[label] = weight
+
+        # 返回加权得分最高的类别
+        return max(weighted_scores, key=weighted_scores.get)
+
     def score(self, X: np.ndarray, y: np.ndarray) -> float:
         """
         计算分类准确率
@@ -317,7 +378,8 @@ class KNNClassifier:
         """
         return {
             'k': self.k,
-            'metric': self.metric
+            'metric': self.metric,
+            'weights': self.weights
         }
 
     def set_params(self, **params) -> 'KNNClassifier':
@@ -343,6 +405,14 @@ class KNNClassifier:
                         f"Supported metrics: {valid_metrics}"
                     )
                 self.metric = value
+            elif key == 'weights':
+                valid_weights = ['uniform', 'distance']
+                if value not in valid_weights:
+                    raise ValueError(
+                        f"Unsupported weights: {value}. "
+                        f"Supported weights: {valid_weights}"
+                    )
+                self.weights = value
             else:
                 raise ValueError(f"Unknown parameter: {key}")
 
@@ -350,4 +420,4 @@ class KNNClassifier:
 
     def __repr__(self) -> str:
         """返回分类器的字符串表示"""
-        return f"KNNClassifier(k={self.k}, metric='{self.metric}')"
+        return f"KNNClassifier(k={self.k}, metric='{self.metric}', weights='{self.weights}')"
