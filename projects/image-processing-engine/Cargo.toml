@@ -1,0 +1,10 @@
+[package]
+name = "image-processing-engine"
+version = "0.1.0"
+edition = "2021"
+description = "图像处理算法库 - Image processing algorithm library in C++"
+license = "MIT"
+
+[dependencies]
+
+[dev-dependencies]

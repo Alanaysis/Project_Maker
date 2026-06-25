@@ -1,0 +1,18 @@
+[package]
+name = "svg-renderer"
+version = "0.1.0"
+edition = "2021"
+description = "SVG 矢量图形渲染器 - SVG vector graphics renderer in Rust"
+license = "MIT"
+
+[lib]
+name = "svg_renderer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "svg-demo"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]

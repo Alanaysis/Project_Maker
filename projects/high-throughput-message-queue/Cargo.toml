@@ -1,0 +1,18 @@
+[package]
+name = "high-throughput-message-queue"
+version = "0.1.0"
+edition = "2021"
+description = "高吞吐量消息队列 - High-throughput message queue implementation in Rust"
+license = "MIT"
+
+[lib]
+name = "message_queue"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mq-bench"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]

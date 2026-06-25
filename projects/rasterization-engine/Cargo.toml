@@ -1,0 +1,18 @@
+[package]
+name = "rasterization-engine"
+version = "0.1.0"
+edition = "2021"
+description = "光栅化引擎 - Vector graphics rasterization engine in Rust"
+license = "MIT"
+
+[lib]
+name = "rasterization"
+path = "src/lib.rs"
+
+[[bin]]
+name = "raster-demo"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]

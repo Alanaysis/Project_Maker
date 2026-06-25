@@ -1,0 +1,18 @@
+[package]
+name = "color-space-engine"
+version = "0.1.0"
+edition = "2021"
+description = "颜色空间转换和管理 - Color space conversion and management engine in Rust"
+license = "MIT"
+
+[lib]
+name = "color_space"
+path = "src/lib.rs"
+
+[[bin]]
+name = "color-demo"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]
