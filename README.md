@@ -1,6 +1,6 @@
 # 🎯 Learning Project Factory / 学习型项目工厂
 
-> **101 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全、多媒体、机器学习等领域
+> **180 个深度学习项目** | 涵盖自动驾驶、区块链、AI、系统编程、网络安全、多媒体、机器学习、控制系统、信号处理、优化算法等领域
 
 ---
 
@@ -12,15 +12,17 @@
 |------|--------|------|
 | 🚗 [自动驾驶](projects/ADAS_README.md) | 4 | 感知、规划、CARLA、SLAM |
 | ⛓️ [区块链](projects/BLOCKCHAIN_README.md) | 4 | 区块链、智能合约、ERC20、投票 |
-| 🤖 [AI & 机器学习](projects/AI_README.md) | 23 | 量化、LoRA、ViT/CLIP、视觉、LLM、CNN、决策树、K-Means、KNN、线性回归、逻辑回归、朴素贝叶斯、PCA、Q-Learning、文本分类、Word2Vec、NER、图像描述 |
-| ⚙️ [系统基础设施](projects/SYSTEM_README.md) | 22 | 数据库、调度、容器、VM、OS、流计算、CI/CD、日志收集、监控、设备管理、容器编排、WAL、消息队列、Raft、分布式锁、熔断降级、编译器、物理引擎、响应式框架、C++20新特性 |
-| 🌐 [网络服务](projects/NETWORK_README.md) | 10 | HA、MCP、VPN、CDN、防火墙、渗透测试、HTTP/2、WebSocket、MQTT、RPC |
+| 🤖 [AI & 机器学习](projects/AI_README.md) | 35 | 量化、LoRA、ViT/CLIP、视觉、LLM、CNN、决策树、K-Means、KNN、线性回归、逻辑回归、朴素贝叶斯、PCA、Q-Learning、DQN、文本分类、Word2Vec、NER、语言模型、贝叶斯优化、遗传算法、模拟退火、粒子群、随机森林、SVM、梯度下降、模糊控制器 |
+| ⚙️ [系统基础设施](projects/SYSTEM_README.md) | 35 | 数据库、调度、容器、VM、OS、流计算、CI/CD、日志收集、监控、设备管理、容器编排、WAL、消息队列、Raft、分布式锁、熔断降级、编译器、物理引擎、动画引擎、C++特性系列、向量数据库、时间序列数据库、状态机、外部排序、查询解析器 |
+| 🌐 [网络服务](projects/NETWORK_README.md) | 12 | HA、MCP、VPN、CDN、防火墙、渗透测试、HTTP/2、WebSocket、MQTT、RPC、DNS、服务发现 |
 | 🔧 [异构计算](projects/HETERO_README.md) | 3 | CPU+GPU、多 GPU、GPU Shaders |
-| 🎮 [分布式 & 通讯](projects/DISTRIBUTED_README.md) | 6 | 游戏系统、聊天应用、Exactly-once、服务发现、分布式事务、DHT |
+| 🎮 [分布式 & 通讯](projects/DISTRIBUTED_README.md) | 10 | 游戏系统、聊天应用、Exactly-once、服务发现、分布式事务、DHT、MapReduce、分布式缓存、Paxos、分布式消息队列 |
 | 💰 [金融 & 应用](projects/APPS_README.md) | 7 | 量化交易、因子挖掘、风险管理、VR、文档编辑器、键盘驱动、容灾存储 |
-| 🎬 [多媒体 & 图形](projects/MEDIA_README.md) | 9 | 音频处理引擎、编解码器、流媒体服务器、动画系统、网格处理、场景图、空间划分、特征匹配、光线追踪 |
-| 📊 [NLP & 数据结构](projects/NLP_README.md) | 10 | 分词器、语言模型、随机森林、SVM、HyperLogLog、DNS、撮合引擎、查询解析器、边缘计算、PageRank |
-| 🔐 [安全 & 工具](projects/SECURITY_README.md) | 4 | 密码学库、沙箱隔离、解释器、倒排索引 |
+| 🎬 [多媒体 & 图形](projects/MEDIA_README.md) | 12 | 音频处理引擎、编解码器、流媒体服务器、动画系统、动画引擎、网格处理、场景图、空间划分、特征匹配、光线追踪、图像处理、颜色空间 |
+| 📊 [NLP & 数据结构](projects/NLP_README.md) | 12 | 分词器、语言模型、随机森林、SVM、HyperLogLog、DNS、撮合引擎、查询解析器、边缘计算、PageRank、倒排索引、布隆过滤器 |
+| 🔐 [安全 & 工具](projects/SECURITY_README.md) | 6 | 密码学库、沙箱隔离、解释器、倒排索引、防火墙、渗透测试 |
+| 🎛️ [控制系统](projects/CONTROL_README.md) | 10 | PID、状态空间、MPC、自适应控制、系统响应、模糊控制器、模拟滤波器、数字滤波器、信号采样、放大器设计 |
+| 🔷 [C++ 特性系列](projects/SYSTEM_README.md) | 14 | 11/14、17、20、23新特性、模板元编程、编译期计算、奇技淫巧、内存模型、性能优化、三方库、构建工具、陷阱最佳实践、代码规范 |
 
 ### 按技术栈浏览
 
