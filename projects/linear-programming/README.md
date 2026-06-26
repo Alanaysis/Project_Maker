@@ -1,220 +1,189 @@
-# 线性规划 (Linear Programming)
+"""
+线性规划求解器 (Linear Programming Solver)
 
-基于 NumPy 实现的线性规划求解库，支持单纯形法、对偶理论、敏感性分析及经典应用问题求解。
+实现单纯形法及其变体，用于求解线性规划问题。
 
-## 项目概述
+## 项目简介
 
-线性规划是运筹学中最基础、应用最广泛的优化方法。本项目从零实现完整的线性规划求解框架，涵盖：
+本项目是一个教学用的线性规划求解器，实现了单纯形法 (Simplex Method)
+及其多种变体，帮助学习者理解线性优化的核心算法。
 
-1. **单纯形法** - 三种变体：标准形式、大M法、两阶段法
-2. **对偶理论** - 对偶问题构造、强/弱对偶定理、互补松弛条件
-3. **对偶单纯形法** - 适用于右端项变化后的重新优化
-4. **敏感性分析** - 目标函数系数和右端项的变化范围
-5. **实际应用** - 生产计划、运输问题、指派问题
+## 学习目标
 
-### 数学基础
+1. **理解线性规划原理**
+   - 线性规划的标准形式与一般形式
+   - 可行域、基本解、基本可行解的概念
+   - 最优解的几何意义
 
-标准形式：
-```
-max  c^T x
-s.t. Ax <= b
-      x >= 0
-```
+2. **掌握单纯形法**
+   - 单纯形表的构造与解读
+   - 检验数 (Reduced Cost) 的含义
+   - 进基变量和出基变量的选择规则
+   - 最小比值测试 (Minimum Ratio Test)
+   - 主元运算 (Pivot Operation)
 
-对偶形式：
-```
-min  b^T y
-s.t. A^T y >= c
-      y >= 0
-```
+3. **学会约束处理**
+   - 松弛变量 (Slack Variables)
+   - 剩余变量 (Surplus Variables)
+   - 人工变量 (Artificial Variables)
+   - 两阶段法 (Two-Phase Method)
+   - 大M法 (Big-M Method)
 
-强对偶定理：若原问题有最优解 x*，则对偶也有最优解 y*，且 c^T x* = b^T y*。
+4. **深入理解对偶理论**
+   - 原问题与对偶问题的关系
+   - 强对偶定理
+   - 互补松弛条件
+   - 影子价格 (Shadow Price)
+
+5. **掌握灵敏度分析**
+   - 目标系数变化范围
+   - 约束右侧变化范围
+   - 100% 规则
 
 ## 项目结构
 
 ```
 linear-programming/
-├── src/                        # 源代码
-│   ├── __init__.py
-│   ├── linear_program.py      # LP 问题表示与标准形式转换
-│   ├── simplex.py             # 单纯形法（标准、大M、两阶段）
-│   ├── duality.py             # 对偶理论与对偶单纯形法
-│   ├── sensitivity.py         # 敏感性分析
-│   └── applications.py        # 实际应用（生产、运输、指派）
-├── tests/                      # 测试文件
-│   ├── test_simplex.py        # 单纯形法测试
-│   ├── test_duality.py        # 对偶理论测试
-│   ├── test_sensitivity.py    # 敏感性分析测试
-│   └── test_applications.py   # 应用问题测试
-├── examples/                   # 使用示例
-│   └── basic_usage.py         # 完整使用示例
-├── docs/                       # 文档
-│   ├── 01_RESEARCH.md         # 研究文档
-│   ├── 02_REQUIREMENTS.md     # 需求文档
-│   ├── 03_DESIGN.md           # 设计文档
-│   ├── 04_TESTING.md          # 测试文档
-│   └── 05_DEVELOPMENT.md      # 开发文档
-├── requirements.txt
-└── setup.py
+├── src/                          # 源代码
+│   ├── __init__.py              # 包初始化
+│   ├── problem.py               # 问题建模
+│   ├── standard_form.py         # 标准形转换
+│   ├── simplex.py               # 单纯形算法
+│   ├── big_m.py                 # 大M法
+│   ├── dual.py                  # 对偶问题求解
+│   ├── sensitivity.py           # 灵敏度分析
+│   └── analysis.py              # 解分析 (无界解/多重最优解)
+├── examples/                     # 示例脚本
+│   ├── 01_production_planning.py # 生产计划问题
+│   ├── 02_diet_problem.py       # 饮食问题
+│   ├── 03_transportation.py     # 运输问题
+│   ├── 04_graphical_method.py   # 图解法可视化
+│   └── 05_sensitivity_analysis.py # 灵敏度分析演示
+├── tests/                        # 测试
+│   └── test_linear_programming.py
+├── requirements.txt              # 依赖
+└── README.md                     # 项目文档
 ```
 
-## 快速开始
-
-### 安装
+## 安装
 
 ```bash
-cd projects/linear-programming
-pip install -e .
+cd linear-programming
+pip install -r requirements.txt
 ```
 
-### 基本使用
-
-```python
-from src.linear_program import LinearProgram, ConstraintType, ObjectiveType
-from src.simplex import SimplexSolver
-
-# 问题: max 3x1 + 5x2, s.t. x1<=4, 2x2<=12, 3x1+5x2<=25
-lp = LinearProgram(ObjectiveType.MAX)
-lp.set_objective([3, 5])
-lp.add_constraint([1, 0], 4, ConstraintType.LE)
-lp.add_constraint([0, 2], 12, ConstraintType.LE)
-lp.add_constraint([3, 5], 25, ConstraintType.LE)
-
-solver = SimplexSolver(method="standard")
-result = solver.solve(lp)
-print(result)
-# LP Result: optimal
-#   Optimal Value: 33.000000
-#   Solution: [2. 5.]
-```
-
-### 大M法处理混合约束
-
-```python
-lp = LinearProgram(ObjectiveType.MAX)
-lp.set_objective([5, 4])
-lp.add_constraint([6, 4], 24, ConstraintType.LE)
-lp.add_constraint([1, 2], 6, ConstraintType.GE)  # >= 约束
-
-solver = SimplexSolver(method="big_m", M=1e6)
-result = solver.solve(lp)
-```
-
-### 对偶问题
-
-```python
-from src.duality import DualProblem
-
-dual = DualProblem.construct_dual(primal_lp)
-print(dual)  # 打印对偶问题
-
-# 验证强对偶定理
-is_strong = DualProblem.verify_strong_duality(primal_result, dual_result)
-```
-
-### 敏感性分析
-
-```python
-from src.sensitivity import SensitivityAnalyzer
-
-analyzer = SensitivityAnalyzer()
-report = analyzer.analyze(lp, result)
-print(report)
-# === Sensitivity Report ===
-# Objective Coefficient Ranges: ...
-# Right-Hand Side Ranges: ...
-# Shadow Prices: ...
-```
-
-### 生产计划
-
-```python
-from src.applications import ProductionPlanner
-
-planner = ProductionPlanner()
-planner.add_resource("工时", 120)
-planner.add_resource("原料", 80)
-planner.add_product("A", profit=20, cost=5, usage=[4, 1], max_demand=20)
-planner.add_product("B", profit=30, cost=8, usage=[2, 3], max_demand=15)
-
-result = planner.optimize()
-print(planner.report(result))
-```
-
-### 运输问题
-
-```python
-from src.applications import TransportationSolver
-
-solver = TransportationSolver()
-cost = [[2, 3, 1], [4, 1, 5], [3, 2, 4]]
-supply = [30, 40, 20]
-demand = [25, 35, 30]
-
-result = solver.solve(cost, supply, demand)
-```
-
-### 指派问题
-
-```python
-from src.applications import AssignmentSolver
-
-solver = AssignmentSolver()
-cost = [[9, 2, 7], [6, 4, 3], [5, 8, 1]]
-result = solver.solve(cost)
-```
-
-## 核心模块
-
-### 1. 单纯形法 (simplex.py)
-
-| 方法 | 适用场景 | 复杂度 |
-|------|----------|--------|
-| 标准形式 | 仅 <= 约束, b >= 0 | O(n^3) |
-| 大M法 | 任意约束类型 | O(n^3) |
-| 两阶段法 | 任意约束类型 | O(n^3) |
-
-### 2. 对偶理论 (duality.py)
-
-- **对偶问题构造** - 自动将原问题转为对偶问题
-- **强对偶验证** - 验证 c^T x* = b^T y*
-- **互补松弛检查** - y_i*(b_i - A_i x*) = 0
-- **对偶单纯形法** - 保持对偶可行，恢复原始可行
-
-### 3. 敏感性分析 (sensitivity.py)
-
-- **目标函数系数范围** - c_j 的允许变化范围
-- **右端项范围** - b_i 的允许变化范围
-- **影子价格** - 资源的边际价值
-- **约简成本** - 非基变量进入基的门槛
-
-### 4. 实际应用 (applications.py)
-
-- **生产计划** - 多产品、多资源的最优生产安排
-- **运输问题** - 供需平衡的最小成本运输
-- **指派问题** - 最优任务分配 (含匈牙利算法)
-
-## 测试
+## 运行示例
 
 ```bash
-# 运行所有测试
-pytest tests/ -v
+# 示例 1: 生产计划问题
+python examples/01_production_planning.py
 
-# 运行特定测试
-pytest tests/test_simplex.py -v
-pytest tests/test_duality.py -v
-pytest tests/test_sensitivity.py -v
-pytest tests/test_applications.py -v
+# 示例 2: 饮食问题
+python examples/02_diet_problem.py
+
+# 示例 3: 运输问题
+python examples/03_transportation.py
+
+# 示例 4: 图解法可视化 (需要 matplotlib)
+python examples/04_graphical_method.py
+
+# 示例 5: 灵敏度分析
+python examples/05_sensitivity_analysis.py
 ```
 
-## 依赖
+## 运行测试
 
-- Python >= 3.8
-- NumPy >= 1.20.0
+```bash
+python -m pytest tests/
+# 或
+python -m unittest discover tests/
+```
 
-## 学习价值
+## 单纯形法详解
 
-1. **数学基础** - 线性代数、凸优化、对偶理论
-2. **算法设计** - 迭代算法、枢轴运算、基变换
-3. **建模能力** - 将实际问题转化为数学模型
-4. **数值计算** - 浮点精度、退化处理、循环避免
+### 算法核心思想
+
+单纯形法是一种迭代算法，从可行域的一个顶点移动到相邻顶点，
+每次移动都使目标函数值改善，直到无法再改进为止。
+
+### 步骤分解
+
+**步骤 1: 问题建模**
+将实际问题转化为线性规划数学模型。
+
+例如，生产计划问题:
+```
+最大化 z = 3x1 + 2x2
+约束:
+    x1 + x2 <= 4     (机器时间)
+    x1 <= 3          (产能1)
+    x2 <= 2          (产能2)
+    x1, x2 >= 0
+```
+
+**步骤 2: 标准形转换**
+添加松弛变量，将不等式约束转为等式:
+```
+x1 + x2 + s1 = 4
+x1 + s2 = 3
+x2 + s3 = 2
+```
+
+**步骤 3: 构造初始单纯形表**
+
+```
+     x1   x2   s1   s2   s3   RHS
+s1 |  1    1    1    0    0    4
+s2 |  1    0    0    1    0    3
+s3 |  0    1    0    0    1    2
+z | -3   -2    0    0    0    0   (检验数)
+```
+
+**步骤 4: 迭代**
+
+**第 1 次迭代:**
+- 进基变量: x1 (检验数 -3 最负)
+- 出基变量: s2 (最小比值: 3/1 = 3)
+- 主元: 第 2 行 x1 列 = 1
+
+**第 2 次迭代:**
+- 进基变量: x2 (检验数仍为负)
+- 出基变量: s1 (最小比值测试)
+- 更新单纯形表
+
+**步骤 5: 最优解**
+
+当所有检验数 >= 0 时，达到最优:
+```
+x1 = 2, x2 = 2, z = 10
+```
+
+### 终止条件
+
+1. **最优解**: 所有检验数 >= 0 (最小化问题)
+2. **无界解**: 存在检验数 < 0 的变量，其列所有系数 <= 0
+3. **多重最优解**: 最优表中存在非基变量检验数 = 0
+
+## 算法对比
+
+| 方法 | 适用场景 | 优点 | 缺点 |
+|------|---------|------|------|
+| 两阶段法 | 无初始可行基 | 数值稳定 | 需要求解两个问题 |
+| 大M法 | 人工变量较少 | 一步求解 | M 的选择影响数值稳定性 |
+
+## 数学符号说明
+
+| 符号 | 含义 |
+|------|------|
+| x | 决策变量向量 |
+| c | 目标函数系数向量 |
+| A | 约束矩阵 |
+| b | 约束右侧向量 |
+| z | 目标函数值 |
+| y | 对偶变量向量 |
+| B | 基矩阵 |
+| c_B | 基变量对应的目标系数 |
+
+## License
+
+MIT

@@ -1,3 +1,3 @@
-module github.com/streaming-algorithm
+module streaming-algorithm
 
-go 1.21
+go 1.22

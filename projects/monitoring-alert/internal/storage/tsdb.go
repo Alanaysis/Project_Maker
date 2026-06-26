@@ -23,6 +23,10 @@ type TimeSeriesDB interface {
 	List() []string
 	// GetLatest 获取指标的最新值
 	GetLatest(metric string, labels map[string]string) (float64, bool)
+	// GetSeriesCount 获取时序数据数量
+	GetSeriesCount() int
+	// GetPointCount 获取数据点总数
+	GetPointCount() int
 }
 
 // MemoryTSDB 内存时序数据库

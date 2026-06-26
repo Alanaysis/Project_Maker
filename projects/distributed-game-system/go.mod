@@ -1,12 +1,9 @@
-module github.com/distributed-game-system
+module distributed-game-system
 
-go 1.21
-
-require (
-	github.com/gorilla/websocket v1.5.1
-	github.com/google/uuid v1.6.0
-)
+go 1.22
 
 require (
-	golang.org/x/net v0.17.0 // indirect
+	github.com/gogo/protobuf v1.3.2
 )
+
+replace github.com/gogo/protobuf => google.golang.org/protobuf v1.33.0

@@ -1,244 +1,184 @@
-# 布隆过滤器 (Bloom Filter)
+# Bloom Filter / 布隆过滤器
 
-用 Python 实现的高效布隆过滤器库，包含标准布隆过滤器、计数布隆过滤器和可扩展布隆过滤器。
+> **Efficient probabilistic deduplication using bit arrays and multiple hash functions**
 
-## 项目简介
+## Project Description / 项目描述
 
-布隆过滤器是一种概率型数据结构，用于高效地判断一个元素是否存在于集合中。
+A learning project implementing the Bloom Filter data structure in Go. The Bloom Filter is a space-efficient probabilistic data structure that tests whether an element is a member of a set with minimal memory usage.
 
-**核心特性:**
-- 空间效率极高: 使用位数组存储，远小于哈希表
-- 查询和插入都是 O(k): k 为哈希函数数量
-- 可能产生假阳性 (false positive): 判断存在时可能误判
-- 绝不会产生假阴性 (false negative): 判断不存在时一定不存在
+实现布隆过滤器高效去重的学习项目。布隆过滤器是一种空间效率极高的概率型数据结构，用于判断元素是否存在于集合中。
 
-## 功能实现
+**Key characteristics / 关键特性:**
 
-| 功能 | 状态 | 说明 |
-|------|------|------|
-| 标准布隆过滤器 | 完成 | 多哈希函数 + 位数组 + 插入/查询 |
-| 计数布隆过滤器 | 完成 | 支持删除操作 |
-| 可扩展布隆过滤器 | 完成 | 动态扩容 |
-| 性能分析 | 完成 | 误判率计算 + 最优参数 |
-| 实际应用 | 完成 | URL去重/垃圾邮件/数据库优化 |
+| Property | Description |
+|----------|-------------|
+| **Space efficient** | Uses far less memory than a hash set |
+| **O(k) operations** | Insert and query both take O(k) time |
+| **No false negatives** | If an element was inserted, it will always be found |
+| **Possible false positives** | An element not inserted may still be reported as present |
 
-## 快速开始
+| 特性 | 说明 |
+|------|------|
+| **空间高效** | 比哈希集合使用更少的内存 |
+| **O(k) 操作** | 插入和查询都是 O(k) 时间复杂度 |
+| **无假阴性** | 已插入的元素一定被找到 |
+| **可能假阳性** | 未插入的元素可能被误判为存在 |
 
-### 安装
+## Learning Objectives / 学习目标
+
+- Understand Bloom filter principles and trade-offs / 理解布隆过滤器原理与权衡
+- Master hash function design using single-hash + salt technique / 掌握单哈希+盐值的哈希函数设计
+- Learn false positive rate calculation and optimal parameter selection / 学会误判率计算与最优参数选择
+- Implement counting Bloom filter variant supporting deletion / 实现支持删除的计数布隆过滤器变体
+- Understand Bloom filter merging for distributed systems / 理解分布式系统中的布隆过滤器合并
+
+## Bloom Filter Math / 布隆过滤器数学
+
+### False Positive Rate Formula / 误判率公式
+
+```
+p = (1 - e^(-kn/m))^k
+```
+
+Where:
+- `n` = number of inserted elements
+- `m` = bit array size (number of bits)
+- `k` = number of hash functions
+- `p` = false positive rate
+
+### Optimal Parameters / 最优参数
+
+Given `n` (expected elements) and `p` (target false positive rate):
+
+```
+m = -(n * ln(p)) / (ln(2))^2     # optimal bit array size
+k = (m / n) * ln(2) ≈ 0.693 * (m/n)  # optimal number of hash functions
+```
+
+### Bits per Element / 每元素比特数
+
+| Target FP Rate | Bits per Element |
+|---------------|-----------------|
+| 10% (0.1)     | ~4.8            |
+| 5% (0.05)     | ~6.3            |
+| 1% (0.01)     | ~9.6            |
+| 0.1% (0.001)  | ~14.4           |
+| 0.01% (0.0001)| ~19.2           |
+
+### Core Algorithm / 核心算法
+
+```
+Element Insertion / 元素插入:
+  For each element:
+    For i = 0 to k-1:
+      pos = hash_i(element)
+      bit_array[pos] = 1
+
+Element Query / 元素查询:
+  For each element:
+    For i = 0 to k-1:
+      pos = hash_i(element)
+      if bit_array[pos] == 0:
+        return "definitely not in set"
+  return "might be in set"
+```
+
+## Implementation / 实现
+
+### Core Components / 核心组件
+
+| Component | Description |
+|-----------|-------------|
+| `BloomFilter` | Standard Bloom filter with bit array |
+| `CountingBloomFilter` | Variant with counters supporting deletion |
+| `NewOptimal()` | Create filter with optimal parameters |
+| `Merge()` | Bitwise OR merge for distributed filtering |
+| `CalculateOptimalParams()` | Utility for parameter calculation |
+
+### Hash Function Design / 哈希函数设计
+
+Uses the Kirsch-Mitzenmacher double-hashing technique:
+1. Generate two base hashes from SHA-256
+2. Derive `k` hash functions: `h(i) = (h1 + i * h2) mod m`
+3. This provides k independent-looking hashes with only 2 SHA-256 calls
+
+## How to Run Examples / 如何运行示例
 
 ```bash
+# Run all examples
 cd projects/bloom-filter
-pip install -r requirements.txt
+go run examples/main.go
+
+# Run specific examples
+go run examples/false_positive_rate.go
+go run examples/optimal_size.go
+go run examples/counting_bloom.go
 ```
 
-### 基本使用
-
-```python
-from bloom_filter import BloomFilter
-
-# 创建布隆过滤器 (自动计算最优参数)
-bf = BloomFilter(expected_items=10000, false_positive_rate=0.01)
-
-# 插入元素
-bf.add("hello")
-bf.add("world")
-
-# 查询元素
-print("hello" in bf)  # True
-print("world" in bf)  # True
-print("rust" in bf)   # False (大概率)
-```
-
-### 计数布隆过滤器 (支持删除)
-
-```python
-from bloom_filter import CountingBloomFilter
-
-# 创建计数布隆过滤器
-cbf = CountingBloomFilter(expected_items=10000, false_positive_rate=0.01)
-
-# 插入元素
-cbf.add("hello")
-cbf.add("world")
-
-# 删除元素
-cbf.remove("hello")
-
-# 查询
-print("hello" in cbf)  # False
-print("world" in cbf)  # True
-```
-
-### 可扩展布隆过滤器 (动态扩容)
-
-```python
-from bloom_filter import ScalableBloomFilter
-
-# 创建可扩展布隆过滤器
-sbf = ScalableBloomFilter(initial_capacity=1000, false_positive_rate=0.01)
-
-# 插入大量元素 (自动扩容)
-for i in range(100000):
-    sbf.add(f"item_{i}")
-
-print(f"层数: {sbf.layer_count}")
-print(f"总元素: {sbf.count}")
-```
-
-## 应用场景
-
-### 1. URL 去重
-
-```python
-from bloom_filter import BloomFilter
-
-url_filter = BloomFilter(expected_items=1000000, false_positive_rate=0.01)
-
-if url not in url_filter:
-    url_filter.add(url)
-    # 处理新 URL
-```
-
-### 2. 垃圾邮件过滤
-
-```python
-spam_filter = BloomFilter(expected_items=10000, false_positive_rate=0.001)
-
-for keyword in spam_keywords:
-    spam_filter.add(keyword)
-
-if any(word in spam_filter for word in email_words):
-    # 标记为垃圾邮件
-```
-
-### 3. 数据库查询优化
-
-```python
-db_filter = BloomFilter(expected_items=1000000, false_positive_rate=0.01)
-
-if key in db_filter:
-    # 可能存在，查询数据库
-    result = database.get(key)
-else:
-    # 一定不存在，跳过查询
-    pass
-```
-
-## 性能分析
-
-### 误判率计算
-
-```python
-from bloom_filter import optimal_size, optimal_hash_count, false_positive_rate
-
-n = 10000  # 预期元素数量
-p = 0.01   # 期望误判率
-
-m = optimal_size(n, p)  # 最优位数组大小
-k = optimal_hash_count(m, n)  # 最优哈希函数数量
-
-print(f"位数组大小: {m}")
-print(f"哈希函数数量: {k}")
-```
-
-### 最优参数表
-
-| 元素数量 | 误判率 | 位数组大小 | 哈希函数数 | 每元素比特 |
-|---------|--------|-----------|-----------|-----------|
-| 1,000 | 0.01 | 9,586 | 7 | 9.6 |
-| 10,000 | 0.01 | 95,858 | 7 | 9.6 |
-| 100,000 | 0.01 | 958,576 | 7 | 9.6 |
-| 1,000,000 | 0.01 | 9,585,759 | 7 | 9.6 |
-
-### 内存使用
-
-| 类型 | 每元素字节 (p=0.01) | 特点 |
-|------|-------------------|------|
-| 标准布隆过滤器 | 9.6 | 最省内存 |
-| 计数布隆过滤器 | 76.8 | 支持删除 |
-| 可扩展布隆过滤器 | ~12 | 动态扩容 |
-
-## 运行示例
+## How to Run Tests / 如何运行测试
 
 ```bash
-# 基本使用示例
-python examples/basic_usage.py
+# Run all tests
+go test ./tests/ -v
 
-# 实际应用示例
-python examples/applications.py
+# Run with coverage
+go test ./tests/ -v -cover
 
-# 性能分析示例
-python examples/performance.py
+# Run specific test
+go test ./tests/ -v -run TestBloomFilter_BasicOperations
 ```
 
-## 运行测试
-
-```bash
-# 运行所有测试
-pytest
-
-# 运行特定测试
-pytest tests/test_bloom_filter.py
-
-# 生成覆盖率报告
-pytest --cov=bloom_filter --cov-report=html
-```
-
-## 项目结构
+## Project Structure / 项目结构
 
 ```
 bloom-filter/
 ├── src/
-│   └── bloom_filter/
-│       ├── __init__.py           # 包入口
-│       ├── bit_array.py          # 位数组和计数数组
-│       ├── hash_functions.py     # 哈希函数
-│       ├── bloom_filter.py       # 标准布隆过滤器
-│       ├── counting_bloom_filter.py  # 计数布隆过滤器
-│       ├── scalable_bloom_filter.py  # 可扩展布隆过滤器
-│       ├── analysis.py           # 性能分析工具
-│       └── main.py              # 演示程序
-├── tests/
-│   ├── test_bloom_filter.py      # 标准布隆过滤器测试
-│   ├── test_counting_bloom_filter.py  # 计数布隆过滤器测试
-│   ├── test_scalable_bloom_filter.py  # 可扩展布隆过滤器测试
-│   └── test_analysis.py         # 性能分析测试
+│   └── bloomfilter.go          # Core implementation (BloomFilter + CountingBloomFilter)
 ├── examples/
-│   ├── basic_usage.py           # 基本使用示例
-│   ├── applications.py         # 实际应用示例
-│   └── performance.py          # 性能分析示例
-├── docs/
-│   ├── 01-RESEARCH.md          # 研究文档
-│   ├── 02-ARCHITECTURE.md      # 架构设计
-│   ├── 03-IMPLEMENTATION.md    # 实现细节
-│   ├── 04-TESTING.md           # 测试策略
-│   └── 05-DEVELOPMENT.md       # 开发指南
+│   ├── main.go                  # Combined demo (basic usage + FP demo + optimal size + counting)
+│   ├── false_positive_rate.go   # False positive rate demonstration
+│   ├── optimal_size.go           # Optimal parameter calculation
+│   └── counting_bloom.go        # Counting Bloom filter demo
+├── tests/
+│   └── bloomfilter_test.go      # Comprehensive unit tests
 ├── README.md
-└── requirements.txt
+└── go.mod
 ```
 
-## 数学原理
+## Technical Details / 技术细节
 
-### 误判率公式
+### Counting Bloom Filter / 计数布隆过滤器
 
-```
-p ~ (1 - e^(-kn/m))^k
-```
+The counting variant replaces each bit with a small counter:
+- **Pros**: Supports deletion of elements
+- **Cons**: Uses more memory (8x for 8-bit counters), higher FP rate
+- **Counter overflow**: Counters saturate at max value (255 for 8-bit)
 
-### 最优参数
+### Bloom Filter Merging / 布隆过滤器合并
 
-```
-m = -(n * ln(p)) / (ln(2))^2
-k = (m / n) * ln(2)
-```
+Multiple Bloom filters can be merged using bitwise OR:
+- `filter1.Merge(filter2)` computes the union of both sets
+- Useful in distributed systems where nodes maintain local filters
+- Merged filter has higher FP rate than individual filters
 
-## 参考文献
+### Memory Comparison / 内存对比
 
-1. Bloom, B. H. (1970). Space/time trade-offs in hash coding with allowable errors.
-2. Fan, L., et al. (2000). Summary Cache: A Scalable Wide-Area Web Cache Sharing Protocol.
-3. Almeida, P. S., et al. (2007). Scalable Bloom Filters.
+For 1,000,000 elements with 1% FP rate:
+
+| Structure | Memory |
+|-----------|--------|
+| Bloom Filter | ~9.6 MB |
+| Hash Set (strings) | ~50+ MB |
+| Counting Bloom (8-bit) | ~76.8 MB |
+| **Space savings** | **~80-95%** |
+
+## References / 参考文献
+
+1. Bloom, B. H. (1970). "Space/time trade-offs in hash coding with allowable errors". Communications of the ACM.
+2. Kirsch, A., & Mitzenmacher, M. (2006). "Less hashing, same performance: Building a better Bloom filter".
+3. Fan, L., et al. (2000). "Summary Cache: A Scalable Wide-Area Web Cache Sharing Protocol".
 4. https://en.wikipedia.org/wiki/Bloom_filter
 
-## 许可证
+## License / 许可证
 
 MIT License

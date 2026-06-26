@@ -1,213 +1,251 @@
-# 凸优化
+# Convex Optimization Learning Project (凸优化学习项目)
 
-实现凸优化的核心算法，包括凸函数判断、优化算法、约束优化和实际应用。
+> Understanding convex optimization through implementation.
 
-## 项目概述
+---
 
-本项目是一个学习型项目，旨在深入理解和实现凸优化的核心概念和算法。通过实际代码实现，掌握凸优化的理论基础和实际应用。
+## English
 
-### 学习目标
+A hands-on learning project implementing core convex optimization algorithms from scratch. This project helps you understand the mathematical foundations and practical implementation of convex optimization solvers.
 
-- 理解凸函数的定义和性质
-- 掌握凸性判断方法（定义法、海森矩阵法）
-- 理解强凸性和次梯度
-- 掌握梯度下降、牛顿法、拟牛顿法等优化算法
-- 理解拉格朗日对偶和 KKT 条件
-- 掌握内点法等约束优化方法
-- 应用凸优化解决实际问题（最小二乘、SVM、投资组合）
+### Learning Objectives
 
-### 技术栈
+1. **Understand Convex Optimization Principles**
+   - Convex sets and convex functions
+   - Local vs. global optimality
+   - Duality theory
 
-- **主语言**: Python
-- **框架**: 无（纯 NumPy 实现）
-- **其他**: NumPy
+2. **Master KKT Conditions**
+   - Karush-Kuhn-Tucker optimality conditions
+   - Complementary slackness
+   - Primal-dual methods
 
-### 核心概念
+3. **Learn Interior Point Methods**
+   - Log barrier functions
+   - Central path
+   - Primal-dual algorithms
 
-```
-凸函数 → 优化算法 → 约束优化 → 实际应用
-   ↓          ↓          ↓          ↓
-凸性判断   梯度下降   拉格朗日    最小二乘
-强凸性     牛顿法     KKT条件    SVM求解
-次梯度     BFGS       内点法     投资组合
-```
-
-## 快速开始
-
-### 安装依赖
-
-```bash
-# 克隆项目
-git clone <repository-url>
-cd convex-optimization
-
-# 创建虚拟环境
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate  # Windows
-
-# 安装依赖
-pip install -r requirements.txt
-```
-
-### 运行示例
-
-```bash
-# 基础优化示例
-python examples/basic_optimization.py
-
-# 约束优化示例
-python examples/constrained_optimization.py
-
-# 最小二乘示例
-python examples/least_squares_example.py
-
-# 投资组合优化示例
-python examples/portfolio_example.py
-```
-
-### 运行测试
-
-```bash
-# 运行所有测试
-pytest tests/
-
-# 运行特定测试
-pytest tests/test_functions.py
-pytest tests/test_optimizers.py
-pytest tests/test_constrained.py
-pytest tests/test_applications.py
-```
-
-## 项目结构
+### Project Structure
 
 ```
 convex-optimization/
-├── src/                          # 源代码
+├── src/                          # Core modules
 │   ├── __init__.py
-│   ├── functions/                # 凸函数模块
-│   │   ├── __init__.py
-│   │   ├── convex_function.py   # 凸函数基类
-│   │   └── test_functions.py    # 测试函数
-│   ├── optimizers/              # 优化算法模块
-│   │   ├── __init__.py
-│   │   ├── base_optimizer.py    # 优化器基类
-│   │   ├── gradient_descent.py  # 梯度下降
-│   │   ├── newton_method.py     # 牛顿法
-│   │   └── bfgs.py              # BFGS/L-BFGS
-│   ├── constrained/             # 约束优化模块
-│   │   ├── __init__.py
-│   │   ├── lagrangian.py        # 拉格朗日对偶
-│   │   ├── kkt.py               # KKT 条件
-│   │   └── interior_point.py    # 内点法
-│   └── applications/            # 实际应用模块
-│       ├── __init__.py
-│       ├── least_squares.py     # 最小二乘
-│       ├── svm.py               # SVM 求解
-│       └── portfolio.py         # 投资组合优化
-├── tests/                       # 测试代码
-│   ├── __init__.py
-│   ├── test_functions.py
-│   ├── test_optimizers.py
-│   ├── test_constrained.py
-│   └── test_applications.py
-├── examples/                    # 示例代码
-│   ├── basic_optimization.py
-│   ├── constrained_optimization.py
-│   ├── least_squares_example.py
-│   └── portfolio_example.py
-├── docs/                        # 文档
-│   ├── 01_RESEARCH.md
-│   ├── 02_DESIGN.md
-│   ├── 03_IMPLEMENTATION.md
-│   ├── 04_TESTING.md
-│   └── 05_DEVELOPMENT.md
-├── README.md
-└── requirements.txt
+│   ├── convexity_checker.py      # Convexity verification tools
+│   ├── gradient_descent.py       # Gradient descent variants
+│   ├── newton_method.py          # Newton's method optimizers
+│   ├── interior_point.py         # Interior point method
+│   ├── lagrangian.py             # Lagrangian multiplier method
+│   ├── kkt_solver.py             # KKT conditions solver
+│   ├── line_search.py            # Damped line search
+│   └── convergence.py            # Convergence detection
+├── examples/                     # Demo scripts
+│   ├── 01_linear_programming.py
+│   ├── 02_quadratic_programming.py
+│   ├── 03_svm_convex.py
+│   ├── 04_portfolio_optimization.py
+│   └── 05_visualization.py
+├── tests/                        # Unit tests
+│   ├── test_convexity.py
+│   ├── test_gradient_descent.py
+│   ├── test_newton_method.py
+│   ├── test_interior_point.py
+│   ├── test_lagrangian.py
+│   ├── test_kkt_solver.py
+│   ├── test_line_search.py
+│   └── test_convergence.py
+├── requirements.txt
+└── README.md
 ```
 
-## 核心模块
+### How to Run Examples
 
-### 1. 凸函数 (src/functions/)
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
-- **ConvexFunction**: 凸函数基类，提供凸性判断、强凸性检验、次梯度计算
-- **QuadraticFunction**: 二次函数 f(x) = 0.5 x^T A x + b^T x + c
-- **RosenbrockFunction**: Rosenbrock 函数（非凸测试函数）
-- **LogisticLoss**: 逻辑损失函数（凸）
-- **HuberLoss**: Huber 损失函数（凸，非光滑）
-- **L1Norm**: L1 范数（凸，非光滑）
-- **ElasticNet**: 弹性网络（凸）
+# Run examples
+python examples/01_linear_programming.py
+python examples/02_quadratic_programming.py
+python examples/03_svm_convex.py
+python examples/04_portfolio_optimization.py
+python examples/05_visualization.py
 
-### 2. 优化算法 (src/optimizers/)
+# Run tests
+python -m pytest tests/
+# or
+python -m unittest discover tests/
+```
 
-- **GradientDescent**: 梯度下降（支持动量和 Nesterov 加速）
-- **NewtonMethod**: 牛顿法（支持阻尼和正则化）
-- **BFGS**: BFGS 拟牛顿法
-- **LBFGS**: L-BFGS 有限内存拟牛顿法
-- **Adam**: Adam 自适应学习率算法
+### Core Optimization Loop
 
-### 3. 约束优化 (src/constrained/)
+```
+Problem Modeling → Feasibility Check → Optimization Iteration → Optimal Solution
+问题建模 → 可行性检查 → 优化迭代 → 最优解
+```
 
-- **Lagrangian**: 拉格朗日函数
-- **DualProblem**: 对偶问题
-- **AugmentedLagrangian**: 增广拉格朗日方法
-- **KKTChecker**: KKT 条件检验器
-- **BarrierMethod**: 障碍函数法（内点法）
-- **PrimalDualInteriorPoint**: 原始-对偶内点法
+---
 
-### 4. 实际应用 (src/applications/)
+## 中文
 
-- **LeastSquares**: 普通最小二乘
-- **RidgeRegression**: 岭回归（L2 正则化）
-- **LassoRegression**: Lasso 回归（L1 正则化）
-- **SVM**: 支持向量机
-- **PortfolioOptimizer**: 投资组合优化
+通过从零实现，学习核心凸优化算法的手把手项目。本项目帮助你理解凸优化求解器的数学基础和实际实现。
 
-## 算法详解
+### 学习目标
 
-### 凸性判断
+1. **理解凸优化原理**
+   - 凸集与凸函数
+   - 局部最优与全局最优
+   - 对偶理论
 
-1. **定义法**: f(αx + (1-α)y) ≤ αf(x) + (1-α)f(y)
-2. **海森矩阵法**: ∇²f(x) 半正定（所有特征值 ≥ 0）
+2. **掌握 KKT 条件**
+   - Karush-Kuhn-Tucker 最优性条件
+   - 互补松弛条件
+   - 原对偶方法
 
-### 优化算法
+3. **学会内点法**
+   - 对数障碍函数
+   - 中心路径
+   - 原对偶算法
 
-1. **梯度下降**: x_{k+1} = x_k - α∇f(x_k)
-2. **牛顿法**: x_{k+1} = x_k - [∇²f(x_k)]^{-1} ∇f(x_k)
-3. **BFGS**: 通过迭代更新海森矩阵的近似
+### 项目结构
 
-### 约束优化
+```
+convex-optimization/
+├── src/                          # 核心模块
+│   ├── __init__.py
+│   ├── convexity_checker.py      # 凸性检测工具
+│   ├── gradient_descent.py       # 梯度下降变体
+│   ├── newton_method.py          # 牛顿法优化器
+│   ├── interior_point.py         # 内点法
+│   ├── lagrangian.py             # 拉格朗日乘子法
+│   ├── kkt_solver.py             # KKT 条件求解器
+│   ├── line_search.py            # 阻尼线搜索
+│   └── convergence.py            # 收敛检测
+├── examples/                     # 演示脚本
+│   ├── 01_linear_programming.py
+│   ├── 02_quadratic_programming.py
+│   ├── 03_svm_convex.py
+│   ├── 04_portfolio_optimization.py
+│   └── 05_visualization.py
+├── tests/                        # 单元测试
+│   ├── test_convexity.py
+│   ├── test_gradient_descent.py
+│   ├── test_newton_method.py
+│   ├── test_interior_point.py
+│   ├── test_lagrangian.py
+│   ├── test_kkt_solver.py
+│   ├── test_line_search.py
+│   └── test_convergence.py
+├── requirements.txt
+└── README.md
+```
 
-1. **拉格朗日对偶**: 将约束问题转化为无约束问题
-2. **KKT 条件**: 最优解的必要条件
-3. **内点法**: 通过障碍函数处理约束
+### 如何运行示例
 
-## 应用场景
+```bash
+# 安装依赖
+pip install -r requirements.txt
 
-### 最小二乘
+# 运行示例
+python examples/01_linear_programming.py
+python examples/02_quadratic_programming.py
+python examples/03_svm_convex.py
+python examples/04_portfolio_optimization.py
+python examples/05_visualization.py
 
-- 数据拟合
-- 回归分析
-- 信号处理
+# 运行测试
+python -m pytest tests/
+# 或
+python -m unittest discover tests/
+```
 
-### SVM
+---
 
-- 分类问题
-- 模式识别
-- 文本分类
+## Convex Optimization Theory Background / 凸优化理论基础
 
-### 投资组合
+### What is Convex Optimization? / 什么是凸优化?
 
-- 资产配置
-- 风险管理
-- 量化交易
+A **convex optimization problem** has the form:
 
-## 参考资料
+```
+minimize    f₀(x)
+subject to  fᵢ(x) ≤ 0,  i = 1, ..., m
+            Ax = b
+```
 
-- Boyd, S., & Vandenberghe, L. (2004). *Convex Optimization*. Cambridge University Press.
-- Nocedal, J., & Wright, S. J. (2006). *Numerical Optimization*. Springer.
-- Bertsekas, D. P. (2015). *Convex Optimization Algorithms*. Athena Scientific.
+where f₀, ..., fₘ are **convex functions**.
 
-## 许可证
+**凸优化问题**的形式为：
 
-MIT License
+```
+最小化    f₀(x)
+约束条件   fᵢ(x) ≤ 0,  i = 1, ..., m
+           Ax = b
+```
+
+其中 f₀, ..., fₘ 是**凸函数**。
+
+### Key Properties / 关键性质
+
+1. **Local = Global**: Any local minimum is a global minimum.
+   **局部=全局**：任何局部最小值都是全局最小值。
+
+2. **First-order condition**: x* is optimal iff grad(f)(x*) = 0 (unconstrained).
+   **一阶条件**：x* 最优当且仅当 grad(f)(x*) = 0（无约束情况）。
+
+3. **Second-order condition**: x* is optimal iff grad(f)(x*) = 0 and Hessian(f)(x*) ⪰ 0.
+   **二阶条件**：x* 最优当且仅当 grad(f)(x*) = 0 且 Hessian(f)(x*) ⪰ 0。
+
+### Common Convex Functions / 常见凸函数
+
+| Function | Formula | Condition |
+|----------|---------|-----------|
+| Linear | aᵀx | Always convex |
+| Quadratic | xᵀPx + qᵀx | P ⪰ 0 |
+| Exponential | exp(aᵀx) | Always convex |
+| Log-sum-exp | log(Σexp(xᵢ)) | Always convex |
+| Negative entropy | Σxᵢlog(xᵢ) | x > 0 |
+| Norm | ‖x‖ₚ | p ≥ 1 |
+| Log barrier | -Σlog(xᵢ) | x > 0 |
+
+### KKT Conditions / KKT 条件
+
+For the problem with equality and inequality constraints:
+
+```
+minimize    f₀(x)
+subject to  hᵢ(x) = 0,  i = 1, ..., p
+            gⱼ(x) ≤ 0,  j = 1, ..., q
+```
+
+The **Lagrangian** is:
+
+```
+L(x, λ, ν) = f₀(x) + Σλⱼgⱼ(x) + Σνᵢhᵢ(x)
+```
+
+The **KKT conditions** (necessary for optimality):
+
+1. **Stationarity**: ∇f₀(x*) + Σλⱼ∇gⱼ(x*) + Σνᵢ∇hᵢ(x*) = 0
+2. **Primal feasibility**: hᵢ(x*) = 0, gⱼ(x*) ≤ 0
+3. **Dual feasibility**: λⱼ ≥ 0
+4. **Complementary slackness**: λⱼgⱼ(x*) = 0
+
+### Algorithms Implemented / 实现的算法
+
+| Algorithm | Convergence Rate | Complexity | Best For |
+|-----------|-----------------|------------|----------|
+| Gradient Descent | O(1/k) | O(n²) per iter | Large-scale problems |
+| Momentum GD | O(1/k) | O(n²) per iter | Ill-conditioned problems |
+| AdaGrad | Adaptive | O(n²) per iter | Sparse problems |
+| Newton's Method | Quadratic | O(n³) per iter | Small/medium problems |
+| Damped Newton | Global + quadratic | O(n³) per iter | Reliable convergence |
+| Interior Point | Polynomial | Varies | Constrained problems |
+
+---
+
+## License
+
+This project is for educational purposes only.
+
+本项目仅用于教育目的。

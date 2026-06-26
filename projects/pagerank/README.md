@@ -1,193 +1,107 @@
-# PageRank 算法实现
+# PageRank 算法学习项目
 
-## 项目简介
+## 项目简介 / Project Description
 
-这是一个完整的 PageRank 网页排序算法实现项目，包含标准 PageRank、个性化 PageRank、Topic-Sensitive PageRank 等多种变体，以及评估模块和实际应用场景。
+本项目实现 PageRank 网页排序算法及其变体，用于理解网页重要性的计算原理。
 
-## 核心功能
+This project implements the PageRank web ranking algorithm and its variants to understand how webpage importance is computed.
 
-### 1. PageRank 算法变体
-- **标准 PageRank**: 经典幂迭代法，支持阻尼因子配置
-- **个性化 PageRank (PPR)**: 基于偏好向量的个性化排名
-- **Topic-Sensitive PageRank**: 基于主题的敏感排名
+## 学习目标 / Learning Objectives
 
-### 2. 求解方法
-- **迭代法**: 逐步更新直到收敛
-- **幂迭代法**: 计算 Google 矩阵主特征向量
-- **代数法**: 直接求解线性方程组
+### 核心目标 / Core Goals
+- **理解 PageRank 原理**: 掌握 PageRank 的数学推导和直观理解
+- **掌握迭代计算**: 学习幂迭代法 (Power Iteration) 的实现
+- **学会稀疏矩阵**: 使用稀疏矩阵优化大规模图计算
 
-### 3. 评估模块
-- **收敛性分析**: 迭代次数、收敛历史、谱半径估计
-- **排序质量**: Kendall's tau、Spearman's rho、NDCG
-- **图结构分析**: 度分布、密度、连通分量
-- **敏感性分析**: 阻尼因子影响、鲁棒性测试
+### 进阶目标 / Advanced Goals
+- 实现阻尼因子 (Damping Factor) 处理
+- 实现个性化 PageRank (Personalized PageRank)
+- 实现 HITS 算法 (Hub/Authority) 作为扩展
 
-### 4. 实际应用
-- **网页排名**: WebRankingSystem 类
-- **社交网络分析**: SocialNetworkAnalyzer 类
-- **推荐系统**: RecommendationSystem 类
+## 算法原理 / Algorithm Principle
 
-## 项目结构
+PageRank 的核心思想：一个网页的重要性取决于指向它的其他网页的重要性。
+
+The core idea of PageRank: A webpage's importance depends on the importance of pages that link to it.
+
+### PageRank 公式
+
+```
+PR(p_i) = (1-d)/N + d * sum(PR(p_j)/L(p_j)) for all p_j linking to p_i
+```
+
+其中：
+- `d`: 阻尼因子 (damping factor)，通常取 0.85
+- `N`: 网页总数
+- `L(p_j)`: 页面 p_j 的外链数量
+- `p_j -> p_i`: p_j 指向 p_i 的链接
+
+### 矩阵形式
+
+```
+PR = (1-d)/N * 1 + d * M^T * PR
+```
+
+其中 M 是转移矩阵 (transition matrix)。
+
+## 项目结构 / Project Structure
 
 ```
 pagerank/
-├── src/
-│   ├── __init__.py           # 模块导出
-│   ├── graph.py              # 网页图数据结构
-│   ├── pagerank.py           # PageRank 算法实现
-│   ├── evaluation.py         # 评估模块
-│   ├── applications.py       # 应用模块
-│   └── visualizer.py         # 可视化工具
-├── tests/
-│   ├── test_graph.py         # 图结构测试
-│   ├── test_pagerank.py      # 基础算法测试
-│   └── test_advanced.py      # 高级功能测试
-├── examples/
-│   ├── personalized_pagerank.py    # 个性化 PageRank 示例
-│   ├── topic_sensitive_pagerank.py # Topic-Sensitive 示例
-│   ├── web_ranking.py              # 网页排名应用
-│   ├── social_network.py           # 社交网络分析
-│   └── recommendation_system.py    # 推荐系统
-├── docs/                     # 学习文档
-├── README.md
-├── LEARNING_NOTES.md
-└── requirements.txt
+├── src/                    # 源代码 / Source code
+│   ├── __init__.py
+│   ├── graph.py            # 图表示 (Graph representation)
+│   ├── pagerank.py         # PageRank 核心算法
+│   ├── sparse_utils.py     # 稀疏矩阵工具
+│   └── hits.py             # HITS 算法
+├── examples/               # 示例脚本 / Examples
+│   ├── simple_pagerank.py
+│   ├── large_scale.py
+│   ├── personalized_pagerank.py
+│   └── convergence_viz.py
+├── tests/                  # 单元测试 / Unit tests
+│   ├── __init__.py
+│   └── test_pagerank.py
+├── requirements.txt
+└── README.md
 ```
 
-## 快速开始
-
-### 安装依赖
+## 运行示例 / Run Examples
 
 ```bash
-cd projects/pagerank
+# 安装依赖 / Install dependencies
 pip install -r requirements.txt
+
+# 运行简单 PageRank 示例
+python -m examples.simple_pagerank
+
+# 运行大规模图模拟
+python -m examples.large_scale
+
+# 运行个性化 PageRank
+python -m examples.personalized_pagerank
+
+# 运行收敛可视化
+python -m examples.convergence_viz
 ```
 
-### 基础用法
+## 算法推导 / Algorithm Derivation
 
-```python
-from src.graph import WebGraph
-from src.pagerank import PageRank
+### 从随机游走到 PageRank
 
-# 创建网页图
-graph = WebGraph.from_edges([
-    ("A", "B"), ("B", "C"), ("C", "A"), ("D", "C")
-])
+1. 将网页图建模为有向图 G = (V, E)
+2. 定义转移矩阵 M，其中 M_ij = 1/L(i) 如果 j 指向 i
+3. PageRank 是 M^T 的主特征向量
+4. 通过幂迭代法求解
 
-# 标准 PageRank
-pr = PageRank(damping_factor=0.85)
-result = pr.compute(graph)
+### 阻尼因子 (Damping Factor)
 
-for page, score in result.ranked_pages:
-    print(f"{page}: {score:.4f}")
-```
+阻尼因子 d 模拟用户随机点击的概率：
+- 以概率 d 继续点击链接
+- 以概率 (1-d) 随机跳转到任意页面
 
-### 个性化 PageRank
+### 悬垂节点 (Dangling Nodes)
 
-```python
-# 用户偏好科技内容
-personalization = {"Tech": 0.5, "Science": 0.3, "Blog": 0.2}
-result = pr.compute_personalized(graph, personalization_vector=personalization)
-```
+没有外链的页面会"泄漏" PageRank 值，需要特别处理。
 
-### Topic-Sensitive PageRank
-
-```python
-topics = {
-    "News": ["CNN", "BBC", "Reuters"],
-    "Tech": ["TechCrunch", "Wired"]
-}
-result = pr.compute_topic_sensitive_combined(graph, topic_pages=topics)
-```
-
-### 运行示例
-
-```bash
-python examples/personalized_pagerank.py
-python examples/topic_sensitive_pagerank.py
-python examples/web_ranking.py
-python examples/social_network.py
-python examples/recommendation_system.py
-```
-
-### 运行测试
-
-```bash
-pytest tests/ -v
-```
-
-## 算法原理
-
-### 标准 PageRank 公式
-
-```
-PR(i) = (1-d)/N + d * Σ(PR(j)/L(j))
-```
-
-### 个性化 PageRank 公式
-
-```
-PR(i) = (1-d) * p(i) + d * Σ(PR(j)/L(j))
-```
-
-其中 `p(i)` 是个性化偏好概率分布。
-
-### Topic-Sensitive PageRank
-
-为每个主题计算独立的 PageRank 向量，然后按主题权重组合：
-
-```
-PR_combined = Σ(w_t * PR_t)
-```
-
-## API 参考
-
-### PageRank 类
-
-| 方法 | 说明 |
-|------|------|
-| `compute(graph)` | 标准 PageRank |
-| `compute_personalized(graph, personalization_vector)` | 个性化 PageRank |
-| `compute_topic_sensitive(graph, topic_pages)` | Topic-Sensitive PageRank |
-| `compute_topic_sensitive_combined(graph, topic_pages)` | 组合 Topic-Sensitive PageRank |
-| `compute_power_iteration(graph)` | 幂迭代法 |
-| `compute_algebraic(graph)` | 代数法 |
-| `analyze_convergence(graph)` | 收敛性分析 |
-
-### 评估模块
-
-| 类 | 说明 |
-|----|------|
-| `PageRankEvaluator` | 评估器，提供图分析、收敛分析、鲁棒性分析 |
-| `GraphStatistics` | 图结构统计 |
-| `ConvergenceAnalysis` | 收敛性分析结果 |
-| `RankingQualityMetrics` | 排序质量指标 |
-
-### 应用模块
-
-| 类 | 说明 |
-|----|------|
-| `WebRankingSystem` | 网页排名系统 |
-| `SocialNetworkAnalyzer` | 社交网络分析器 |
-| `RecommendationSystem` | 推荐系统 |
-
-## 技术栈
-
-- **Python 3.8+**
-- **NumPy**: 数值计算
-- **SciPy**: 稀疏矩阵
-- **Matplotlib**: 可视化
-- **NetworkX**: 图结构分析
-
-## 测试覆盖
-
-- 62 个测试用例
-- 覆盖所有核心功能
-- 包含边界条件测试
-
-## 参考资料
-
-- [PageRank Wikipedia](https://en.wikipedia.org/wiki/PageRank)
-- [Original PageRank Paper](http://ilpubs.stanford.edu:8090/422/)
-- [Topic-Sensitive PageRank](http://ilpubs.stanford.edu:8090/854/)
-- [Personalized PageRank](https://en.wikipedia.org/wiki/Personalized_PageRank)
+## License: MIT

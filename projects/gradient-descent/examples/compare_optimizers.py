@@ -1,195 +1,160 @@
-"""优化器对比示例 - 对比不同优化器的性能"""
+"""
+Compare all optimizers on test functions.
 
+Demonstrates how different optimizers converge on Sphere, Rosenbrock,
+and Rastrigin functions.
+"""
+
+import numpy as np
 import sys
 import os
 
-# 添加项目根目录到 Python 路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-import numpy as np
-import matplotlib.pyplot as plt
-from src.optimizers import SGD, Momentum, AdaGrad, RMSProp, Adam, AdamW
-from src.functions import QuadraticFunction, RosenbrockFunction, HimmelblauFunction
-from src.optimizer import compare_optimizers
-from src.visualizer import ContourPlotter, ComparisonPlotter
+from src.sgd import SGDOptimizer
+from src.adapters import AdaGradOptimizer, RMSpropOptimizer, AdamOptimizer, AdamWOptimizer
+from src.lr_schedulers import StepLR, CosineLRScheduler, ExponentialLR, WarmupLR
+from src.gradient_clipping import clip_by_norm
+from src.convergence import ConvergenceMonitor
+from src.test_functions import get_test_function
+from src.utils import compute_loss, compute_loss_grad
 
 
-def compare_on_quadratic():
-    """在二次函数上对比优化器"""
-    print("\n" + "=" * 60)
-    print("在二次函数上对比优化器")
-    print("=" * 60)
+def train_with_optimizer(optimizer, params, loss_fn, grad_fn,
+                         n_epochs=500, X=None, y=None,
+                         scheduler=None, clip_norm=None, monitor=None):
+    """Train with a given optimizer and record history.
 
-    func = QuadraticFunction(a=1.0, b=1.0)
-    x0 = np.array([3.0, 3.0])
+    Parameters
+    ----------
+    optimizer : optimizer instance
+    params : list of np.ndarray
+    loss_fn : callable
+    grad_fn : callable
+    n_epochs : int
+    X, y : np.ndarray or None
+    scheduler : scheduler instance or None
+    clip_norm : float or None
+    monitor : ConvergenceMonitor or None
 
-    optimizers = {
-        'SGD': SGD(learning_rate=0.1),
-        'Momentum': Momentum(learning_rate=0.01, momentum=0.9),
-        'AdaGrad': AdaGrad(learning_rate=0.1),
-        'RMSProp': RMSProp(learning_rate=0.01),
-        'Adam': Adam(learning_rate=0.01),
-        'AdamW': AdamW(learning_rate=0.01, weight_decay=0.0)
+    Returns
+    -------
+    dict with keys: 'loss_history', 'param_history', 'lr_history'
+    """
+    history = {
+        'loss_history': [],
+        'param_history': [],
+        'lr_history': [],
     }
 
-    results = compare_optimizers(func, optimizers, x0, max_iter=200, tol=1e-6)
+    for epoch in range(n_epochs):
+        if X is not None:
+            loss = compute_loss(params, X, y, loss_fn)
+            _, grads = compute_loss_grad(params, X, y, loss_fn, grad_fn)
+        else:
+            loss = loss_fn(params)
+            grads = grad_fn(params)
 
-    # 打印结果
-    print(f"\n{'优化器':<15} {'迭代次数':<12} {'最终函数值':<15} {'最终梯度范数':<15}")
-    print("-" * 60)
-    for name, result in results.items():
-        print(f"{name:<15} {result['niter']:<12} {result['fun']:<15.6e} "
-              f"{result['grad_norms'][-1]:<15.6e}")
+        # Gradient clipping
+        if clip_norm is not None:
+            grads, grad_norm = clip_by_norm(grads, clip_norm)
+        else:
+            grad_norm = np.sqrt(sum(np.sum(g ** 2) for g in grads))
 
-    # 可视化
-    plotter = ContourPlotter(func, x_range=(-4, 4), y_range=(-4, 4))
-    trajectories = [results[name]['trajectory'] for name in results.keys()]
-    labels = list(results.keys())
+        # Learning rate scheduling
+        lr = optimizer.lr
+        if scheduler is not None:
+            lr = scheduler.step()
 
-    fig = plotter.plot(
-        trajectories=trajectories,
-        labels=labels,
-        title="二次函数 - 优化器对比"
-    )
-    fig.savefig('examples/compare_quadratic.png', dpi=150, bbox_inches='tight')
+        # Apply learning rate
+        scaled_grads = [g * lr / optimizer.lr for g in grads]
 
-    return results
+        # Store before update
+        history['loss_history'].append(loss)
+        history['lr_history'].append(lr)
+        history['param_history'].append([p.copy() for p in params])
 
+        # Update
+        new_params = optimizer.step(params, scaled_grads)
+        params = new_params
 
-def compare_on_rosenbrock():
-    """在 Rosenbrock 函数上对比优化器"""
-    print("\n" + "=" * 60)
-    print("在 Rosenbrock 函数上对比优化器")
-    print("=" * 60)
+        # Convergence check
+        if monitor is not None and monitor.update(loss, grad_norm, params):
+            break
 
-    func = RosenbrockFunction(a=1.0, b=100.0)
-    x0 = np.array([-1.0, 1.0])
+    # Final loss
+    if X is not None:
+        history['loss_history'].append(compute_loss(params, X, y, loss_fn))
+    else:
+        history['loss_history'].append(loss_fn(params))
 
-    optimizers = {
-        'SGD': SGD(learning_rate=0.0001),
-        'Momentum': Momentum(learning_rate=0.0001, momentum=0.9),
-        'AdaGrad': AdaGrad(learning_rate=0.01),
-        'RMSProp': RMSProp(learning_rate=0.001),
-        'Adam': Adam(learning_rate=0.001),
-        'AdamW': AdamW(learning_rate=0.001, weight_decay=0.0)
-    }
-
-    results = compare_optimizers(func, optimizers, x0, max_iter=2000, tol=1e-4)
-
-    # 打印结果
-    print(f"\n{'优化器':<15} {'迭代次数':<12} {'最终函数值':<15} {'最终梯度范数':<15}")
-    print("-" * 60)
-    for name, result in results.items():
-        print(f"{name:<15} {result['niter']:<12} {result['fun']:<15.6e} "
-              f"{result['grad_norms'][-1]:<15.6e}")
-
-    # 可视化
-    plotter = ContourPlotter(func, x_range=(-2, 2), y_range=(-1, 3))
-    trajectories = [results[name]['trajectory'] for name in results.keys()]
-    labels = list(results.keys())
-
-    fig = plotter.plot(
-        trajectories=trajectories,
-        labels=labels,
-        title="Rosenbrock 函数 - 优化器对比"
-    )
-    fig.savefig('examples/compare_rosenbrock.png', dpi=150, bbox_inches='tight')
-
-    return results
+    return history
 
 
-def compare_on_himmelblau():
-    """在 Himmelblau 函数上对比优化器"""
-    print("\n" + "=" * 60)
-    print("在 Himmelblau 函数上对比优化器")
-    print("=" * 60)
+def run_optimizer_comparison():
+    """Run comparison of all optimizers on test functions."""
+    print("=" * 70)
+    print("Optimizer Comparison on Test Functions")
+    print("=" * 70)
 
-    func = HimmelblauFunction()
-    x0 = np.array([0.0, 0.0])
+    test_functions = ['sphere', 'rosenbrock', 'rastrigin']
+    optimizers = [
+        ('SGD (lr=0.01)', SGDOptimizer(lr=0.01)),
+        ('SGD+Momentum (lr=0.01, mu=0.9)', SGDOptimizer(lr=0.01, momentum=0.9)),
+        ('Nesterov (lr=0.01, mu=0.9)', SGDOptimizer(lr=0.01, momentum=0.9, nesterov=True)),
+        ('AdaGrad (lr=0.1)', AdaGradOptimizer(lr=0.1)),
+        ('RMSprop (lr=0.01, rho=0.9)', RMSpropOptimizer(lr=0.01, rho=0.9)),
+        ('Adam (lr=0.01)', AdamOptimizer(lr=0.01)),
+        ('AdamW (lr=0.01, wd=0.01)', AdamWOptimizer(lr=0.01, weight_decay=0.01)),
+    ]
 
-    optimizers = {
-        'SGD': SGD(learning_rate=0.001),
-        'Momentum': Momentum(learning_rate=0.001, momentum=0.9),
-        'AdaGrad': AdaGrad(learning_rate=0.01),
-        'RMSProp': RMSProp(learning_rate=0.001),
-        'Adam': Adam(learning_rate=0.01),
-        'AdamW': AdamW(learning_rate=0.01, weight_decay=0.0)
-    }
+    # Initialize parameters
+    n_params = 10
+    params_init = [np.array([[0.5]])]  # single parameter for visualization
 
-    results = compare_optimizers(func, optimizers, x0, max_iter=1000, tol=1e-4)
+    for func_name in test_functions:
+        print(f"\n{'=' * 50}")
+        print(f"Test function: {func_name}")
+        print(f"{'=' * 50}")
 
-    # 打印结果
-    print(f"\n{'优化器':<15} {'迭代次数':<12} {'最终函数值':<15} {'最终梯度范数':<15}")
-    print("-" * 60)
-    for name, result in results.items():
-        print(f"{name:<15} {result['niter']:<12} {result['fun']:<15.6e} "
-              f"{result['grad_norms'][-1]:<15.6e}")
+        loss_fn, grad_fn = get_test_function(func_name)
 
-    # 可视化
-    plotter = ContourPlotter(func, x_range=(-5, 5), y_range=(-5, 5))
-    trajectories = [results[name]['trajectory'] for name in results.keys()]
-    labels = list(results.keys())
+        # Create fresh parameters for each function
+        if func_name == 'sphere':
+            params = [np.ones((n_params, 1)) * 5.0]
+        elif func_name == 'rosenbrock':
+            params = [np.array([[-1.2]]), np.array([[1.0]])]
+        elif func_name == 'rastrigin':
+            params = [np.ones((n_params, 1)) * 5.0]
+        else:
+            params = [np.ones((n_params, 1)) * 2.0]
 
-    fig = plotter.plot(
-        trajectories=trajectories,
-        labels=labels,
-        title="Himmelblau 函数 - 优化器对比"
-    )
-    fig.savefig('examples/compare_himmelblau.png', dpi=150, bbox_inches='tight')
+        results = {}
 
-    return results
+        for opt_name, optimizer in optimizers:
+            optimizer.reset()
+            monitor = ConvergenceMonitor(patience=200, min_delta=1e-10)
+            scheduler = CosineLRScheduler(initial_lr=optimizer.lr, T_max=500)
 
+            history = train_with_optimizer(
+                optimizer, params, loss_fn, grad_fn,
+                n_epochs=500, scheduler=scheduler, monitor=monitor
+            )
 
-def plot_convergence_comparison(all_results):
-    """绘制收敛对比图"""
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+            final_loss = history['loss_history'][-1]
+            n_iters = len(history['loss_history'])
+            results[opt_name] = (final_loss, n_iters)
 
-    for idx, (func_name, results) in enumerate(all_results.items()):
-        ax = axes[idx]
-        for name, result in results.items():
-            ax.plot(result['values'], '-', linewidth=2, label=name)
+            print(f"  {opt_name:40s} -> loss={final_loss:.6e}, iters={n_iters}")
 
-        ax.set_xlabel('Iteration')
-        ax.set_ylabel('Function Value')
-        ax.set_title(f'{func_name} - 收敛曲线')
-        ax.set_yscale('log')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
+        # Find best optimizer
+        best_opt = min(results, key=lambda k: results[k][0])
+        print(f"\n  Best: {best_opt} (loss={results[best_opt][0]:.6e})")
 
-    plt.tight_layout()
-    fig.savefig('examples/convergence_comparison.png', dpi=150, bbox_inches='tight')
-
-
-def main():
-    """运行优化器对比示例"""
-    print("=" * 60)
-    print("优化器对比示例 - 梯度下降家族")
-    print("=" * 60)
-
-    # 在不同函数上对比
-    all_results = {}
-
-    all_results['Quadratic'] = compare_on_quadratic()
-    all_results['Rosenbrock'] = compare_on_rosenbrock()
-    all_results['Himmelblau'] = compare_on_himmelblau()
-
-    # 绘制收敛对比图
-    print("\n生成收敛对比图...")
-    plot_convergence_comparison(all_results)
-
-    # 总结
-    print("\n" + "=" * 60)
-    print("总结")
-    print("=" * 60)
-    print("\n观察:")
-    print("1. Adam 通常收敛最快，但可能在某些问题上泛化性较差")
-    print("2. SGD + Momentum 收敛稳定，但需要仔细调整学习率")
-    print("3. AdaGrad 对稀疏特征友好，但学习率会过早衰减")
-    print("4. RMSProp 解决了 AdaGrad 的学习率衰减问题")
-    print("5. AdamW 通过解耦权重衰减提供更好的泛化性能")
-
-    print("\n示例完成!")
+    print("\n" + "=" * 70)
+    print("Comparison complete!")
+    print("=" * 70)
 
 
 if __name__ == '__main__':
-    main()
+    run_optimizer_comparison()

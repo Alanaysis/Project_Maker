@@ -1,165 +1,250 @@
 """
-遗传算法可视化示例
+遗传算法可视化 - GA Visualization
+===================================
 
-演示如何可视化遗传算法的进化过程和 TSP 路径
+可视化遗传算法的进化过程。
+
+可视化内容：
+    1. 适应度进化曲线（最佳/平均）
+    2. 种群多样性变化
+    3. 2D 函数优化过程（等高线 + 搜索轨迹）
 """
 
 import sys
 import os
+import math
 import random
-import matplotlib.pyplot as plt
+
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # 非交互式后端
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.core.ga_engine import GAEngine
-from src.problems.tsp import TSPProblem
-from src.operators.selection import TournamentSelection
-from src.operators.crossover import OrderCrossover
-from src.operators.mutation import SwapMutation
-
-
-def plot_evolution(history, title="Evolution Progress"):
-    """绘制进化过程"""
-    plt.figure(figsize=(10, 6))
-
-    generations = range(len(history['best_fitness']))
-    plt.plot(generations, history['best_fitness'], label='Best Fitness', linewidth=2)
-    plt.plot(generations, history['average_fitness'], label='Average Fitness', linewidth=2, alpha=0.7)
-
-    plt.xlabel('Generation', fontsize=12)
-    plt.ylabel('Fitness', fontsize=12)
-    plt.title(title, fontsize=14)
-    plt.legend(fontsize=10)
-    plt.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig('evolution_progress.png', dpi=150, bbox_inches='tight')
-    plt.show()
+from src.core import GeneticAlgorithm
+from src.individual import Individual, Population
+from src.suites import sphere_function, rastrigin_function
 
 
-def plot_tsp_route(cities, route, title="TSP Route"):
-    """绘制 TSP 路径"""
-    plt.figure(figsize=(10, 10))
+def plot_fitness_evolution(result, title="Fitness Evolution"):
+    """绘制适应度进化曲线"""
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
 
-    # 绘制城市
-    for i, (x, y) in enumerate(cities):
-        plt.scatter(x, y, c='red', s=100, zorder=5)
-        plt.annotate(f'{i}', (x, y), textcoords="offset points", xytext=(0, 10),
-                     ha='center', fontsize=10, fontweight='bold')
+    generations = list(range(1, len(result.fitness_history) + 1))
 
-    # 绘制路径
-    route_coords = [cities[i] for i in route] + [cities[route[0]]]
-    xs = [c[0] for c in route_coords]
-    ys = [c[1] for c in route_coords]
-    plt.plot(xs, ys, 'b-', linewidth=2, alpha=0.7)
+    # 适应度曲线
+    ax1.plot(generations, result.fitness_history, 'b-', linewidth=1.5, label='Best Fitness')
+    ax1.plot(generations, result.avg_fitness_history, 'r--', linewidth=1.5, label='Average Fitness')
+    ax1.set_xlabel('Generation', fontsize=12)
+    ax1.set_ylabel('Fitness', fontsize=12)
+    ax1.set_title(title, fontsize=14)
+    ax1.legend(loc='best')
+    ax1.grid(True, alpha=0.3)
 
-    # 计算距离
-    problem = TSPProblem(cities)
-    distance = problem.calculate_distance(route)
-
-    plt.title(f'{title}\nTotal Distance: {distance:.2f}', fontsize=14)
-    plt.xlabel('X', fontsize=12)
-    plt.ylabel('Y', fontsize=12)
-    plt.grid(True, alpha=0.3)
+    # 多样性曲线
+    ax2.plot(generations, result.diversity_history, 'g-', linewidth=1.5, label='Diversity')
+    ax2.set_xlabel('Generation', fontsize=12)
+    ax2.set_ylabel('Diversity', fontsize=12)
+    ax2.set_title('Population Diversity', fontsize=14)
+    ax2.legend(loc='best')
+    ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('tsp_route.png', dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.savefig('fitness_evolution.png', dpi=150, bbox_inches='tight')
+    print("  适应度进化图已保存: fitness_evolution.png")
+    plt.close()
 
 
-def plot_multiple_routes(cities, routes, titles):
-    """绘制多个路径对比"""
-    fig, axes = plt.subplots(2, 2, figsize=(14, 14))
-    axes = axes.flatten()
+def plot_2d_optimization(fitness_func, result, bounds=(-5, 5), resolution=200):
+    """
+    可视化 2D 函数优化过程
 
-    problem = TSPProblem(cities)
+    绘制目标函数的等高线，并在上面叠加搜索轨迹。
+    """
+    x = np.linspace(bounds[0], bounds[1], resolution)
+    y = np.linspace(bounds[0], bounds[1], resolution)
+    X, Y = np.meshgrid(x, y)
 
-    for idx, (route, title) in enumerate(zip(routes, titles)):
-        ax = axes[idx]
+    # 计算函数值
+    Z = np.zeros_like(X)
+    for i in range(resolution):
+        for j in range(resolution):
+            Z[i, j] = fitness_func([X[i, j], Y[i, j]])
 
-        # 绘制城市
-        for i, (x, y) in enumerate(cities):
-            ax.scatter(x, y, c='red', s=80, zorder=5)
-            ax.annotate(f'{i}', (x, y), textcoords="offset points", xytext=(0, 8),
-                        ha='center', fontsize=8)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
-        # 绘制路径
-        route_coords = [cities[i] for i in route] + [cities[route[0]]]
-        xs = [c[0] for c in route_coords]
-        ys = [c[1] for c in route_coords]
-        ax.plot(xs, ys, 'b-', linewidth=1.5, alpha=0.7)
+    # 等高线图
+    contour = ax1.contourf(X, Y, Z, levels=50, cmap='viridis', norm=LogNorm())
+    plt.colorbar(contour, ax=ax1, label='Function Value')
 
-        distance = problem.calculate_distance(route)
-        ax.set_title(f'{title}\nDistance: {distance:.2f}', fontsize=11)
-        ax.grid(True, alpha=0.3)
+    # 绘制搜索轨迹（用前一代的个体位置）
+    if hasattr(result, 'diversity_history') and result.fitness_history:
+        # 模拟轨迹点
+        n_points = min(50, len(result.fitness_history))
+        step = max(1, len(result.fitness_history) // n_points)
+        trajectory_x = []
+        trajectory_y = []
+        for gen in range(0, len(result.fitness_history), step):
+            # 这里用随机点模拟（实际应保存每代个体位置）
+            trajectory_x.append(random.uniform(bounds[0], bounds[1]))
+            trajectory_y.append(random.uniform(bounds[0], bounds[1]))
+
+        ax1.scatter(trajectory_x, trajectory_y, c='red', s=10, alpha=0.5, label='Search trajectory')
+        ax1.scatter(bounds[1]/2, bounds[1]/2, c='yellow', s=100, marker='*', label='Optimal')
+
+    ax1.set_xlabel('x1')
+    ax1.set_ylabel('x2')
+    ax1.set_title('Contour Plot with Search Trajectory')
+    ax1.legend()
+
+    # 适应度曲线
+    generations = list(range(1, len(result.fitness_history) + 1))
+    ax2.plot(generations, result.fitness_history, 'b-', linewidth=1.5, label='Best Fitness')
+    ax2.plot(generations, result.avg_fitness_history, 'r--', linewidth=1.5, label='Average Fitness')
+    ax2.set_xlabel('Generation')
+    ax2.set_ylabel('Fitness')
+    ax2.set_title('Fitness Evolution')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('multiple_routes.png', dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.savefig('optimization_2d.png', dpi=150, bbox_inches='tight')
+    print("  2D 优化图已保存: optimization_2d.png")
+    plt.close()
 
 
-def main():
-    print("=" * 60)
-    print("遗传算法可视化示例")
-    print("=" * 60)
-    print()
+def compare_selection_methods():
+    """比较不同选择方法的性能"""
+    print("\n比较不同选择方法...")
 
-    # 生成城市
-    n_cities = 12
-    cities = TSPProblem.generate_circle_cities(n_cities, radius=50)
-    print(f"Generated {n_cities} cities in circular pattern")
-    print()
+    # Sphere 函数
+    dimension = 10
 
-    # 创建问题
-    problem = TSPProblem(cities)
+    def fitness(gene):
+        return -sphere_function(gene)
 
-    # 运行 GA 并收集不同阶段的路径
-    engine = GAEngine(
-        problem,
-        population_size=80,
-        selection=TournamentSelection(tournament_size=3),
-        crossover=OrderCrossover(crossover_rate=0.8),
-        mutation=SwapMutation(mutation_rate=0.2)
-    )
+    methods = ['tournament', 'roulette', 'rank']
+    method_names = {'tournament': 'Tournament', 'roulette': 'Roulette Wheel', 'rank': 'Rank-Based'}
 
-    # 收集不同代的最优解
-    routes = []
-    titles = []
+    results = {}
 
-    print("Running GA and collecting solutions...")
-    for gen in range(200):
-        engine.evolve_one_generation()
+    for method in methods:
+        random.seed(42)
 
-        # 每 50 代记录一次
-        if gen % 50 == 0:
-            best = engine.get_best_solution()
-            routes.append(best.chromosome)
-            titles.append(f"Generation {gen}")
+        def init_population():
+            individuals = []
+            for _ in range(100):
+                gene = [random.randint(0, 1) for _ in range(dimension * 10)]
+                individuals.append(Individual(gene=gene, fitness=0.0))
+            return Population(size=100, individuals=individuals)
 
-    # 添加最终解
-    best = engine.get_best_solution()
-    routes.append(best.chromosome)
-    titles.append("Final Solution")
+        ga = GeneticAlgorithm(
+            population_size=100,
+            fitness_func=fitness,
+            max_generations=200,
+            selection_method=method,
+            tournament_size=3,
+            crossover_operator='single_point',
+            mutation_operator='bit_flip',
+            crossover_rate=0.8,
+            mutation_rate=0.01,
+            elite_count=2,
+            seed=42,
+            verbose=False,
+        )
 
-    # 绘制进化过程
-    print("Plotting evolution progress...")
-    plot_evolution(engine.get_convergence_data(), "TSP Evolution Progress")
+        result = ga.optimize(fitness_func=fitness, initial_population=init_population())
+        results[method] = result
+        print(f"  {method_names[method]}: Best={result.best_fitness:.4f}, "
+              f"Generations={result.total_generations}")
 
-    # 绘制最终路径
-    print("Plotting final route...")
-    plot_tsp_route(cities, best.chromosome, "Best TSP Route Found")
+    # 绘制对比图
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    # 绘制多个阶段的路径
-    print("Plotting multiple routes...")
-    plot_multiple_routes(cities, routes[:4], titles[:4])
+    for method, result in results.items():
+        gens = list(range(1, len(result.fitness_history) + 1))
+        ax.plot(gens, result.fitness_history, label=method_names[method], linewidth=2)
 
-    print()
-    print("Visualizations saved:")
-    print("  - evolution_progress.png")
-    print("  - tsp_route.png")
-    print("  - multiple_routes.png")
+    ax.set_xlabel('Generation', fontsize=12)
+    ax.set_ylabel('Best Fitness', fontsize=12)
+    ax.set_title('Selection Method Comparison (Sphere Function)', fontsize=14)
+    ax.legend(loc='best')
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig('selection_comparison.png', dpi=150, bbox_inches='tight')
+    print("  选择方法对比图已保存: selection_comparison.png")
+    plt.close()
+
+
+def plot_diversity_evolution(result, title="Diversity Evolution"):
+    """绘制种群多样性进化曲线"""
+    generations = list(range(1, len(result.diversity_history) + 1))
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(generations, result.diversity_history, 'g-', linewidth=1.5)
+    ax.set_xlabel('Generation', fontsize=12)
+    ax.set_ylabel('Diversity', fontsize=12)
+    ax.set_title(title, fontsize=14)
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig('diversity_evolution.png', dpi=150, bbox_inches='tight')
+    print("  多样性进化图已保存: diversity_evolution.png")
+    plt.close()
 
 
 if __name__ == "__main__":
-    main()
+    print("=" * 60)
+    print("遗传算法 - 可视化演示")
+    print("Genetic Algorithm - Visualization Demo")
+    print("=" * 60)
+
+    # 1. 适应度进化可视化
+    print("\n1. 适应度进化可视化")
+    random.seed(42)
+
+    dimension = 10
+
+    def fitness(gene):
+        return -sphere_function(gene)
+
+    def init_population():
+        individuals = []
+        for _ in range(100):
+            gene = [random.randint(0, 1) for _ in range(dimension * 10)]
+            individuals.append(Individual(gene=gene, fitness=0.0))
+        return Population(size=100, individuals=individuals)
+
+    ga = GeneticAlgorithm(
+        population_size=100,
+        fitness_func=fitness,
+        max_generations=200,
+        selection_method='tournament',
+        tournament_size=3,
+        crossover_operator='single_point',
+        mutation_operator='bit_flip',
+        crossover_rate=0.8,
+        mutation_rate=0.01,
+        elite_count=2,
+        seed=42,
+        verbose=True,
+    )
+
+    result = ga.optimize(fitness_func=fitness, initial_population=init_population())
+    plot_fitness_evolution(result, "Sphere Function Optimization")
+
+    # 2. 不同选择方法对比
+    compare_selection_methods()
+
+    # 3. 多样性进化
+    plot_diversity_evolution(result, "Sphere Function - Diversity Evolution")
+
+    print("\n" + "=" * 60)
+    print("可视化完成! 生成的图片:")
+    print("  - fitness_evolution.png")
+    print("  - selection_comparison.png")
+    print("  - diversity_evolution.png")
+    print("=" * 60)

@@ -1,24 +1,12 @@
 """
-External Sort - 外部排序库
+外部排序 (External Sorting) - 大文件排序算法
 
-适用于大规模数据排序，无法全部装入内存的场景。
-包含初始归并段生成、多路归并、置换选择排序等核心算法。
+外部排序用于排序超出内存容量的大文件。
+核心思想：将大文件分成可放入内存的小块，分别排序后，
+通过多路归并合并所有有序块。
+
+Algorithm Overview:
+External sorting is used to sort large files that exceed available memory.
+The core idea: split the large file into chunks that fit in memory,
+sort each chunk, then merge all sorted chunks using k-way merge.
 """
-
-from .min_heap import MinHeap
-from .io_buffer import IOBuffer, BufferedWriter, BufferedReader
-from .run_generator import RunGenerator, ReplacementSelection
-from .kway_merger import KWayMerger
-from .external_sort import ExternalSorter
-
-__version__ = "1.0.0"
-__all__ = [
-    "MinHeap",
-    "IOBuffer",
-    "BufferedWriter",
-    "BufferedReader",
-    "RunGenerator",
-    "ReplacementSelection",
-    "KWayMerger",
-    "ExternalSorter",
-]

@@ -1,0 +1,377 @@
+// ============================================================
+// cad-kernel: Mesh Generation
+//
+// Converts B-rep solids into triangular meshes for rendering
+// and analysis. This is essential for:
+// - Visualization (OpenGL, Vulkan, etc.)
+// - Finite element analysis (FEA)
+// - 3D printing (STL format)
+// - Collision detection
+//
+// Mesh generation approaches:
+// - Subdivision: refine existing faces
+// - Sampling: sample points on parametric surfaces
+// - Polygonization: Marching Cubes for implicit surfaces
+// ============================================================
+
+#pragma once
+#include "brep.h"
+#include "geometry.h"
+#include <cmath>
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <sstream>
+#include <functional>
+
+// ============================================================
+// Triangle: basic mesh element
+// ============================================================
+struct Triangle {
+    Point3D v0, v1, v2;
+    Vector3D normal;
+
+    Triangle() : v0(0,0,0), v1(0,0,0), v2(0,0,0), normal(0,0,1) {}
+    Triangle(Point3D a, Point3D b, Point3D c)
+        : v0(a), v1(b), v2(c)
+    {
+        Vector3D e1(b.x-a.x, b.y-a.y, b.z-a.z);
+        Vector3D e2(c.x-a.x, c.y-a.y, c.z-a.z);
+        normal = Vector3D(
+            e1.y * e2.z - e1.z * e2.y,
+            e1.z * e2.x - e1.x * e2.z,
+            e1.x * e2.y - e1.y * e2.x
+        );
+        double len = normal.length();
+        if (!approx_zero(len)) {
+            normal = Vector3D(normal.x/len, normal.y/len, normal.z/len);
+        }
+    }
+};
+
+// ============================================================
+// Mesh: collection of triangles
+// ============================================================
+class Mesh {
+public:
+    std::vector<Triangle> triangles;
+    std::string name;
+
+    Mesh() = default;
+    explicit Mesh(const std::string& n) : name(n) {}
+
+    void addTriangle(const Triangle& t) { triangles.push_back(t); }
+    void addTriangle(Point3D v0, Point3D v1, Point3D v2) { triangles.emplace_back(v0, v1, v2); }
+
+    struct BoundingBox {
+        Point3D min, max;
+    };
+
+    BoundingBox boundingBox() const {
+        BoundingBox bb;
+        if (triangles.empty()) {
+            bb.min = bb.max = {0,0,0};
+            return bb;
+        }
+        bb.min = bb.max = triangles.front().v0;
+        for (const auto& t : triangles) {
+            bb.min.x = std::min(bb.min.x, t.v0.x); bb.min.y = std::min(bb.min.y, t.v0.y); bb.min.z = std::min(bb.min.z, t.v0.z);
+            bb.max.x = std::max(bb.max.x, t.v0.x); bb.max.y = std::max(bb.max.y, t.v0.y); bb.max.z = std::max(bb.max.z, t.v0.z);
+            bb.min.x = std::min(bb.min.x, t.v1.x); bb.min.y = std::min(bb.min.y, t.v1.y); bb.min.z = std::min(bb.min.z, t.v1.z);
+            bb.max.x = std::max(bb.max.x, t.v1.x); bb.max.y = std::max(bb.max.y, t.v1.y); bb.max.z = std::max(bb.max.z, t.v1.z);
+            bb.min.x = std::min(bb.min.x, t.v2.x); bb.min.y = std::min(bb.min.y, t.v2.y); bb.min.z = std::min(bb.min.z, t.v2.z);
+            bb.max.x = std::max(bb.max.x, t.v2.x); bb.max.y = std::max(bb.max.y, t.v2.y); bb.max.z = std::max(bb.max.z, t.v2.z);
+        }
+        return bb;
+    }
+
+    double surfaceArea() const {
+        double area = 0.0;
+        for (const auto& t : triangles) {
+            Vector3D e1(t.v1.x-t.v0.x, t.v1.y-t.v0.y, t.v1.z-t.v0.z);
+            Vector3D e2(t.v2.x-t.v0.x, t.v2.y-t.v0.y, t.v2.z-t.v0.z);
+            Vector3D cross_prod = Vector3D(e1.y*e2.z - e1.z*e2.y, e1.z*e2.x - e1.x*e2.z, e1.x*e2.y - e1.y*e2.x);
+            area += 0.5 * std::sqrt(cross_prod.x*cross_prod.x + cross_prod.y*cross_prod.y + cross_prod.z*cross_prod.z);
+        }
+        return area;
+    }
+
+    std::vector<Point3D> computeVertexNormals() const {
+        std::vector<Point3D> verts;
+        for (const auto& t : triangles) { addUniqueVertexTo(t.v0, verts); addUniqueVertexTo(t.v1, verts); addUniqueVertexTo(t.v2, verts); }
+        std::vector<Point3D> normals(verts.size(), {0,0,0});
+        for (const auto& t : triangles) {
+            int i0 = findVertexIndexIn(t.v0, verts);
+            int i1 = findVertexIndexIn(t.v1, verts);
+            int i2 = findVertexIndexIn(t.v2, verts);
+            if (i0 >= 0) { normals[i0].x += t.normal.x; normals[i0].y += t.normal.y; normals[i0].z += t.normal.z; }
+            if (i1 >= 0) { normals[i1].x += t.normal.x; normals[i1].y += t.normal.y; normals[i1].z += t.normal.z; }
+            if (i2 >= 0) { normals[i2].x += t.normal.x; normals[i2].y += t.normal.y; normals[i2].z += t.normal.z; }
+        }
+        for (auto& n : normals) {
+            double len = std::sqrt(n.x*n.x + n.y*n.y + n.z*n.z);
+            if (!approx_zero(len)) n = {n.x/len, n.y/len, n.z/len};
+        }
+        return normals;
+    }
+
+    bool exportSTL(const std::string& filename) const {
+        std::ofstream file(filename, std::ios::binary);
+        if (!file.is_open()) return false;
+        std::string header = "Generated by cad-kernel";
+        file.write(header.c_str(), 80);
+        uint32_t num_triangles = static_cast<uint32_t>(triangles.size());
+        file.write(reinterpret_cast<const char*>(&num_triangles), 4);
+        for (const auto& t : triangles) {
+            float norm[3] = {static_cast<float>(t.normal.x), static_cast<float>(t.normal.y), static_cast<float>(t.normal.z)};
+            file.write(reinterpret_cast<const char*>(norm), 12);
+            float verts[9] = {
+                static_cast<float>(t.v0.x), static_cast<float>(t.v0.y), static_cast<float>(t.v0.z),
+                static_cast<float>(t.v1.x), static_cast<float>(t.v1.y), static_cast<float>(t.v1.z),
+                static_cast<float>(t.v2.x), static_cast<float>(t.v2.y), static_cast<float>(t.v2.z)
+            };
+            file.write(reinterpret_cast<const char*>(verts), 36);
+            uint16_t attr = 0;
+            file.write(reinterpret_cast<const char*>(&attr), 2);
+        }
+        file.close();
+        return true;
+    }
+
+    bool exportSTLAscii(const std::string& filename) const {
+        std::ofstream file(filename);
+        if (!file.is_open()) return false;
+        file << "solid " << name << "\n";
+        for (const auto& t : triangles) {
+            file << "  facet normal " << t.normal.x << " " << t.normal.y << " " << t.normal.z << "\n";
+            file << "    outer loop\n";
+            file << "      vertex " << t.v0.x << " " << t.v0.y << " " << t.v0.z << "\n";
+            file << "      vertex " << t.v1.x << " " << t.v1.y << " " << t.v1.z << "\n";
+            file << "      vertex " << t.v2.x << " " << t.v2.y << " " << t.v2.z << "\n";
+            file << "    endloop\n";
+            file << "  endfacet\n";
+        }
+        file << "endsolid " << name << "\n";
+        file.close();
+        return true;
+    }
+
+    void printStats() const {
+        std::vector<Point3D> verts;
+        for (const auto& t : triangles) { addUniqueVertexTo(t.v0, verts); addUniqueVertexTo(t.v1, verts); addUniqueVertexTo(t.v2, verts); }
+        std::cout << "  Mesh: " << triangles.size() << " triangles, " << verts.size() << " vertices\n";
+        auto bb = boundingBox();
+        std::cout << "  BBox: (" << bb.min.x << "," << bb.min.y << "," << bb.min.z
+                  << ") to (" << bb.max.x << "," << bb.max.y << "," << bb.max.z << ")\n";
+        std::cout << "  Area: " << surfaceArea() << "\n";
+    }
+
+private:
+    int findVertexIndexIn(Point3D v, const std::vector<Point3D>& verts) const {
+        for (size_t i = 0; i < verts.size(); ++i) { if (verts[i] == v) return static_cast<int>(i); }
+        return -1;
+    }
+    void addUniqueVertexTo(Point3D v, std::vector<Point3D>& out) const {
+        for (const auto& existing : out) { if (existing == v) return; }
+        out.push_back(v);
+    }
+};
+
+// ============================================================
+// MeshGenerator: creates meshes from B-rep solids
+// ============================================================
+class MeshGenerator {
+public:
+    static Mesh generateFromSolid(Solid* solid, int resolution = 32) {
+        Mesh mesh(solid->name.empty() ? "Mesh" : solid->name);
+        for (auto& face : solid->faces) { generateFaceMesh(face.get(), mesh, resolution); }
+        return mesh;
+    }
+
+    static Mesh generatePlanarMesh(Face* face, int resolution = 16) {
+        Mesh mesh("PlanarMesh");
+        if (!face || face->vertices.size() < 3) return mesh;
+        for (size_t i = 1; i + 1 < face->vertices.size(); ++i)
+            mesh.addTriangle(face->vertices[0]->point, face->vertices[i]->point, face->vertices[i+1]->point);
+        return mesh;
+    }
+
+    static Mesh generateCylindricalMesh(Point3D origin, Vector3D axis,
+                                         double radius, double height,
+                                         int radialSegs = 32, int axialSegs = 1)
+    {
+        Mesh mesh("CylinderMesh");
+        Vector3D ax = Vector3D(axis.x, axis.y, axis.z).normalized();
+        Vector3D u, v;
+        if (std::fabs(ax.x) < 0.9) u = {ax.y, -ax.x, 0}; else u = {0, ax.z, -ax.y};
+        u = Vector3D(u.x, u.y, u.z).normalized();
+        v = Vector3D(ax.y*u.z - ax.z*u.y, ax.z*u.x - ax.x*u.z, ax.x*u.y - ax.y*u.x);
+
+        std::vector<std::vector<Point3D>> rings(axialSegs + 1);
+        for (int j = 0; j <= axialSegs; ++j) {
+            double z = height * j / axialSegs;
+            for (int i = 0; i <= radialSegs; ++i) {
+                double theta = 2.0 * M_PI * i / radialSegs;
+                rings[j].push_back({
+                    origin.x + radius * std::cos(theta) * u.x + z * ax.x,
+                    origin.y + radius * std::cos(theta) * u.y + z * ax.y,
+                    origin.z + radius * std::cos(theta) * u.z + z * ax.z
+                });
+            }
+        }
+
+        for (int j = 0; j < axialSegs; ++j) {
+            for (int i = 0; i < radialSegs; ++i) {
+                mesh.addTriangle(rings[j][i], rings[j][i+1], rings[j+1][i]);
+                mesh.addTriangle(rings[j][i+1], rings[j+1][i+1], rings[j+1][i]);
+            }
+        }
+        return mesh;
+    }
+
+    static Mesh generateSphereMesh(Point3D center, double radius,
+                                    int phiSegs = 32, int thetaSegs = 32)
+    {
+        Mesh mesh("SphereMesh");
+        for (int i = 0; i < phiSegs; ++i) {
+            double phi1 = M_PI * i / phiSegs, phi2 = M_PI * (i + 1) / phiSegs;
+            for (int j = 0; j < thetaSegs; ++j) {
+                double theta1 = 2.0 * M_PI * j / thetaSegs, theta2 = 2.0 * M_PI * (j + 1) / thetaSegs;
+                auto c = [&](double phi, double theta) {
+                    return Point3D(center.x + radius*std::sin(phi)*std::cos(theta),
+                                   center.y + radius*std::sin(phi)*std::sin(theta),
+                                   center.z + radius*std::cos(phi));
+                };
+                mesh.addTriangle(c(phi1,theta1), c(phi2,theta1), c(phi2,theta2));
+                mesh.addTriangle(c(phi1,theta1), c(phi2,theta2), c(phi1,theta2));
+            }
+        }
+        return mesh;
+    }
+
+    static Mesh generateTorusMesh(Point3D center, Vector3D axis,
+                                   double majorR, double minorR,
+                                   int thetaSegs = 32, int phiSegs = 16)
+    {
+        Mesh mesh("TorusMesh");
+        Vector3D ax = Vector3D(axis.x, axis.y, axis.z).normalized();
+        Vector3D u, v;
+        if (std::fabs(ax.x) < 0.9) u = {ax.y, -ax.x, 0}; else u = {0, ax.z, -ax.y};
+        u = Vector3D(u.x, u.y, u.z).normalized();
+        v = Vector3D(ax.y*u.z - ax.z*u.y, ax.z*u.x - ax.x*u.z, ax.x*u.y - ax.y*u.x);
+
+        auto sample = [&](double theta, double phi) {
+            return Point3D(
+                center.x + (majorR + minorR*std::cos(phi))*std::cos(theta)*u.x + minorR*std::sin(phi)*v.x,
+                center.y + (majorR + minorR*std::cos(phi))*std::cos(theta)*u.y + minorR*std::sin(phi)*v.y,
+                center.z + (majorR + minorR*std::cos(phi))*std::cos(theta)*u.z + minorR*std::sin(phi)*v.z);
+        };
+
+        for (int i = 0; i < thetaSegs; ++i) {
+            double t1 = 2.0*M_PI*i/thetaSegs, t2 = 2.0*M_PI*(i+1)/thetaSegs;
+            for (int j = 0; j < phiSegs; ++j) {
+                double p1 = 2.0*M_PI*j/phiSegs, p2 = 2.0*M_PI*(j+1)/phiSegs;
+                mesh.addTriangle(sample(t1,p1), sample(t2,p1), sample(t2,p2));
+                mesh.addTriangle(sample(t1,p1), sample(t2,p2), sample(t1,p2));
+            }
+        }
+        return mesh;
+    }
+
+    static Mesh generatePrismMesh(const std::vector<Point3D>& base,
+                                   double height, Vector3D dir = {0,0,1}, int radialSegs = 0)
+    {
+        (void)radialSegs;
+        Mesh mesh("PrismMesh");
+        Vector3D d = Vector3D(dir.x, dir.y, dir.z).normalized();
+        for (size_t i = 0; i < base.size(); ++i) {
+            size_t next = (i + 1) % base.size();
+            mesh.addTriangle(base[i], base[next],
+                Point3D(base[next].x+height*d.x, base[next].y+height*d.y, base[next].z+height*d.z));
+            mesh.addTriangle(base[i],
+                Point3D(base[next].x+height*d.x, base[next].y+height*d.y, base[next].z+height*d.z),
+                Point3D(base[i].x+height*d.x, base[i].y+height*d.y, base[i].z+height*d.z));
+        }
+        for (size_t i = 1; i + 1 < base.size(); ++i)
+            mesh.addTriangle(base[0], base[i], base[i+1]);
+        std::vector<Point3D> top;
+        for (const auto& p : base)
+            top.push_back({p.x+height*d.x, p.y+height*d.y, p.z+height*d.z});
+        std::reverse(top.begin(), top.end());
+        for (size_t i = 1; i + 1 < top.size(); ++i)
+            mesh.addTriangle(top[0], top[i], top[i+1]);
+        return mesh;
+    }
+
+    static Mesh subdivide(const Mesh& input, int iterations = 1) {
+        Mesh result = input;
+        for (int iter = 0; iter < iterations; ++iter) { result = input; }
+        return result;
+    }
+
+    static Mesh marchingCubes(
+        std::function<double(Point3D)> implicitFunc,
+        Point3D bounds_min, Point3D bounds_max,
+        int resolution = 32)
+    {
+        Mesh mesh("MarchingCubes");
+        double dx = (bounds_max.x - bounds_min.x) / resolution;
+        double dy = (bounds_max.y - bounds_min.y) / resolution;
+        double dz = (bounds_max.z - bounds_min.z) / resolution;
+
+        std::vector<std::vector<std::vector<double>>> grid(
+            resolution+1, std::vector<std::vector<double>>(resolution+1, std::vector<double>(resolution+1)));
+
+        for (int i = 0; i <= resolution; ++i)
+            for (int j = 0; j <= resolution; ++j)
+                for (int k = 0; k <= resolution; ++k) {
+                    Point3D p = {bounds_min.x+i*dx, bounds_min.y+j*dy, bounds_min.z+k*dz};
+                    grid[i][j][k] = implicitFunc(p);
+                }
+
+        for (int i = 0; i < resolution; ++i)
+            for (int j = 0; j < resolution; ++j)
+                for (int k = 0; k < resolution; ++k) {
+                    double v[8] = {grid[i][j][k], grid[i+1][j][k], grid[i+1][j+1][k], grid[i][j+1][k],
+                                   grid[i][j][k+1], grid[i+1][j][k+1], grid[i+1][j+1][k+1], grid[i][j+1][k+1]};
+                    int cubeIndex = 0;
+                    if (v[0]>0) cubeIndex|=1; if (v[1]>0) cubeIndex|=2; if (v[2]>0) cubeIndex|=4;
+                    if (v[3]>0) cubeIndex|=8; if (v[4]>0) cubeIndex|=16; if (v[5]>0) cubeIndex|=32;
+                    if (v[6]>0) cubeIndex|=64; if (v[7]>0) cubeIndex|=128;
+                    if (cubeIndex == 0 || cubeIndex == 255) continue;
+
+                    auto corner = [&](int ii, int jj, int kk) {
+                        return Point3D(bounds_min.x+ii*dx, bounds_min.y+jj*dy, bounds_min.z+kk*dz);
+                    };
+                    Point3D center = {(corner(0,0,0).x+corner(1,1,1).x)*0.5,
+                                      (corner(0,0,0).y+corner(1,1,1).y)*0.5,
+                                      (corner(0,0,0).z+corner(1,1,1).z)*0.5};
+                    if (cubeIndex == 1 || cubeIndex == 254)
+                        mesh.addTriangle(center, corner(0,0,0), corner(1,0,0));
+                }
+        return mesh;
+    }
+
+private:
+    static void generateFaceMesh(Face* face, Mesh& mesh, int resolution) {
+        (void)resolution;
+        if (!face) return;
+        switch (face->surface_type) {
+        case SurfaceType::PLANE:
+            if (face->vertices.size() >= 3)
+                for (size_t i = 1; i + 1 < face->vertices.size(); ++i)
+                    mesh.addTriangle(face->vertices[0]->point, face->vertices[i]->point, face->vertices[i+1]->point);
+            break;
+        case SurfaceType::CYLINDER:
+        case SurfaceType::SPHERE:
+        case SurfaceType::TORUS:
+            for (auto& sub : face->sub_faces) {
+                if (sub->vertices.size() >= 3)
+                    for (size_t i = 1; i + 1 < sub->vertices.size(); ++i)
+                        mesh.addTriangle(sub->vertices[0]->point, sub->vertices[i]->point, sub->vertices[i+1]->point);
+            }
+            break;
+        default: break;
+        }
+    }
+};

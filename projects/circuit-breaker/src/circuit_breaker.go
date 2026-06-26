@@ -8,16 +8,18 @@ import (
 
 // Config 熔断器配置
 type Config struct {
-    // FailureThreshold 失败阈值，触发熔断的连续失败次数
-    FailureThreshold int64
-    // SuccessThreshold 成功阈值，从半开状态恢复到关闭状态的连续成功次数
-    SuccessThreshold int64
-    // Timeout 超时时间，从打开状态到半开状态的等待时间
-    Timeout time.Duration
-    // FailureRateThreshold 失败率阈值，触发熔断的失败率
-    FailureRateThreshold float64
-    // MinimumRequests 最小请求数，计算失败率所需的最小请求数
-    MinimumRequests int64
+	// FailureThreshold 失败阈值，触发熔断的连续失败次数
+	FailureThreshold int64
+	// SuccessThreshold 成功阈值，从半开状态恢复到关闭状态的连续成功次数
+	SuccessThreshold int64
+	// Timeout 超时时间，从打开状态到半开状态的等待时间
+	Timeout time.Duration
+	// FailureRateThreshold 失败率阈值，触发熔断的失败率
+	FailureRateThreshold float64
+	// MinimumRequests 最小请求数，计算失败率所需的最小请求数
+	MinimumRequests int64
+	// HalfOpenMaxRequests 半开状态允许的最大测试请求数，0表示不限制
+	HalfOpenMaxRequests int64
 }
 
 // DefaultConfig 返回默认配置
@@ -33,12 +35,13 @@ func DefaultConfig() Config {
 
 // CircuitBreaker 熔断器
 type CircuitBreaker struct {
-    mu          sync.RWMutex
-    config      Config
-    state       State
-    metrics     *Metrics
-    fallback    FallbackStrategy
-    lastStateChange time.Time
+	mu          sync.RWMutex
+	config      Config
+	state       State
+	metrics     *Metrics
+	fallback    FallbackStrategy
+	lastStateChange time.Time
+	halfOpenCount int64 // 半开状态当前测试请求计数
 }
 
 // NewCircuitBreaker 创建新的熔断器
@@ -101,35 +104,42 @@ func (cb *CircuitBreaker) Execute(request func() (interface{}, error)) (interfac
 
 // canExecute 检查是否允许执行请求
 func (cb *CircuitBreaker) canExecute() bool {
-    switch cb.state {
-    case StateClosed:
-        return true
-    case StateOpen:
-        // 检查是否超时
-        if time.Since(cb.lastStateChange) >= cb.config.Timeout {
-            cb.setState(StateHalfOpen)
-            return true
-        }
-        return false
-    case StateHalfOpen:
-        return true
-    default:
-        return false
-    }
+	switch cb.state {
+	case StateClosed:
+		return true
+	case StateOpen:
+		// 检查是否超时
+		if time.Since(cb.lastStateChange) >= cb.config.Timeout {
+			cb.setState(StateHalfOpen)
+			return true
+		}
+		return false
+	case StateHalfOpen:
+		// 半开状态限制测试请求数量
+		if cb.config.HalfOpenMaxRequests > 0 {
+			if cb.halfOpenCount >= cb.config.HalfOpenMaxRequests {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 // recordResult 记录请求结果
 func (cb *CircuitBreaker) recordResult(err error) {
-    cb.mu.Lock()
-    defer cb.mu.Unlock()
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 
-    if err != nil {
-        cb.metrics.RecordFailure()
-        cb.onFailure()
-    } else {
-        cb.metrics.RecordSuccess()
-        cb.onSuccess()
-    }
+	if err != nil {
+		cb.metrics.RecordFailure()
+		cb.onFailure()
+	} else {
+		cb.metrics.RecordSuccess()
+		cb.halfOpenCount++
+		cb.onSuccess()
+	}
 }
 
 // onSuccess 处理成功请求

@@ -1,590 +1,354 @@
 """
-外部排序主模块
+外部排序主模块 (External Sort Main Module)
 
-将归并段生成和多路归并组合成完整的外部排序流程。
-支持多种排序模式和优化策略。
+实现完整的外部排序算法流程：
+1. 将大文件分块
+2. 每块在内存中排序
+3. 将排序后的块写入临时文件 (runs)
+4. 多路归并所有 runs
+
+External Sort Main Module:
+Implements the complete external sorting algorithm:
+1. Split large file into chunks
+2. Sort each chunk in memory
+3. Write sorted chunks to temp files (runs)
+4. Multi-way merge all runs
 """
 
 import os
-import tempfile
+import logging
 import time
-from typing import Any, Callable, Iterator, List, Optional, Tuple
+import shutil
+from typing import List, Optional, Dict
 
-from .run_generator import RunGenerator, ReplacementSelection, ReplacementSelectionV2
-from .kway_merger import KWayMerger, NaturalMerge
+from .chunk import (
+    split_file_into_chunks,
+    create_temp_file,
+    compute_chunk_size,
+    get_available_memory,
+)
+from .in_memory_sort import sort_chunk, benchmark_sort
+from .k_way_merge import k_way_merge, multi_stage_merge
+from .memory_management import (
+    compute_memory_profile,
+    adaptive_k_selection,
+    estimate_io_cost,
+)
+
+logger = logging.getLogger(__name__)
 
 
-class ExternalSorter:
+class ExternalSortResult:
+    """外部排序结果。
+
+    Result of external sorting.
     """
-    外部排序器
 
-    完整的外部排序实现，支持:
-    1. 基本外部归并排序
-    2. 置换选择排序优化
-    3. 多趟归并
-    4. 自定义解析和比较函数
+    def __init__(self):
+        self.input_file: str = ""
+        self.output_file: str = ""
+        self.input_size_bytes: int = 0
+        self.output_size_bytes: int = 0
+        self.record_count: int = 0
+        self.num_runs: int = 0
+        self.merge_degree: int = 0
+        self.memory_profile: Dict = {}
+        self.io_cost_estimate: Dict = {}
+        self.timings: Dict[str, float] = {}
+        self.temp_files: List[str] = []
+        self.is_valid: bool = False
 
-    使用方法:
-        sorter = ExternalSorter(memory_limit=10*1024*1024)
-        sorter.sort_file("input.txt", "output.txt")
+    def validate(self, input_path: str) -> bool:
+        """验证排序结果是否正确。
+
+        Validate that the sorted output is correct.
+        """
+        with open(input_path, 'r') as f:
+            input_vals = [int(line.strip()) for line in f if line.strip()]
+
+        with open(self.output_file, 'r') as f:
+            output_vals = [int(line.strip()) for line in f if line.strip()]
+
+        # 检查记录数是否一致
+        if len(input_vals) != len(output_vals):
+            logger.error("Record count mismatch: %d vs %d",
+                         len(input_vals), len(output_vals))
+            return False
+
+        # 检查输出是否有序
+        for i in range(len(output_vals) - 1):
+            if output_vals[i] > output_vals[i + 1]:
+                logger.error("Output not sorted at index %d: %d > %d",
+                             i, output_vals[i], output_vals[i + 1])
+                return False
+
+        self.is_valid = True
+        logger.info("Validation passed: %d records sorted correctly",
+                    len(output_vals))
+        return True
+
+    def summary(self) -> str:
+        """生成排序结果摘要。
+
+        Generate a summary of the sorting result.
+        """
+        lines = [
+            "=" * 60,
+            "外部排序结果摘要 / External Sort Summary",
+            "=" * 60,
+            f"输入文件: {self.input_file}",
+            f"输出文件: {self.output_file}",
+            f"记录数量: {self.record_count:,}",
+            f"输入大小: {self.input_size_bytes:,} bytes",
+            f"输出大小: {self.output_size_bytes:,} bytes",
+            f"生成 runs 数: {self.num_runs}",
+            f"归并路数: {self.merge_degree}",
+            "-" * 60,
+            "耗时 / Timings:",
+        ]
+        for stage, elapsed in self.timings.items():
+            lines.append(f"  {stage}: {elapsed:.4f}s")
+
+        lines.append("-" * 60)
+        lines.append("内存配置 / Memory Profile:")
+        for key, val in self.memory_profile.items():
+            lines.append(f"  {key}: {val}")
+
+        lines.append("-" * 60)
+        lines.append("I/O 成本估算 / I/O Cost Estimate:")
+        for key, val in self.io_cost_estimate.items():
+            lines.append(f"  {key}: {val}")
+
+        lines.append("-" * 60)
+        lines.append(f"验证结果: {'通过 ✓' if self.is_valid else '失败 ✗'}")
+        lines.append("=" * 60)
+        return "\n".join(lines)
+
+
+class ExternalSort:
+    """
+    外部排序器。
+
+    External Sorter.
+
+    使用示例:
+        sorter = ExternalSort(temp_dir='/tmp/ext-sort')
+        result = sorter.sort('large_file.txt', 'sorted_output.txt')
+        print(result.summary())
+
+    Usage example:
+        sorter = ExternalSort(temp_dir='/tmp/ext-sort')
+        result = sorter.sort('large_file.txt', 'sorted_output.txt')
+        print(result.summary())
     """
 
-    def __init__(self, memory_limit: int = 1024 * 1024,
-                 max_merge_ways: int = 10,
-                 buffer_size: int = 512 * 1024,
-                 key_func: Optional[Callable] = None,
-                 use_replacement_selection: bool = True,
-                 temp_dir: Optional[str] = None):
+    def __init__(self,
+                 temp_dir: str = '/tmp/external-sort',
+                 chunk_size_mb: float = 1.0,
+                 sort_algorithm: str = 'tim_sort',
+                 buffer_size: int = 8192):
         """
         初始化外部排序器。
 
         Args:
-            memory_limit: 内存限制（字节）
-            max_merge_ways: 最大归并路数
-            buffer_size: I/O 缓冲区大小（字节）
-            key_func: 排序键提取函数
-            use_replacement_selection: 是否使用置换选择排序
-            temp_dir: 临时文件目录
+            temp_dir: 临时文件目录 (temp file directory)
+            chunk_size_mb: 每块大小 (MB) (chunk size in MB)
+            sort_algorithm: 内存排序算法 (in-memory sort algorithm)
+            buffer_size: I/O 缓冲大小 (I/O buffer size)
         """
-        self._memory_limit = memory_limit
-        self._max_merge_ways = max_merge_ways
-        self._buffer_size = buffer_size
-        self._key_func = key_func or (lambda x: x)
-        self._use_replacement_selection = use_replacement_selection
-        self._temp_dir = temp_dir
+        self.temp_dir = temp_dir
+        self.chunk_size_bytes = int(chunk_size_mb * 1024 * 1024)
+        self.sort_algorithm = sort_algorithm
+        self.buffer_size = buffer_size
+        self.temp_files = []
 
-        # 统计信息
-        self._stats = {
-            'total_records': 0,
-            'total_runs': 0,
-            'merge_passes': 0,
-            'run_generation_time': 0,
-            'merge_time': 0,
-            'total_time': 0,
-            'io_reads': 0,
-            'io_writes': 0,
+        # 确保临时目录存在
+        os.makedirs(temp_dir, exist_ok=True)
+
+        # 内存配置
+        self.memory_profile = compute_memory_profile(
+            target_chunk_records=int(self.chunk_size_bytes / 10),
+            record_size_bytes=10,
+        )
+
+    def sort(self,
+             input_path: str,
+             output_path: str,
+             max_merge_degree: Optional[int] = None) -> ExternalSortResult:
+        """
+        执行外部排序。
+
+        Execute external sort.
+
+        算法流程:
+        Phase 1 (生成 runs):
+            1. 将文件分块
+            2. 每块在内存中排序
+            3. 将排序后的块写入临时文件
+
+        Phase 2 (多路归并):
+            4. 对所有 runs 进行 k 路归并
+
+        Algorithm flow:
+        Phase 1 (Run generation):
+            1. Split file into chunks
+            2. Sort each chunk in memory
+            3. Write sorted chunks to temp files
+
+        Phase 2 (Multi-way merge):
+            4. k-way merge all runs
+        """
+        result = ExternalSortResult()
+        result.input_file = input_path
+        result.input_size_bytes = os.path.getsize(input_path)
+
+        start_total = time.perf_counter()
+
+        # ========== Phase 1: 生成 runs ==========
+        logger.info("Phase 1: Generating sorted runs...")
+        start_phase1 = time.perf_counter()
+
+        runs = self._generate_runs(input_path)
+        result.num_runs = len(runs)
+
+        timings_phase1 = time.perf_counter() - start_phase1
+        result.timings['phase1_run_generation'] = timings_phase1
+        logger.info("Phase 1 complete: %d runs generated in %.4fs",
+                    len(runs), timings_phase1)
+
+        # ========== Phase 2: 多路归并 ==========
+        logger.info("Phase 2: Multi-way merging %d runs...", len(runs))
+        start_phase2 = time.perf_counter()
+
+        if len(runs) == 1:
+            # 只有一个 run，直接复制
+            shutil.copy2(runs[0].filepath, output_path)
+            result.temp_files = runs
+        else:
+            run_paths = [r.filepath for r in runs]
+
+            # 自适应选择归并路数
+            k = max_merge_degree or adaptive_k_selection(
+                num_runs=len(runs),
+                max_merge_degree=self.memory_profile.max_merge_degree,
+                buffer_overhead_bytes=int(
+                    self.memory_profile.buffer_overhead_mb * 1024 * 1024),
+            )
+
+            result.merge_degree = k
+
+            # 如果 run 数太多，使用多阶段归并
+            if len(runs) > k:
+                stages = multi_stage_merge(
+                    run_paths, output_path,
+                    max_k=k,
+                    buffer_size=self.buffer_size,
+                )
+                result.timings['phase2_multi_stage_merge'] = (
+                    time.perf_counter() - start_phase2
+                )
+                # 清理中间文件
+                for stage in stages:
+                    if stage['output_file'] != output_path:
+                        if os.path.exists(stage['output_file']):
+                            os.remove(stage['output_file'])
+            else:
+                stats = k_way_merge(
+                    run_paths, output_path,
+                    k=min(k, len(runs)),
+                    buffer_size=self.buffer_size,
+                )
+                result.timings['phase2_k_way_merge'] = stats['elapsed_seconds']
+
+        result.output_file = output_path
+        result.output_size_bytes = os.path.getsize(output_path)
+        result.record_count = sum(r.record_count for r in runs)
+        result.temp_files = runs
+
+        total_time = time.perf_counter() - start_total
+        result.timings['total'] = total_time
+
+        # 内存配置和 I/O 成本估算
+        result.memory_profile = {
+            'chunk_size_mb': self.memory_profile.chunk_size_mb,
+            'max_merge_degree': self.memory_profile.max_merge_degree,
+            'available_memory_mb': self.memory_profile.available_memory_mb,
         }
 
-    @property
-    def stats(self) -> dict:
-        """排序统计信息"""
-        return self._stats.copy()
+        result.io_cost_estimate = estimate_io_cost(
+            num_records=result.record_count,
+            chunk_size=self.chunk_size_bytes,
+            num_runs=result.num_runs,
+            merge_degree=result.merge_degree,
+        )
 
-    def sort_file(self, input_file: str, output_file: str,
-                  parse_func: Optional[Callable] = None) -> int:
+        logger.info("External sort complete in %.4fs", total_time)
+
+        # 验证排序结果
+        result.validate(input_path)
+
+        return result
+
+    def _generate_runs(self, input_path: str) -> List:
         """
-        对文件进行外部排序。
+        生成有序 runs。
 
-        Args:
-            input_file: 输入文件路径
-            output_file: 输出文件路径
-            parse_func: 行解析函数
+        Generate sorted runs.
 
-        Returns:
-            排序后的记录数
+        对每个分块：
+        1. 在内存中排序
+        2. 写入临时文件
         """
-        start_time = time.time()
+        runs = []
+        run_index = 0
 
-        # 创建临时目录
-        if self._temp_dir:
-            temp_dir = self._temp_dir
-        else:
-            temp_dir = tempfile.mkdtemp(prefix="external_sort_")
+        for chunk in split_file_into_chunks(
+                input_path,
+                max_chunk_size=self.chunk_size_bytes,
+        ):
+            # 在内存中排序
+            sorted_chunk = sort_chunk(chunk, self.sort_algorithm)
 
-        os.makedirs(temp_dir, exist_ok=True)
-
-        try:
-            # 阶段 1: 生成初始归并段
-            run_start = time.time()
-            run_files = self._generate_runs(input_file, temp_dir, parse_func)
-            self._stats['run_generation_time'] = time.time() - run_start
-            self._stats['total_runs'] = len(run_files)
-
-            if not run_files:
-                # 空文件
-                with open(output_file, 'w') as f:
-                    pass
-                self._stats['total_time'] = time.time() - start_time
-                return 0
-
-            # 阶段 2: 多路归并
-            merge_start = time.time()
-            total_records = self._merge_runs(
-                run_files, output_file, parse_func
-            )
-            self._stats['merge_time'] = time.time() - merge_start
-            self._stats['total_records'] = total_records
-
-            self._stats['total_time'] = time.time() - start_time
-            return total_records
-
-        finally:
-            # 清理临时文件
-            self._cleanup_temp(temp_dir)
-
-    def sort_iterator(self, data_iter: Iterator[Any],
-                      output_file: str) -> int:
-        """
-        从迭代器读取数据进行排序。
-
-        Args:
-            data_iter: 数据迭代器
-            output_file: 输出文件路径
-
-        Returns:
-            排序后的记录数
-        """
-        start_time = time.time()
-
-        temp_dir = tempfile.mkdtemp(prefix="external_sort_")
-        os.makedirs(temp_dir, exist_ok=True)
-
-        try:
-            # 生成归并段
-            run_start = time.time()
-            if self._use_replacement_selection:
-                generator = ReplacementSelectionV2(
-                    self._memory_limit, self._key_func
-                )
-            else:
-                generator = RunGenerator(
-                    self._memory_limit, self._key_func
-                )
-
-            run_files = generator.generate_from_iterator(data_iter, temp_dir)
-            self._stats['run_generation_time'] = time.time() - run_start
-            self._stats['total_runs'] = len(run_files)
-            self._stats['total_records'] = generator.total_records
-
-            if not run_files:
-                with open(output_file, 'w') as f:
-                    pass
-                self._stats['total_time'] = time.time() - start_time
-                return 0
-
-            # 归并
-            merge_start = time.time()
-            merger = KWayMerger(self._buffer_size, self._key_func)
-            total_records = merger.multi_pass_merge(
-                run_files, output_file, self._max_merge_ways, temp_dir
-            )
-            self._stats['merge_time'] = time.time() - merge_start
-
-            self._stats['total_time'] = time.time() - start_time
-            return total_records
-
-        finally:
-            self._cleanup_temp(temp_dir)
-
-    def sort_data(self, data: List[Any]) -> List[Any]:
-        """
-        对内存中的数据进行外部排序风格的排序。
-
-        当数据量不太大但想模拟外部排序流程时使用。
-
-        Args:
-            data: 输入数据列表
-
-        Returns:
-            排序后的数据列表
-        """
-        if not data:
-            return []
-
-        start_time = time.time()
-        temp_dir = tempfile.mkdtemp(prefix="external_sort_")
-
-        try:
             # 写入临时文件
-            input_file = os.path.join(temp_dir, "input.txt")
-            with open(input_file, 'w') as f:
-                for item in data:
-                    f.write(f"{item}\n")
-
-            # 执行外部排序
-            output_file = os.path.join(temp_dir, "output.txt")
-            self.sort_file(input_file, output_file)
-
-            # 读取结果
-            result = []
-            with open(output_file, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        try:
-                            result.append(int(line))
-                        except ValueError:
-                            try:
-                                result.append(float(line))
-                            except ValueError:
-                                result.append(line)
-
-            self._stats['total_time'] = time.time() - start_time
-            return result
-
-        finally:
-            self._cleanup_temp(temp_dir)
-
-    def _generate_runs(self, input_file: str, output_dir: str,
-                       parse_func: Optional[Callable] = None) -> List[str]:
-        """
-        生成初始归并段。
-
-        Args:
-            input_file: 输入文件
-            output_dir: 输出目录
-            parse_func: 解析函数
-
-        Returns:
-            归并段文件列表
-        """
-        if self._use_replacement_selection:
-            generator = ReplacementSelectionV2(
-                self._memory_limit, self._key_func
+            temp_path = create_temp_file(
+                suffix='.txt',
+                prefix='ext-sort-run-',
+                temp_dir=self.temp_dir,
             )
-        else:
-            generator = RunGenerator(
-                self._memory_limit, self._key_func
-            )
+            with open(temp_path, 'w') as f:
+                for val in sorted_chunk:
+                    f.write(f"{val}\n")
 
-        run_files = generator.generate_from_file(
-            input_file, output_dir, parse_func
-        )
+            run = type('Run', (), {
+                'filepath': temp_path,
+                'size_bytes': len(sorted_chunk) * 10,
+                'record_count': len(sorted_chunk),
+            })()
+            runs.append(run)
+            run_index += 1
 
-        self._stats['total_records'] = generator.total_records
-        return run_files
+        return runs
 
-    def _merge_runs(self, run_files: List[str], output_file: str,
-                    parse_func: Optional[Callable] = None) -> int:
+    def _get_run_paths(self, runs) -> List[str]:
+        """从 runs 列表获取文件路径。
+
+        Extract file paths from runs list.
         """
-        执行多路归并。
+        return [r.filepath if hasattr(r, 'filepath') else r for r in runs]
 
-        Args:
-            run_files: 归并段文件列表
-            output_file: 输出文件
-            parse_func: 解析函数
+    def cleanup(self):
+        """清理临时文件。
 
-        Returns:
-            合并后的记录数
+        Clean up temporary files.
         """
-        merger = KWayMerger(self._buffer_size, self._key_func)
+        for f in self.temp_files:
+            if os.path.exists(f):
+                os.remove(f)
+        logger.info("Cleaned up %d temporary files", len(self.temp_files))
+        self.temp_files.clear()
 
-        if len(run_files) <= self._max_merge_ways:
-            # 单趟归并
-            total = merger.merge_files(run_files, output_file, parse_func)
-            self._stats['merge_passes'] = 1
-            return total
-        else:
-            # 多趟归并
-            temp_dir = tempfile.mkdtemp(prefix="merge_pass_")
-            try:
-                total = merger.multi_pass_merge(
-                    run_files, output_file,
-                    self._max_merge_ways, temp_dir, parse_func
-                )
-                self._stats['merge_passes'] = (
-                    (len(run_files) - 1) // self._max_merge_ways + 1
-                )
-                return total
-            finally:
-                self._cleanup_temp(temp_dir)
+    def __enter__(self):
+        return self
 
-    def _cleanup_temp(self, temp_dir: str) -> None:
-        """清理临时目录"""
-        try:
-            for f in os.listdir(temp_dir):
-                filepath = os.path.join(temp_dir, f)
-                if os.path.isfile(filepath):
-                    os.remove(filepath)
-            os.rmdir(temp_dir)
-        except OSError:
-            pass
-
-
-class LargeFileSorter:
-    """
-    大文件排序器
-
-    专门针对超大文件的排序优化:
-    - 分块读取，避免内存溢出
-    - 多趟归并，控制归并路数
-    - 并行 I/O 优化
-    """
-
-    def __init__(self, memory_limit: int = 100 * 1024 * 1024,
-                 max_merge_ways: int = 8,
-                 chunk_size: int = 10 * 1024 * 1024):
-        """
-        初始化大文件排序器。
-
-        Args:
-            memory_limit: 总内存限制（字节），默认 100MB
-            max_merge_ways: 最大归并路数
-            chunk_size: 每个分块大小（字节）
-        """
-        self._memory_limit = memory_limit
-        self._max_merge_ways = max_merge_ways
-        self._chunk_size = chunk_size
-
-    def sort(self, input_file: str, output_file: str,
-             key_func: Optional[Callable] = None,
-             parse_func: Optional[Callable] = None) -> int:
-        """
-        对大文件进行排序。
-
-        Args:
-            input_file: 输入文件路径
-            output_file: 输出文件路径
-            key_func: 排序键函数
-            parse_func: 解析函数
-
-        Returns:
-            排序后的记录数
-        """
-        sorter = ExternalSorter(
-            memory_limit=self._memory_limit,
-            max_merge_ways=self._max_merge_ways,
-            buffer_size=self._chunk_size,
-            key_func=key_func,
-            use_replacement_selection=True,
-        )
-
-        return sorter.sort_file(input_file, output_file, parse_func)
-
-
-class LogSorter:
-    """
-    日志文件排序器
-
-    按时间戳或特定字段对日志文件进行排序。
-    支持自定义日志格式解析。
-    """
-
-    def __init__(self, memory_limit: int = 50 * 1024 * 1024,
-                 timestamp_format: str = "%Y-%m-%d %H:%M:%S"):
-        """
-        初始化日志排序器。
-
-        Args:
-            memory_limit: 内存限制
-            timestamp_format: 时间戳格式
-        """
-        self._memory_limit = memory_limit
-        self._timestamp_format = timestamp_format
-
-    def sort_by_timestamp(self, input_file: str, output_file: str,
-                          timestamp_field: int = 0,
-                          separator: str = " ") -> int:
-        """
-        按时间戳排序日志文件。
-
-        支持标准日志格式: "2024-01-01 08:00:00 INFO Message"
-        时间戳由日期和时间两部分组成，用空格分隔。
-
-        Args:
-            input_file: 输入日志文件
-            output_file: 输出文件
-            timestamp_field: 时间戳字段索引（0 表示从行首开始）
-            separator: 字段分隔符
-
-        Returns:
-            排序后的记录数
-        """
-        from datetime import datetime
-
-        # 检测时间戳格式中的字段数
-        # 例如 "%Y-%m-%d %H:%M:%S" 包含空格，需要 2 个字段
-        ts_field_count = self._timestamp_format.count(' ') + 1
-
-        def key_func(line):
-            """从日志行提取时间戳作为排序键"""
-            if isinstance(line, str):
-                parts = line.split(separator)
-                # 提取时间戳部分（可能跨多个字段）
-                if len(parts) >= timestamp_field + ts_field_count:
-                    ts_str = separator.join(
-                        parts[timestamp_field:timestamp_field + ts_field_count]
-                    )
-                    try:
-                        return datetime.strptime(ts_str, self._timestamp_format)
-                    except ValueError:
-                        pass
-            return datetime.min
-
-        def parse_func(line):
-            return line.strip()
-
-        sorter = ExternalSorter(
-            memory_limit=self._memory_limit,
-            key_func=key_func,
-        )
-
-        return sorter.sort_file(input_file, output_file, parse_func)
-
-    def sort_by_field(self, input_file: str, output_file: str,
-                      field_index: int = 0,
-                      separator: str = ",",
-                      reverse: bool = False) -> int:
-        """
-        按指定字段排序日志文件。
-
-        Args:
-            input_file: 输入文件
-            output_file: 输出文件
-            field_index: 字段索引
-            separator: 字段分隔符
-            reverse: 是否降序
-
-        Returns:
-            排序后的记录数
-        """
-        def key_func(line):
-            if isinstance(line, str):
-                parts = line.split(separator)
-                if len(parts) > field_index:
-                    try:
-                        return float(parts[field_index])
-                    except ValueError:
-                        return parts[field_index].strip()
-            return ""
-
-        def parse_func(line):
-            return line.strip()
-
-        sorter = ExternalSorter(
-            memory_limit=self._memory_limit,
-            key_func=key_func,
-        )
-
-        return sorter.sort_file(input_file, output_file, parse_func)
-
-
-class DatabaseSorter:
-    """
-    数据库排序器
-
-    模拟数据库的外部排序操作。
-    支持:
-    - 单列排序
-    - 多列排序
-    - 自定义数据类型
-    """
-
-    def __init__(self, memory_limit: int = 64 * 1024 * 1024,
-                 max_merge_ways: int = 10):
-        """
-        初始化数据库排序器。
-
-        Args:
-            memory_limit: 内存限制
-            max_merge_ways: 最大归并路数
-        """
-        self._memory_limit = memory_limit
-        self._max_merge_ways = max_merge_ways
-
-    def sort_by_columns(self, input_file: str, output_file: str,
-                        sort_columns: List[int],
-                        separator: str = ",",
-                        reverse_flags: Optional[List[bool]] = None,
-                        header: bool = True) -> int:
-        """
-        按多个列排序。
-
-        Args:
-            input_file: 输入 CSV 文件
-            output_file: 输出文件
-            sort_columns: 排序列索引列表
-            separator: 字段分隔符
-            reverse_flags: 每列是否降序的标志列表
-            header: 是否有表头
-
-        Returns:
-            排序后的记录数
-        """
-        if reverse_flags is None:
-            reverse_flags = [False] * len(sort_columns)
-
-        # 读取表头
-        header_line = None
-        if header:
-            with open(input_file, 'r', encoding='utf-8') as f:
-                header_line = f.readline().strip()
-
-        def key_func(line):
-            """多列排序键"""
-            if isinstance(line, str):
-                parts = line.split(separator)
-                key = []
-                for col, rev in zip(sort_columns, reverse_flags):
-                    if col < len(parts):
-                        try:
-                            val = float(parts[col])
-                        except ValueError:
-                            val = parts[col].strip()
-                    else:
-                        val = ""
-
-                    # 处理降序: 对数值取反，对字符串使用特殊处理
-                    if rev:
-                        if isinstance(val, (int, float)):
-                            val = -val
-                        else:
-                            # 字符串降序比较复杂，这里简化处理
-                            val = tuple(
-                                -ord(c) if isinstance(c, str) else c
-                                for c in str(val)
-                            )
-                    key.append(val)
-                return tuple(key)
-            return ()
-
-        def parse_func(line):
-            return line.strip()
-
-        # 跳过表头的文件处理
-        if header:
-            # 创建临时文件（不含表头）
-            import tempfile
-            temp_dir = tempfile.mkdtemp()
-            temp_input = os.path.join(temp_dir, "input_no_header.txt")
-
-            with open(input_file, 'r', encoding='utf-8') as fin, \
-                 open(temp_input, 'w', encoding='utf-8') as fout:
-                next(fin)  # 跳过表头
-                for line in fin:
-                    fout.write(line)
-
-            sorter = ExternalSorter(
-                memory_limit=self._memory_limit,
-                max_merge_ways=self._max_merge_ways,
-                key_func=key_func,
-            )
-
-            count = sorter.sort_file(temp_input, output_file, parse_func)
-
-            # 将表头插入输出文件
-            if header_line:
-                self._prepend_header(output_file, header_line)
-
-            # 清理
-            os.remove(temp_input)
-            os.rmdir(temp_dir)
-
-            return count
-        else:
-            sorter = ExternalSorter(
-                memory_limit=self._memory_limit,
-                max_merge_ways=self._max_merge_ways,
-                key_func=key_func,
-            )
-
-            return sorter.sort_file(input_file, output_file, parse_func)
-
-    def _prepend_header(self, filepath: str, header: str) -> None:
-        """在文件开头插入表头"""
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(header + '\n')
-            f.write(content)
+    def __exit__(self, *args):
+        self.cleanup()

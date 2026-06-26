@@ -1,280 +1,228 @@
-# 分布式缓存系统
+# Distributed Cache System / 分布式缓存系统
 
-一个用 Go 实现的高性能分布式缓存系统，支持多种缓存淘汰策略、一致性哈希、多种缓存模式和分布式特性。
+> A learning project implementing a distributed cache system with consistent hashing, multiple eviction policies, and cluster support.
+> 实现高并发分布式缓存系统的学习项目，包含一致性哈希、多种淘汰策略和集群支持。
 
-## 特性
+---
+
+## English
+
+### Overview
+
+This project implements a distributed cache system from scratch to help understand:
+
+- **Caching fundamentals**: How caches work, hit/miss ratios, and the core cache loop
+- **Consistent hashing**: How to distribute keys across multiple nodes with minimal rebalancing
+- **Eviction policies**: LRU, LFU, and TTL strategies for managing cache memory
+- **Cluster management**: Adding/removing nodes, graceful degradation, and statistics
+
+### Architecture
+
+```
+                    +-------------------+
+                    |   Client Code     |
+                    +-------------------+
+                           |
+              +------------+------------+
+              |                         |
+     +--------v--------+      +--------v--------+
+     |  Single Node    |      |  Multi-Node     |
+     |  Cache (LRU)    |      |  Cluster        |
+     +-----------------+      +-----------------+
+              |                         |
+     +--------v--------+      +--------v--------+
+     |  Cache Ring     |      | Consistent      |
+     |  (Virtual Nodes)|      | Hashing Ring    |
+     +-----------------+      +-----------------+
+```
+
+### Cache Flow
+
+```
+Request → Cache Lookup → [Hit] Return → [Miss] Fetch from source → Cache result → Return
+```
+
+### Core Components
+
+| Component | Description |
+|-----------|-------------|
+| `cache.Node` | Single cache node with configurable eviction policy |
+| `cache.Cluster` | Multi-node cluster with consistent hashing |
+| `cache.HashRing` | Consistent hashing ring with virtual nodes |
+| `cache.Stats` | Performance statistics (hit/miss ratio, etc.) |
+
+### Eviction Policies
+
+| Policy | Description | Best For |
+|--------|-------------|----------|
+| **LRU** (Least Recently Used) | Evicts the item accessed longest ago | Workloads with temporal locality |
+| **LFU** (Least Frequently Used) | Evicts the least frequently accessed item | Workloads with skewed access patterns |
+| **TTL** (Time To Live) | Items expire after a set duration | Time-sensitive data (sessions, tokens) |
+
+### Consistent Hashing
+
+Traditional hashing (`hash(key) % nodes`) causes massive cache thrashing when nodes change. Consistent hashing solves this:
+
+1. Both nodes and keys are hashed onto a circular ring (0 to 2^32-1)
+2. A key maps to the first node found clockwise on the ring
+3. When a node is added/removed, only ~1/N of keys need remapping
+
+**Virtual nodes** ensure even distribution: each real node maps to many points on the ring.
+
+```
+Ring: [0]---------------------------------[2^32-1]
+      node1-v1    node2-v42    node3-v99
+      \           /  \           /
+       \         /    \         /
+      key-a /        key-b /
+```
+
+### Learning Objectives
+
+- [x] Understand cache principles and the core cache loop
+- [x] Master consistent hashing with virtual nodes
+- [x] Learn cache eviction strategies (LRU, LFU, TTL)
+- [x] Practice multi-node cluster management
+- [x] Implement cache statistics and hot key detection
+- [x] Support cache warming for bootstrapping
+
+---
+
+## 中文
+
+### 概述
+
+本项目从零实现一个分布式缓存系统，帮助理解：
+
+- **缓存基础**: 缓存的工作原理、命中率、核心缓存循环
+- **一致性哈希**: 如何在多个节点间分配键值，最小化重新平衡
+- **淘汰策略**: LRU、LFU 和 TTL 三种缓存内存管理策略
+- **集群管理**: 节点增删、优雅降级和统计监控
+
+### 缓存原理
+
+缓存通过将频繁访问的数据存储在快速存储（内存）中，减少对慢速存储（数据库、网络、磁盘）的访问。
+
+```
+请求 → 缓存查找 → [命中]返回 → [未命中]回源 → 缓存 → 返回
+```
 
 ### 缓存淘汰策略
-- **LRU** (Least Recently Used) - 最近最少使用
-- **LFU** (Least Frequently Used) - 最不经常使用
-- **FIFO** (First In First Out) - 先进先出
-- **TTL** (Time To Live) - 基于过期时间
+
+| 策略 | 说明 | 适用场景 |
+|------|------|----------|
+| **LRU** (最近最少使用) | 淘汰最久未访问的项 | 具有时间局部性的工作负载 |
+| **LFU** (最不经常使用) | 淘汰访问频率最低的项 | 访问模式偏斜的工作负载 |
+| **TTL** (存活时间) | 项在设定时间后过期 | 时效性数据（会话、令牌） |
 
 ### 一致性哈希
-- 虚拟节点支持
-- 节点动态扩缩容
-- 数据均匀分布
 
-### 缓存模式
-- **Cache-Aside** - 应用管理缓存
-- **Read-Through** - 缓存自动加载
-- **Write-Through** - 同步写入
-- **Write-Behind** - 异步写入
+传统哈希（`hash(key) % nodes`）在节点变化时会导致大量缓存失效。一致性哈希解决了这个问题：
 
-### 缓存问题解决方案
-- **缓存穿透** - 布隆过滤器 + 空值缓存
-- **缓存击穿** - Single Flight + 互斥锁
-- **缓存雪崩** - 随机 TTL + 多级缓存
+1. 将节点和键都哈希到一个环形空间（0 到 2^32-1）
+2. 键映射到环上顺时针方向的第一个节点
+3. 节点增删时，只有约 1/N 的键需要重新映射
 
-### 分布式特性
-- 节点发现与管理
-- 数据复制（同步/异步/Quorum）
-- 故障转移与恢复
+**虚拟节点**确保均匀分布：每个真实节点映射到环上的多个点。
 
-### 实际应用
-- 热点数据缓存
-- 会话存储
-- 限流器（固定窗口/滑动窗口/令牌桶）
+---
 
-## 项目结构
+## Quick Start / 快速开始
+
+### Prerequisites / 前置条件
+
+- Go 1.22+
+- No external dependencies required
+
+### Run Examples / 运行示例
+
+```bash
+cd projects/distributed-cache
+
+# Run all demos
+go run examples/main.go
+
+# Run cluster demo
+go run examples/cluster.go
+
+# Run consistent hashing visualization
+go run examples/hashring.go
+
+# Run benchmarks
+go run examples/benchmark.go
+```
+
+### Run Tests / 运行测试
+
+```bash
+# Run all tests
+go test ./tests/...
+
+# Run with coverage
+go test -cover ./tests/...
+
+# Run benchmarks
+go test -bench=. ./tests/...
+```
+
+### Project Structure / 项目结构
 
 ```
 distributed-cache/
-├── cmd/
-│   ├── server/          # HTTP 服务器
-│   ├── client/          # 客户端示例
-│   └── benchmark/       # 性能测试
-├── internal/
-│   ├── cache/           # 缓存核心实现
-│   │   ├── cache.go     # 缓存主逻辑
-│   │   ├── eviction.go  # 淘汰策略
-│   │   └── item.go      # 缓存项
-│   ├── hash/            # 一致性哈希
-│   │   └── consistent.go
-│   ├── patterns/        # 缓存模式
-│   │   └── patterns.go
-│   ├── problem/         # 缓存问题解决方案
-│   │   └── solutions.go
-│   ├── distributed/     # 分布式特性
-│   │   ├── node.go      # 节点管理
-│   │   ├── replication.go # 数据复制
-│   │   └── failover.go  # 故障转移
-│   └── application/     # 实际应用
-│       ├── hotcache.go  # 热点缓存
-│       ├── session.go   # 会话存储
-│       └── ratelimiter.go # 限流器
-├── pkg/
-│   └── api/             # API 类型定义
-├── test/                # 测试文件
-└── docs/                # 文档
+├── go.mod                  # Go module definition
+├── README.md               # This file
+├── src/                    # Core package
+│   ├── cache.go            # In-memory cache with LRU/LFU/TTL
+│   ├── hashring.go         # Consistent hashing with virtual nodes
+│   └── cluster.go          # Multi-node cache cluster
+├── examples/               # Demo programs
+│   ├── main.go             # Single node cache demos
+│   ├── cluster.go          # Multi-node cluster demo
+│   ├── hashring.go         # Consistent hashing visualization
+│   └── benchmark.go        # Performance benchmarks
+└── tests/                  # Unit tests
+    ├── cache_test.go       # Cache node tests
+    ├── hashring_test.go    # Consistent hashing tests
+    └── cluster_test.go     # Cluster tests
 ```
 
-## 快速开始
+---
 
-### 前置要求
+## Key Concepts / 核心概念
 
-- Go 1.21+
+### 1. Cache Hit Ratio / 命中率
 
-### 安装
-
-```bash
-cd distributed-cache
-go mod tidy
+```
+Hit Ratio = Hits / (Hits + Misses) * 100%
 ```
 
-### 运行服务器
+A good cache should have > 80% hit ratio. Low hit ratio means:
+- Cache is too small
+- Data access pattern doesn't benefit from caching
+- Eviction policy is suboptimal for the workload
 
-```bash
-go run cmd/server/main.go [port]
-```
+### 2. Cache Warming / 缓存预热
 
-默认端口为 8080。
+Before a cache is fully populated, it suffers from "cold start" — every request is a miss. Cache warming pre-populates the cache with known important data.
 
-### API 接口
+### 3. Hot Key Detection / 热键检测
 
-#### 缓存操作
+Some keys are accessed far more frequently than others. Identifying hot keys helps:
+- Give them dedicated cache space
+- Replicate them across multiple nodes
+- Apply different eviction policies
 
-```bash
-# 设置缓存
-curl -X POST http://localhost:8080/cache/set \
-  -H "Content-Type: application/json" \
-  -d '{"key": "test", "value": "hello", "ttl": 60}'
+### 4. Consistent Hashing Benefits / 一致性哈希优势
 
-# 获取缓存
-curl http://localhost:8080/cache/get?key=test
+| Aspect | Traditional Hash | Consistent Hashing |
+|--------|-----------------|-------------------|
+| Node added | ~100% keys remapped | ~1/N keys remapped |
+| Node removed | ~100% keys remapped | ~1/N keys remapped |
+| Distribution | Uneven | Even (with vnodes) |
+| Cache thrashing | Severe | Minimal |
 
-# 删除缓存
-curl -X DELETE http://localhost:8080/cache/delete?key=test
-```
+---
 
-#### 热点缓存
+## License / 许可证
 
-```bash
-# 设置热点数据
-curl -X POST http://localhost:8080/hot/set \
-  -H "Content-Type: application/json" \
-  -d '{"key": "hot-data", "value": "popular"}'
-
-# 获取热点数据
-curl http://localhost:8080/hot/get?key=hot-data
-
-# 查看热点键
-curl http://localhost:8080/hot/keys
-```
-
-#### 会话管理
-
-```bash
-# 创建会话
-curl -X POST http://localhost:8080/session/create \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "user1", "data": {"role": "admin"}}'
-
-# 获取会话
-curl http://localhost:8080/session/get?id=<session-id>
-
-# 更新会话
-curl -X POST http://localhost:8080/session/update \
-  -H "Content-Type: application/json" \
-  -d '{"id": "<session-id>", "data": {"last_login": "2024-01-01"}}'
-
-# 删除会话
-curl -X DELETE http://localhost:8080/session/delete?id=<session-id>
-```
-
-#### 限流器
-
-```bash
-# 检查限流
-curl http://localhost:8080/ratelimit/check?key=user1
-```
-
-#### 集群信息
-
-```bash
-# 节点信息
-curl http://localhost:8080/cluster/info
-
-# 缓存统计
-curl http://localhost:8080/cluster/stats
-
-# 健康检查
-curl http://localhost:8080/health
-```
-
-## 运行测试
-
-```bash
-# 运行所有测试
-go test ./... -v
-
-# 运行特定测试
-go test ./test/ -v -run TestCache
-go test ./internal/hash/ -v -run TestConsistentHash
-```
-
-## 性能测试
-
-```bash
-go run cmd/benchmark/main.go
-```
-
-## 设计原理
-
-### 缓存淘汰策略
-
-#### LRU (Least Recently Used)
-- 使用双向链表 + HashMap 实现
-- O(1) 时间复杂度的访问和删除
-- 适用于访问模式有时间局部性的场景
-
-#### LFU (Least Frequently Used)
-- 使用频率桶实现
-- 自动提升频繁访问的键
-- 适用于访问模式有频率特征的场景
-
-#### FIFO (First In First Out)
-- 使用队列实现
-- 最简单的淘汰策略
-- 适用于数据有时效性的场景
-
-#### TTL (Time To Live)
-- 使用最小堆实现
-- 自动过期清理
-- 适用于需要精确过期控制的场景
-
-### 一致性哈希
-
-- 使用 SHA256 哈希函数
-- 每个物理节点映射 150 个虚拟节点
-- 节点扩缩容时只需迁移少量数据
-- 支持数据复制（N 副本）
-
-### 缓存模式
-
-#### Cache-Aside
-```
-应用 -> 检查缓存 -> 命中? 返回 : 加载数据 -> 存入缓存 -> 返回
-```
-
-#### Read-Through
-```
-应用 -> 缓存 -> 命中? 返回 : 自动加载 -> 存入缓存 -> 返回
-```
-
-#### Write-Through
-```
-应用 -> 写入存储 -> 写入缓存 -> 返回
-```
-
-#### Write-Behind
-```
-应用 -> 写入缓存 -> 返回
-                -> 异步写入存储
-```
-
-### 缓存问题解决方案
-
-#### 缓存穿透
-- **布隆过滤器**: 预先判断键是否存在
-- **空值缓存**: 缓存不存在的键，设置较短 TTL
-
-#### 缓存击穿
-- **Single Flight**: 合并并发请求，只加载一次
-- **互斥锁**: 使用 double-check 机制
-
-#### 缓存雪崩
-- **随机 TTL**: 避免同时过期
-- **多级缓存**: L1 (快速) + L2 (大容量)
-
-### 分布式特性
-
-#### 数据复制
-- **同步复制**: 写入所有副本后返回
-- **异步复制**: 写入本地后异步复制
-- **Quorum 复制**: 写入多数副本后返回
-
-#### 故障转移
-- 健康检查（每 5 秒）
-- 故障阈值（连续 3 次失败）
-- 自动恢复（最多重试 5 次）
-
-## 学习要点
-
-1. **缓存淘汰策略**: 理解不同策略的适用场景
-2. **一致性哈希**: 掌握分布式数据分片原理
-3. **缓存模式**: 学习缓存与存储的协作方式
-4. **缓存问题**: 了解常见问题及解决方案
-5. **分布式特性**: 理解数据复制和故障转移机制
-6. **实际应用**: 学习缓存的实际应用场景
-
-## 参考资料
-
-- [Redis 设计与实现](https://redisbook.com/)
-- [分布式系统：概念与设计](https://www.distributed-systems.net/)
-- [一致性哈希算法](https://en.wikipedia.org/wiki/Consistent_hashing)
-- [缓存模式](https://docs.microsoft.com/en-us/azure/architecture/patterns/cache-aside)
-
-## 许可证
-
-MIT License
+MIT

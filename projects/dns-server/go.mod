@@ -1,3 +1,3 @@
-module github.com/anthropic/dns-server
+module dns-server
 
 go 1.21

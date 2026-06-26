@@ -1,11 +1,2 @@
-# External Sort - 外部排序
-# Python 3.8+
-
-# 核心依赖（无第三方依赖，仅使用标准库）
-# heapq - 最小堆实现
-# os - 文件操作
-# tempfile - 临时文件管理
-
-# 可选依赖（用于性能测试和可视化）
-# psutil>=5.9.0  # 内存监控
-# matplotlib>=3.5.0  # 性能可视化
+# External Sorting Learning Project
+# No external dependencies required - pure Python implementation

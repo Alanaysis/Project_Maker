@@ -1,0 +1,31 @@
+NETLIST placement_demo
+
+CELL u_io0 IO_PAD 2 0.5
+CELL u_io1 IO_PAD 2 0.5
+CELL u_io2 IO_PAD 2 0.5
+CELL u_io3 IO_PAD 2 0.5
+CELL u_ff0 FF 2 1 D CLK Q
+CELL u_ff1 FF 2 1 D CLK Q
+CELL u_ff2 FF 2 1 D CLK Q
+CELL u_ff3 FF 2 1 D CLK Q
+CELL u_ff4 FF 2 1 D CLK Q
+CELL u_lut0 LUT 2 0.8 A B Y
+CELL u_lut1 LUT 2 0.8 A B Y
+CELL u_lut2 LUT 2 0.8 A B C Y
+CELL u_lut3 LUT 2 0.8 A B Y
+CELL u_buf0 BUFFER 1 0.3 A Y
+CELL u_buf1 BUFFER 1 0.3 A Y
+
+NET clk_net { u_io0:Q u_ff0:CLK u_ff1:CLK u_ff2:CLK u_ff3:CLK u_ff4:CLK }
+NET data_in { u_io1:Q u_ff0:D }
+NET lut0_out { u_ff1:D u_lut0:A }
+NET lut1_out { u_lut0:B u_lut1:A }
+NET lut2_out { u_ff2:D u_lut1:B u_lut2:A u_lut2:B }
+NET lut3_out { u_ff3:D u_lut2:C u_lut3:A }
+NET feedback { u_ff4:D u_lut3:B }
+NET output_net { u_ff4:Q u_io2:D }
+NET buf_net { u_lut2:Y u_buf0:A }
+NET buf_out { u_buf0:Y u_io3:D }
+
+CONSTRAINT lk_constraint 1000 0 0
+END

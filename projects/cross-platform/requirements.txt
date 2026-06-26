@@ -1,0 +1,2 @@
+# Cross-Platform Framework Principles - Empty requirements file
+# Core modules use only Python standard library

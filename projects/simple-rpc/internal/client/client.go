@@ -208,6 +208,41 @@ func (c *Client) removeConnection(instanceID string) {
 	}
 }
 
+// CallResult 异步调用结果
+type CallResult struct {
+	Reply interface{}
+	Err   error
+}
+
+// Go 异步调用 RPC 方法
+// 与 Call 不同，Go 不会阻塞等待响应，而是通过返回的 channel 获取结果
+// 这是 RPC 框架中实现异步调用的标准模式
+func (c *Client) Go(ctx context.Context, serviceName, methodName string, args interface{}, reply interface{}) *CallResult {
+	result := &CallResult{Reply: reply, Err: nil}
+
+	// 获取服务实例
+	instances, err := c.registry.GetService(serviceName)
+	if err != nil {
+		result.Err = fmt.Errorf("failed to get service: %w", err)
+		return result
+	}
+
+	// 使用负载均衡选择实例
+	instance, err := c.balancer.Select(instances)
+	if err != nil {
+		result.Err = fmt.Errorf("failed to select instance: %w", err)
+		return result
+	}
+
+	// 带超时和重试的调用
+	err = timeout.RetryWithTimeout(ctx, c.config.TimeoutConfig.RequestTimeout, c.config.MaxRetries, func(ctx context.Context) error {
+		return c.callInstance(ctx, instance, serviceName, methodName, args, reply)
+	})
+	result.Err = err
+
+	return result
+}
+
 // Close 关闭客户端
 func (c *Client) Close() error {
 	c.mu.Lock()

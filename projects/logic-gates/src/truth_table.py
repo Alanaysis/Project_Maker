@@ -1,234 +1,119 @@
-# 真值表生成器
-
 """
-真值表生成器模块
+Truth table generation for logic gates.
 
-本模块提供真值表的生成功能。
+A truth table lists all possible input combinations and their corresponding outputs.
+真值表列出所有可能的输入组合及其对应的输出。
 """
 
-from typing import List, Tuple, Dict
+from typing import Callable, Dict, List, Tuple
 
-from .gates import Gate
-from .circuit import Circuit
+from .gates import AND, OR, NOT, NAND, NOR, XOR, XNOR
+
+# Map gate names to their functions
+GATE_FUNCTIONS = {
+    "AND": AND,
+    "OR": OR,
+    "NOT": NOT,
+    "NAND": NAND,
+    "NOR": NOR,
+    "XOR": XOR,
+    "XNOR": XNOR,
+}
 
 
-class TruthTableGenerator:
-    """真值表生成器
-
-    用于生成和格式化真值表。
-
-    Examples:
-        >>> from logic_gates import AndGate, TruthTableGenerator
-        >>> gate = AndGate()
-        >>> print(TruthTableGenerator.generate(gate))
-        AND Gate Truth Table
-        --------------------
-        | IN0 | IN1 | OUT |
-        --------------------
-        |  0  |  0  |  0  |
-        |  0  |  1  |  0  |
-        |  1  |  0  |  0  |
-        |  1  |  1  |  1  |
-        --------------------
+def generate_truth_table_2input(gate_func: Callable[[int, int], int],
+                                gate_name: str = "Gate") -> List[Tuple[int, int, int]]:
     """
+    Generate truth table for a 2-input gate.
 
-    @staticmethod
-    def generate(gate: Gate) -> str:
-        """生成格式化的真值表
+    Args:
+        gate_func: The gate function to test (e.g., AND, OR, XOR)
+        gate_name: Display name for the gate
 
-        Args:
-            gate: 逻辑门实例
+    Returns:
+        List of (input_a, input_b, output) tuples
+    """
+    table = []
+    for a in [0, 1]:
+        for b in [0, 1]:
+            output = gate_func(a, b)
+            table.append((a, b, output))
+    return table
 
-        Returns:
-            str: 格式化的真值表字符串
 
-        Examples:
-            >>> gate = AndGate()
-            >>> table = TruthTableGenerator.generate(gate)
-            >>> "AND" in table
-            True
-        """
-        table = gate.truth_table()
-        return TruthTableGenerator.format_table(table, f"{gate.name} Gate Truth Table")
+def generate_truth_table_3input(gate_func: Callable[[int, int, int], int],
+                                gate_name: str = "Gate") -> List[Tuple[int, int, int, int]]:
+    """
+    Generate truth table for a 3-input gate.
 
-    @staticmethod
-    def format_table(table: List[Tuple[List[int], int]], name: str = "") -> str:
-        """格式化真值表
+    Args:
+        gate_func: The gate function to test
+        gate_name: Display name for the gate
 
-        Args:
-            table: 真值表数据，每个元素为([输入组合], 输出)
-            name: 表名称
+    Returns:
+        List of (input_a, input_b, input_c, output) tuples
+    """
+    table = []
+    for a in [0, 1]:
+        for b in [0, 1]:
+            for c in [0, 1]:
+                output = gate_func(a, b, c)
+                table.append((a, b, c, output))
+    return table
 
-        Returns:
-            str: 格式化的字符串
 
-        Examples:
-            >>> table = [([0, 0], 0), ([0, 1], 0), ([1, 0], 0), ([1, 1], 1)]
-            >>> print(TruthTableGenerator.format_table(table, "AND"))
-            AND
-            --------------------
-            | IN0 | IN1 | OUT |
-            --------------------
-            |  0  |  0  |  0  |
-            |  0  |  1  |  0  |
-            |  1  |  0  |  0  |
-            |  1  |  1  |  1  |
-            --------------------
-        """
-        if not table:
-            return ""
+def print_truth_table(gate_func: Callable, gate_name: str = "Gate",
+                      num_inputs: int = 2) -> str:
+    """
+    Generate and print a formatted truth table string.
 
-        # 计算列数
-        num_inputs = len(table[0][0])
+    Args:
+        gate_func: The gate function to display
+        gate_name: Display name for the gate
+        num_inputs: Number of inputs (2 or 3)
 
-        # 计算列宽
-        col_width = 4
+    Returns:
+        Formatted truth table as a string
+    """
+    lines = []
+    padding = max(8, len(gate_name) + 2)
 
-        # 生成表头
-        headers = [f"IN{i}" for i in range(num_inputs)] + ["OUT"]
-        header_line = "| " + " | ".join([f"{h:^{col_width}}" for h in headers]) + " |"
+    if num_inputs == 2:
+        header = f"  {gate_name} Truth Table (真值表)  "
+        lines.append("=" * 30)
+        lines.append(header.center(30))
+        lines.append("=" * 30)
+        lines.append(f"  A{' ':>3} B{' ':>3} | Out")
+        lines.append(f"  {'-'*3} {'-'*3} | {'-'*3}")
 
-        # 生成分隔线
-        separator = "-" * len(header_line)
+        table = generate_truth_table_2input(gate_func, gate_name)
+        for a, b, out in table:
+            lines.append(f"  {a}     {b}     |  {out}")
 
-        # 生成数据行
-        rows = []
-        for inputs, output in table:
-            row_inputs = [f"{inp:^{col_width}}" for inp in inputs]
-            row_output = f"{output:^{col_width}}"
-            row = "| " + " | ".join(row_inputs + [row_output]) + " |"
-            rows.append(row)
+    else:
+        header = f"  {gate_name} Truth Table (真值表)  "
+        lines.append("=" * 40)
+        lines.append(header.center(40))
+        lines.append("=" * 40)
+        lines.append(f"  A{' ':>3} B{' ':>3} C{' ':>3} | Out")
+        lines.append(f"  {'-'*3} {'-'*3} {'-'*3} | {'-'*3}")
 
-        # 组合结果
-        result = [name, separator, header_line, separator]
-        result.extend(rows)
-        result.append(separator)
+        table = generate_truth_table_3input(gate_func, gate_name)
+        for a, b, c, out in table:
+            lines.append(f"  {a}     {b}     {c}     |  {out}")
 
-        return "\n".join(result)
+    lines.append("=" * (len(lines[0]) if lines else 30))
+    return "\n".join(lines)
 
-    @staticmethod
-    def generate_circuit_table(circuit: Circuit) -> str:
-        """生成电路真值表
 
-        Args:
-            circuit: 电路实例
+def get_all_2input_truth_tables() -> Dict[str, List[Tuple[int, int, int]]]:
+    """
+    Get truth tables for all standard 2-input gates.
 
-        Returns:
-            str: 格式化的真值表字符串
-
-        Examples:
-            >>> circuit = Circuit("Test")
-            >>> circuit.add_gate(AndGate(), "AND1")
-            >>> table = TruthTableGenerator.generate_circuit_table(circuit)
-        """
-        table = circuit.get_truth_table()
-        return TruthTableGenerator.format_circuit_table(table, f"{circuit.name} Truth Table")
-
-    @staticmethod
-    def format_circuit_table(table: List[Dict], name: str = "") -> str:
-        """格式化电路真值表
-
-        Args:
-            table: 真值表数据
-            name: 表名称
-
-        Returns:
-            str: 格式化的字符串
-        """
-        if not table:
-            return ""
-
-        # 获取输入和输出名称
-        first_row = table[0]
-        input_names = list(first_row["inputs"].keys())
-        output_names = list(first_row["outputs"].keys())
-
-        # 计算列宽
-        all_names = input_names + output_names
-        col_width = max(len(name) for name in all_names) + 2
-
-        # 生成表头
-        header_line = "| " + " | ".join([f"{n:^{col_width}}" for n in all_names]) + " |"
-
-        # 生成分隔线
-        separator = "-" * len(header_line)
-
-        # 生成数据行
-        rows = []
-        for row in table:
-            input_values = [f"{row['inputs'][n]:^{col_width}}" for n in input_names]
-            output_values = [f"{row['outputs'][n]:^{col_width}}" for n in output_names]
-            row_line = "| " + " | ".join(input_values + output_values) + " |"
-            rows.append(row_line)
-
-        # 组合结果
-        result = [name, separator, header_line, separator]
-        result.extend(rows)
-        result.append(separator)
-
-        return "\n".join(result)
-
-    @staticmethod
-    def to_dict(table: List[Tuple[List[int], int]]) -> List[Dict]:
-        """将真值表转换为字典格式
-
-        Args:
-            table: 真值表数据
-
-        Returns:
-            List[Dict]: 字典格式的真值表
-        """
-        result = []
-        for inputs, output in table:
-            row = {
-                "inputs": {f"IN{i}": v for i, v in enumerate(inputs)},
-                "output": output
-            }
-            result.append(row)
-        return result
-
-    @staticmethod
-    def to_csv(table: List[Tuple[List[int], int]], name: str = "") -> str:
-        """将真值表转换为CSV格式
-
-        Args:
-            table: 真值表数据
-            name: 表名称
-
-        Returns:
-            str: CSV格式的字符串
-        """
-        if not table:
-            return ""
-
-        num_inputs = len(table[0][0])
-
-        # 生成表头
-        headers = [f"IN{i}" for i in range(num_inputs)] + ["OUT"]
-        lines = [",".join(headers)]
-
-        # 生成数据行
-        for inputs, output in table:
-            row = ",".join([str(v) for v in inputs] + [str(output)])
-            lines.append(row)
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def to_json(table: List[Tuple[List[int], int]]) -> List[Dict]:
-        """将真值表转换为JSON格式
-
-        Args:
-            table: 真值表数据
-
-        Returns:
-            List[Dict]: JSON格式的真值表
-        """
-        result = []
-        for inputs, output in table:
-            row = {
-                "inputs": list(inputs),
-                "output": output
-            }
-            result.append(row)
-        return result
+    Returns:
+        Dictionary mapping gate names to their truth table rows
+    """
+    tables = {}
+    for name, func in GATE_FUNCTIONS.items():
+        tables[name] = generate_truth_table_2input(func, name)
+    return tables

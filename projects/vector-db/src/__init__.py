@@ -1,8 +1,9 @@
-"""Vector Database - A lightweight vector database with multiple indexing strategies."""
+"""Vector Database learning project.
 
-from .vector_db import VectorDB
-from .metrics import DistanceMetric
-from .index import BruteForceIndex, LSHIndex, HNSWIndex
+Implements vector storage and approximate nearest neighbor search algorithms.
+
+Core loop:
+    Vector insert -> Index build -> Query vector -> ANN search -> Results return
+"""
 
 __version__ = "0.1.0"
-__all__ = ["VectorDB", "DistanceMetric", "BruteForceIndex", "LSHIndex", "HNSWIndex"]

@@ -1,3 +1,3 @@
-module github.com/anthropic/service-discovery
+module service-discovery
 
 go 1.21

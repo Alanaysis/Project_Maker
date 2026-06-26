@@ -1,1 +1,3 @@
-"""测试模块"""
+"""
+Tests for convex optimization learning project.
+"""

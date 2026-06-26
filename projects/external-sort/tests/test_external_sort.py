@@ -1,502 +1,423 @@
 """
-外部排序主模块测试
+测试模块 (Test Module)
+
+外部排序算法的单元测试。
+Unit tests for external sorting algorithm.
 """
 
 import os
 import tempfile
-import unittest
-import random
+import pytest
 import sys
+import pathlib
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
-from src.external_sort import (
-    ExternalSorter,
-    LargeFileSorter,
-    LogSorter,
-    DatabaseSorter,
+from src.chunk import split_file_into_chunks, create_temp_file, compute_chunk_size
+from src.in_memory_sort import sort_chunk, _quick_sort, _merge_sort, benchmark_sort
+from src.k_way_merge import k_way_merge, multi_stage_merge, FileIterator
+from src.external_sort import ExternalSort, ExternalSortResult
+from src.memory_management import (
+    compute_memory_profile,
+    adaptive_k_selection,
+    estimate_io_cost,
 )
+from src.io_optimization import BufferedWriter, BufferedReader, optimize_io_for_merge
 
 
-class TestExternalSorter(unittest.TestCase):
-    """外部排序器测试"""
+# ========== Chunk Module Tests ==========
 
-    def setUp(self):
-        """创建临时目录"""
-        self.temp_dir = tempfile.mkdtemp()
+class TestChunk:
+    def test_split_file_into_chunks(self, tmp_path):
+        """测试文件分块。"""
+        test_file = tmp_path / "test_input.txt"
+        # 创建包含 100 行的测试文件
+        with open(test_file, 'w') as f:
+            for i in range(100):
+                f.write(f"{i}\n" * 25)
 
-    def tearDown(self):
-        """清理临时文件"""
-        for f in os.listdir(self.temp_dir):
-            filepath = os.path.join(self.temp_dir, f)
-            if os.path.isfile(filepath):
-                os.remove(filepath)
-        try:
-            os.rmdir(self.temp_dir)
-        except OSError:
-            pass
+        chunks = list(split_file_into_chunks(str(test_file), max_chunk_size=500))
+        assert len(chunks) > 0
+        # 验证每块都是列表
+        for chunk in chunks:
+            assert isinstance(chunk, list)
 
-    def test_sort_file_basic(self):
-        """测试基本文件排序"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
+    def test_split_file_empty(self, tmp_path):
+        """测试空文件分块。"""
+        test_file = tmp_path / "empty.txt"
+        test_file.write_text("")
 
-        # 写入测试数据
+        chunks = list(split_file_into_chunks(str(test_file), max_chunk_size=100))
+        assert len(chunks) == 0
+
+    def test_create_temp_file(self):
+        """测试临时文件创建。"""
+        path = create_temp_file(suffix='.test', prefix='test-')
+        assert os.path.exists(path)
+        assert path.endswith('.test')
+        os.remove(path)
+
+    def test_compute_chunk_size(self):
+        """测试块大小计算。"""
+        size = compute_chunk_size(1024 * 1024 * 100, safety_factor=0.5)
+        assert size == 50 * 1024 * 1024
+
+
+# ========== In-Memory Sort Tests ==========
+
+class TestInMemorySort:
+    def test_sort_chunk_tim_sort(self):
+        """测试 Timsort。"""
         data = [5, 3, 8, 1, 9, 2, 7, 4, 6]
-        with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
+        result = sort_chunk(data, 'tim_sort')
+        assert result == [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-        sorter = ExternalSorter(memory_limit=100)
-        total = sorter.sort_file(input_file, output_file)
+    def test_sort_chunk_quick_sort(self):
+        """测试快速排序。"""
+        data = [5, 3, 8, 1, 9, 2, 7, 4, 6]
+        result = sort_chunk(data, 'quick_sort')
+        assert result == [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-        self.assertEqual(total, 9)
+    def test_sort_chunk_merge_sort(self):
+        """测试归并排序。"""
+        data = [5, 3, 8, 1, 9, 2, 7, 4, 6]
+        result = sort_chunk(data, 'merge_sort')
+        assert result == [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-        with open(output_file, 'r') as f:
-            result = [int(line.strip()) for line in f if line.strip()]
-
-        self.assertEqual(result, sorted(data))
-
-    def test_sort_file_sorted(self):
-        """测试已排序文件"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
-
+    def test_sort_chunk_already_sorted(self):
+        """测试已排序数据。"""
         data = list(range(100))
-        with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
+        for algo in ['tim_sort', 'quick_sort', 'merge_sort']:
+            result = sort_chunk(data, algo)
+            assert result == data
 
-        sorter = ExternalSorter(memory_limit=500)
-        total = sorter.sort_file(input_file, output_file)
-
-        self.assertEqual(total, 100)
-
-        with open(output_file, 'r') as f:
-            result = [int(line.strip()) for line in f if line.strip()]
-
-        self.assertEqual(result, data)
-
-    def test_sort_file_reverse(self):
-        """测试逆序文件"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
-
+    def test_sort_chunk_reverse_sorted(self):
+        """测试逆序数据。"""
         data = list(range(100, 0, -1))
-        with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
+        for algo in ['tim_sort', 'quick_sort', 'merge_sort']:
+            result = sort_chunk(data, algo)
+            assert result == list(range(1, 101))
 
-        sorter = ExternalSorter(memory_limit=500)
-        total = sorter.sort_file(input_file, output_file)
-
-        self.assertEqual(total, 100)
-
-        with open(output_file, 'r') as f:
-            result = [int(line.strip()) for line in f if line.strip()]
-
-        self.assertEqual(result, list(range(1, 101)))
-
-    def test_sort_file_empty(self):
-        """测试空文件"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
-
-        with open(input_file, 'w') as f:
-            pass
-
-        sorter = ExternalSorter(memory_limit=100)
-        total = sorter.sort_file(input_file, output_file)
-
-        self.assertEqual(total, 0)
-
-    def test_sort_file_with_duplicates(self):
-        """测试有重复元素的文件"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
-
+    def test_sort_chunk_duplicates(self):
+        """测试含重复元素的数据。"""
         data = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]
+        result = sort_chunk(data, 'tim_sort')
+        assert result == [1, 1, 2, 3, 3, 4, 5, 5, 5, 6, 9]
+
+    def test_sort_chunk_single_element(self):
+        """测试单元素。"""
+        result = sort_chunk([42], 'tim_sort')
+        assert result == [42]
+
+    def test_sort_chunk_empty(self):
+        """测试空列表。"""
+        result = sort_chunk([], 'tim_sort')
+        assert result == []
+
+    def test_benchmark_sort(self):
+        """测试基准测试功能。"""
+        data = list(range(1000))
+        import random
+        random.shuffle(data)
+        stats = benchmark_sort(data, 'tim_sort')
+        assert stats['algorithm'] == 'tim_sort'
+        assert stats['input_size'] == 1000
+        assert stats['is_sorted'] is True
+        assert stats['elapsed_seconds'] >= 0
+
+
+# ========== K-Way Merge Tests ==========
+
+class TestKWayMerge:
+    def test_k_way_merge_two_files(self, tmp_path):
+        """测试两文件归并。"""
+        f1 = tmp_path / "sorted1.txt"
+        f2 = tmp_path / "sorted2.txt"
+        output = tmp_path / "merged.txt"
+
+        f1.write_text("1\n3\n5\n7\n")
+        f2.write_text("2\n4\n6\n8\n")
+
+        stats = k_way_merge([str(f1), str(f2)], str(output))
+        assert stats['merged_records'] == 8
+
+        result = output.read_text().strip().split('\n')
+        assert [int(x) for x in result] == [1, 2, 3, 4, 5, 6, 7, 8]
+
+    def test_k_way_merge_multiple_files(self, tmp_path):
+        """测试多文件归并。"""
+        outputs = []
+        for i in range(5):
+            f = tmp_path / f"sorted{i}.txt"
+            f.write_text("".join(f"{i * 10 + j}\n" for j in range(1, 11)))
+            outputs.append(str(f))
+
+        output = tmp_path / "merged_all.txt"
+        stats = k_way_merge(outputs, str(output))
+        assert stats['merged_records'] == 50
+
+        result = output.read_text().strip().split('\n')
+        values = [int(x) for x in result]
+        assert values == sorted(values)
+
+    def test_k_way_merge_single_file(self, tmp_path):
+        """测试单文件归并。"""
+        f = tmp_path / "sorted.txt"
+        f.write_text("1\n1\n3\n4\n5\n")
+        output = tmp_path / "merged.txt"
+
+        stats = k_way_merge([str(f)], str(output))
+        assert stats['merged_records'] == 5
+
+        result = output.read_text().strip().split('\n')
+        assert [int(x) for x in result] == [1, 1, 3, 4, 5]
+
+    def test_k_way_merge_empty_file(self, tmp_path):
+        """测试含空文件的归并。"""
+        f1 = tmp_path / "non_empty.txt"
+        f2 = tmp_path / "empty.txt"
+        output = tmp_path / "merged.txt"
+
+        f1.write_text("2\n4\n6\n")
+        f2.write_text("")
+
+        stats = k_way_merge([str(f1), str(f2)], str(output))
+        assert stats['merged_records'] == 3
+
+    def test_multi_stage_merge(self, tmp_path):
+        """测试多阶段归并。"""
+        outputs = []
+        for i in range(10):
+            f = tmp_path / f"run{i}.txt"
+            f.write_text("".join(f"{i * 100 + j}\n" for j in range(1, 11)))
+            outputs.append(str(f))
+
+        output = tmp_path / "final.txt"
+        stages = multi_stage_merge(outputs, str(output), max_k=3)
+
+        result = output.read_text().strip().split('\n')
+        values = [int(x) for x in result]
+        assert values == sorted(values)
+        assert len(values) == 100
+
+
+# ========== External Sort Tests ==========
+
+class TestExternalSort:
+    def test_full_external_sort(self, tmp_path):
+        """测试完整外部排序流程。"""
+        input_file = tmp_path / "large_input.txt"
+        output_file = tmp_path / "large_output.txt"
+
+        # 生成测试数据：500 个随机整数
+        import random
+        random.seed(42)
+        data = [random.randint(1, 10000) for _ in range(500)]
         with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
+            for val in data:
+                f.write(f"{val}\n")
 
-        sorter = ExternalSorter(memory_limit=100)
-        total = sorter.sort_file(input_file, output_file)
+        temp_dir = str(tmp_path / "temp")
+        sorter = ExternalSort(temp_dir=temp_dir, chunk_size_mb=0.01)
+        result = sorter.sort(str(input_file), str(output_file))
 
-        self.assertEqual(total, 11)
+        # 验证结果
+        assert result.record_count == 500
+        assert result.is_valid is True
 
+        # 验证输出有序
         with open(output_file, 'r') as f:
-            result = [int(line.strip()) for line in f if line.strip()]
+            values = [int(line.strip()) for line in f if line.strip()]
+        assert values == sorted(data)
 
-        self.assertEqual(result, sorted(data))
+    def test_external_sort_validation(self, tmp_path):
+        """测试排序结果验证。"""
+        input_file = tmp_path / "input.txt"
+        output_file = tmp_path / "output.txt"
 
-    def test_sort_iterator(self):
-        """测试从迭代器排序"""
-        output_file = os.path.join(self.temp_dir, "output.txt")
+        for i in range(100, 0, -1):
+            with open(input_file, 'w') as f:
+                f.write(f"{i}\n")
 
-        data = [5, 3, 8, 1, 9, 2, 7, 4, 6]
-        sorter = ExternalSorter(memory_limit=100)
-        total = sorter.sort_iterator(iter(data), output_file)
+        sorter = ExternalSort(temp_dir=str(tmp_path / "temp"),
+                              chunk_size_mb=0.001)
+        result = sorter.sort(str(input_file), str(output_file))
 
-        self.assertEqual(total, 9)
+        assert result.validate(str(input_file)) is True
 
-        with open(output_file, 'r') as f:
-            result = [int(line.strip()) for line in f if line.strip()]
+    def test_external_sort_with_context_manager(self, tmp_path):
+        """测试上下文管理器。"""
+        input_file = tmp_path / "input.txt"
+        output_file = tmp_path / "output.txt"
 
-        self.assertEqual(result, sorted(data))
-
-    def test_sort_data(self):
-        """测试内存数据排序"""
-        data = [5, 3, 8, 1, 9, 2, 7, 4, 6]
-
-        sorter = ExternalSorter(memory_limit=100)
-        result = sorter.sort_data(data)
-
-        self.assertEqual(result, sorted(data))
-
-    def test_custom_key_function(self):
-        """测试自定义键函数"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
-
-        # 按绝对值排序
-        data = [-5, 3, -8, 1, 9, -2, 7, -4, 6]
         with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
+            for i in range(50):
+                f.write(f"{i * 2}\n")
 
-        sorter = ExternalSorter(
-            memory_limit=100,
-            key_func=lambda x: abs(x) if isinstance(x, (int, float)) else x
+        with ExternalSort(temp_dir=str(tmp_path / "temp"),
+                          chunk_size_mb=0.001) as sorter:
+            result = sorter.sort(str(input_file), str(output_file))
+
+        assert result.record_count == 50
+
+    def test_external_sort_summary(self, tmp_path):
+        """测试摘要输出。"""
+        input_file = tmp_path / "input.txt"
+        output_file = tmp_path / "output.txt"
+
+        with open(input_file, 'w') as f:
+            for i in range(10):
+                f.write(f"{i}\n")
+
+        sorter = ExternalSort(temp_dir=str(tmp_path / "temp"),
+                              chunk_size_mb=0.001)
+        result = sorter.sort(str(input_file), str(output_file))
+
+        summary = result.summary()
+        assert "外部排序结果摘要" in summary
+        assert "记录数量: 10" in summary
+
+    def test_external_sort_already_sorted(self, tmp_path):
+        """测试已排序输入。"""
+        input_file = tmp_path / "input.txt"
+        output_file = tmp_path / "output.txt"
+
+        with open(input_file, 'w') as f:
+            for i in range(100):
+                f.write(f"{i}\n")
+
+        sorter = ExternalSort(temp_dir=str(tmp_path / "temp"),
+                              chunk_size_mb=0.001)
+        result = sorter.sort(str(input_file), str(output_file))
+
+        assert result.is_valid is True
+
+
+# ========== Memory Management Tests ==========
+
+class TestMemoryManagement:
+    def test_compute_memory_profile(self):
+        """测试内存配置计算。"""
+        profile = compute_memory_profile(
+            target_chunk_records=10000,
+            record_size_bytes=10,
         )
-        total = sorter.sort_file(input_file, output_file)
+        assert profile.chunk_size_mb > 0
+        assert profile.max_merge_degree >= 2
 
-        with open(output_file, 'r') as f:
-            result = [int(line.strip()) for line in f if line.strip()]
-
-        self.assertEqual(result, sorted(data, key=abs))
-
-    def test_statistics(self):
-        """测试统计信息"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
-
-        data = list(range(100))
-        with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
-
-        sorter = ExternalSorter(memory_limit=500)
-        sorter.sort_file(input_file, output_file)
-
-        stats = sorter.stats
-
-        self.assertEqual(stats['total_records'], 100)
-        self.assertGreater(stats['total_runs'], 0)
-        self.assertGreater(stats['total_time'], 0)
-        self.assertGreater(stats['run_generation_time'], 0)
-        self.assertGreater(stats['merge_time'], 0)
-
-    def test_large_dataset(self):
-        """测试大数据集"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
-
-        data = [random.randint(1, 100000) for _ in range(10000)]
-        with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
-
-        sorter = ExternalSorter(memory_limit=10000)
-        total = sorter.sort_file(input_file, output_file)
-
-        self.assertEqual(total, 10000)
-
-        with open(output_file, 'r') as f:
-            result = [int(line.strip()) for line in f if line.strip()]
-
-        self.assertEqual(result, sorted(data))
-
-    def test_string_data(self):
-        """测试字符串数据"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
-
-        data = ["banana", "apple", "cherry", "date", "elderberry"]
-        with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
-
-        sorter = ExternalSorter(memory_limit=100)
-        total = sorter.sort_file(input_file, output_file)
-
-        self.assertEqual(total, 5)
-
-        with open(output_file, 'r') as f:
-            result = [line.strip() for line in f if line.strip()]
-
-        self.assertEqual(result, sorted(data))
-
-    def test_replacement_selection_vs_internal_sort(self):
-        """测试置换选择排序与内部排序法的对比"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_rs = os.path.join(self.temp_dir, "output_rs.txt")
-        output_is = os.path.join(self.temp_dir, "output_is.txt")
-
-        data = [random.randint(1, 1000) for _ in range(1000)]
-        with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
-
-        # 置换选择排序
-        sorter_rs = ExternalSorter(
-            memory_limit=500,
-            use_replacement_selection=True
+    def test_adaptive_k_selection(self):
+        """测试自适应 k 选择。"""
+        k = adaptive_k_selection(
+            num_runs=50,
+            max_merge_degree=100,
+            buffer_overhead_bytes=1024 * 1024 * 10,
         )
-        sorter_rs.sort_file(input_file, output_rs)
+        assert k <= 50
+        assert k >= 2
 
-        # 内部排序法
-        sorter_is = ExternalSorter(
-            memory_limit=500,
-            use_replacement_selection=False
+    def test_estimate_io_cost(self):
+        """测试 I/O 成本估算。"""
+        cost = estimate_io_cost(
+            num_records=1000000,
+            chunk_size=1024 * 1024,
+            num_runs=10,
+            merge_degree=5,
         )
-        sorter_is.sort_file(input_file, output_is)
-
-        # 两个结果应该相同
-        with open(output_rs, 'r') as f:
-            result_rs = [int(line.strip()) for line in f if line.strip()]
-        with open(output_is, 'r') as f:
-            result_is = [int(line.strip()) for line in f if line.strip()]
-
-        self.assertEqual(result_rs, result_is)
+        assert cost['total_io'] > 0
+        assert cost['merge_rounds'] >= 1
 
 
-class TestLargeFileSorter(unittest.TestCase):
-    """大文件排序器测试"""
+# ========== I/O Optimization Tests ==========
 
-    def setUp(self):
-        """创建临时目录"""
-        self.temp_dir = tempfile.mkdtemp()
+class TestIOOptimization:
+    def test_buffered_writer(self, tmp_path):
+        """测试缓冲写入器。"""
+        output = tmp_path / "buffered.txt"
+        writer = BufferedWriter(str(output), buffer_size=1024)
 
-    def tearDown(self):
-        """清理临时文件"""
-        for f in os.listdir(self.temp_dir):
-            os.remove(os.path.join(self.temp_dir, f))
-        os.rmdir(self.temp_dir)
+        for i in range(100):
+            writer.write(f"{i}\n")
+        writer.close()
 
-    def test_sort(self):
-        """测试大文件排序"""
-        input_file = os.path.join(self.temp_dir, "input.txt")
-        output_file = os.path.join(self.temp_dir, "output.txt")
+        result = output.read_text().strip().split('\n')
+        assert len(result) == 100
 
-        data = [random.randint(1, 10000) for _ in range(5000)]
-        with open(input_file, 'w') as f:
-            for v in data:
-                f.write(f"{v}\n")
+    def test_buffered_reader(self, tmp_path):
+        """测试缓冲读取器。"""
+        input_file = tmp_path / "input.txt"
+        input_file.write_text("".join(f"{i}\n" for i in range(50)))
 
-        sorter = LargeFileSorter(memory_limit=10000)
-        total = sorter.sort(input_file, output_file)
+        reader = BufferedReader(str(input_file))
+        values = []
+        while True:
+            line = reader.read_line()
+            if line is None:
+                break
+            values.append(int(line))
+        reader.close()
 
-        self.assertEqual(total, 5000)
+        assert values == list(range(50))
 
-        with open(output_file, 'r') as f:
-            result = [int(line.strip()) for line in f if line.strip()]
-
-        self.assertEqual(result, sorted(data))
-
-
-class TestLogSorter(unittest.TestCase):
-    """日志排序器测试"""
-
-    def setUp(self):
-        """创建临时目录"""
-        self.temp_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        """清理临时文件"""
-        for f in os.listdir(self.temp_dir):
-            os.remove(os.path.join(self.temp_dir, f))
-        os.rmdir(self.temp_dir)
-
-    def test_sort_by_timestamp(self):
-        """测试按时间戳排序"""
-        input_file = os.path.join(self.temp_dir, "logs.txt")
-        output_file = os.path.join(self.temp_dir, "sorted.txt")
-
-        logs = [
-            "2024-01-03 10:00:00 Error occurred",
-            "2024-01-01 08:00:00 System started",
-            "2024-01-02 12:00:00 Warning issued",
-            "2024-01-01 09:00:00 User logged in",
-        ]
-
-        with open(input_file, 'w') as f:
-            for log in logs:
-                f.write(f"{log}\n")
-
-        sorter = LogSorter()
-        total = sorter.sort_by_timestamp(input_file, output_file)
-
-        self.assertEqual(total, 4)
-
-        with open(output_file, 'r') as f:
-            result = [line.strip() for line in f if line.strip()]
-
-        # 验证按时间排序
-        self.assertIn("2024-01-01 08:00:00", result[0])
-        self.assertIn("2024-01-01 09:00:00", result[1])
-        self.assertIn("2024-01-02 12:00:00", result[2])
-        self.assertIn("2024-01-03 10:00:00", result[3])
-
-    def test_sort_by_field(self):
-        """测试按字段排序"""
-        input_file = os.path.join(self.temp_dir, "data.csv")
-        output_file = os.path.join(self.temp_dir, "sorted.csv")
-
-        data = [
-            "alice,85,A",
-            "bob,92,B",
-            "charlie,78,C",
-            "david,95,A",
-        ]
-
-        with open(input_file, 'w') as f:
-            for line in data:
-                f.write(f"{line}\n")
-
-        sorter = LogSorter()
-        total = sorter.sort_by_field(
-            input_file, output_file,
-            field_index=1, separator=","
+    def test_optimize_io_for_merge(self):
+        """测试 I/O 优化建议。"""
+        config = optimize_io_for_merge(
+            num_files=20,
+            file_size_mb=50,
+            available_memory_mb=512,
         )
-
-        self.assertEqual(total, 4)
-
-        with open(output_file, 'r') as f:
-            result = [line.strip() for line in f if line.strip()]
-
-        # 按分数排序
-        self.assertIn("78", result[0])
-        self.assertIn("85", result[1])
-        self.assertIn("92", result[2])
-        self.assertIn("95", result[3])
+        assert config['recommended_buffer_size'] > 0
+        assert config['ideal_merge_degree'] == 20
 
 
-class TestDatabaseSorter(unittest.TestCase):
-    """数据库排序器测试"""
+# ========== Edge Case Tests ==========
 
-    def setUp(self):
-        """创建临时目录"""
-        self.temp_dir = tempfile.mkdtemp()
+class TestEdgeCases:
+    def test_single_element_file(self, tmp_path):
+        """测试单元素文件。"""
+        input_file = tmp_path / "single.txt"
+        output_file = tmp_path / "output.txt"
+        with open(input_file, 'w') as f:
+            f.write("42\n")
 
-    def tearDown(self):
-        """清理临时文件"""
-        for f in os.listdir(self.temp_dir):
-            os.remove(os.path.join(self.temp_dir, f))
-        os.rmdir(self.temp_dir)
+        sorter = ExternalSort(temp_dir=str(tmp_path / "temp"),
+                              chunk_size_mb=0.001)
+        result = sorter.sort(str(input_file), str(output_file))
+        assert result.record_count == 1
 
-    def test_sort_by_single_column(self):
-        """测试单列排序"""
-        input_file = os.path.join(self.temp_dir, "data.csv")
-        output_file = os.path.join(self.temp_dir, "sorted.csv")
+        with open(output_file) as f:
+            assert int(f.read().strip()) == 42
 
-        data = [
-            "name,age,city",
-            "alice,30,beijing",
-            "bob,25,shanghai",
-            "charlie,35,guangzhou",
-            "david,28,shenzhen",
-        ]
+    def test_negative_numbers(self, tmp_path):
+        """测试负数。"""
+        input_file = tmp_path / "input.txt"
+        output_file = tmp_path / "output.txt"
 
         with open(input_file, 'w') as f:
-            for line in data:
-                f.write(f"{line}\n")
+            for val in [-5, -1, -3, 0, 2, -2, 1]:
+                f.write(f"{val}\n")
 
-        sorter = DatabaseSorter()
-        total = sorter.sort_by_columns(
-            input_file, output_file,
-            sort_columns=[1], separator=",",
-            header=True
-        )
+        sorter = ExternalSort(temp_dir=str(tmp_path / "temp"),
+                              chunk_size_mb=0.001)
+        result = sorter.sort(str(input_file), str(output_file))
 
-        self.assertEqual(total, 4)
+        with open(output_file) as f:
+            values = [int(line.strip()) for line in f if line.strip()]
+        assert values == [-5, -3, -2, -1, 0, 1, 2]
 
-        with open(output_file, 'r') as f:
-            lines = [line.strip() for line in f if line.strip()]
+    def test_large_values(self, tmp_path):
+        """测试大数值。"""
+        input_file = tmp_path / "input.txt"
+        output_file = tmp_path / "output.txt"
 
-        # 第一行应该是表头
-        self.assertEqual(lines[0], "name,age,city")
-
-        # 验证按年龄排序
-        ages = [int(line.split(',')[1]) for line in lines[1:]]
-        self.assertEqual(ages, sorted(ages))
-
-    def test_sort_by_multiple_columns(self):
-        """测试多列排序"""
-        input_file = os.path.join(self.temp_dir, "data.csv")
-        output_file = os.path.join(self.temp_dir, "sorted.csv")
-
-        data = [
-            "name,age,score",
-            "alice,25,85",
-            "bob,25,92",
-            "charlie,30,78",
-            "david,30,95",
-        ]
-
+        large_vals = [10**9, 10**18, 10**5, 10**12, 10**3]
         with open(input_file, 'w') as f:
-            for line in data:
-                f.write(f"{line}\n")
+            for val in large_vals:
+                f.write(f"{val}\n")
 
-        sorter = DatabaseSorter()
-        total = sorter.sort_by_columns(
-            input_file, output_file,
-            sort_columns=[1, 2], separator=",",
-            header=True
-        )
+        sorter = ExternalSort(temp_dir=str(tmp_path / "temp"),
+                              chunk_size_mb=0.001)
+        result = sorter.sort(str(input_file), str(output_file))
 
-        self.assertEqual(total, 4)
-
-        with open(output_file, 'r') as f:
-            lines = [line.strip() for line in f if line.strip()]
-
-        # 验证多列排序
-        self.assertEqual(lines[0], "name,age,score")
-        self.assertIn("alice", lines[1])  # age=25, score=85
-        self.assertIn("bob", lines[2])    # age=25, score=92
-        self.assertIn("charlie", lines[3])  # age=30, score=78
-        self.assertIn("david", lines[4])   # age=30, score=95
-
-    def test_sort_without_header(self):
-        """测试无表头排序"""
-        input_file = os.path.join(self.temp_dir, "data.csv")
-        output_file = os.path.join(self.temp_dir, "sorted.csv")
-
-        data = [
-            "alice,30",
-            "bob,25",
-            "charlie,35",
-        ]
-
-        with open(input_file, 'w') as f:
-            for line in data:
-                f.write(f"{line}\n")
-
-        sorter = DatabaseSorter()
-        total = sorter.sort_by_columns(
-            input_file, output_file,
-            sort_columns=[1], separator=",",
-            header=False
-        )
-
-        self.assertEqual(total, 3)
-
-        with open(output_file, 'r') as f:
-            result = [line.strip() for line in f if line.strip()]
-
-        ages = [int(line.split(',')[1]) for line in result]
-        self.assertEqual(ages, sorted(ages))
-
-
-if __name__ == '__main__':
-    unittest.main()
+        with open(output_file) as f:
+            values = [int(line.strip()) for line in f if line.strip()]
+        assert values == sorted(large_vals)

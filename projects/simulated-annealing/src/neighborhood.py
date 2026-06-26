@@ -1,233 +1,197 @@
 """
-邻域操作模块
+邻域生成策略模块 (Neighborhood Generation Strategies)
 
-实现组合优化问题中常用的邻域操作：
-- 交换（Swap）：随机交换两个元素的位置
-- 逆序（Reverse/2-opt）：反转子序列
-- 插入（Insert）：将一个元素移动到另一个位置
+邻域搜索是模拟退火的"探索"机制。好的邻域策略决定了算法能否
+有效地在解空间中搜索。
+
+邻域结构的选择取决于问题的性质：
+- 离散问题：交换、插入、反转等排列操作
+- 连续问题：高斯扰动、均匀扰动等
+- 组合问题：多种策略组合（自适应）
 """
 
-import numpy as np
-from typing import List, Callable
+import random
+import math
+from typing import List, Callable, Any, Optional
 
 
-class NeighborhoodOps:
+def neighborhood_generator(
+    solution: Any,
+    strategy: str = "auto",
+    **kwargs
+) -> Any:
     """
-    邻域操作集合
+    统一的邻域生成接口
 
-    提供多种邻域操作函数，用于生成候选解。
-    所有操作都不修改原始解，而是返回新解。
+    根据问题类型自动选择或手动指定邻域生成策略。
+
+    Args:
+        solution: 当前解
+        strategy: 策略名称 ("swap", "insert", "reverse", "multi_switch",
+                  "continuous", "adaptive", "auto")
+        **kwargs: 策略参数
+
+    Returns:
+        新生成的解
     """
+    if strategy == "auto":
+        if isinstance(solution, list):
+            return swap_neighbor(solution)
+        elif isinstance(solution, (int, float)):
+            return continuous_neighbor(solution)
+        else:
+            raise ValueError(f"无法自动推断解的类型: {type(solution)}")
 
-    @staticmethod
-    def swap(solution: List[int]) -> List[int]:
-        """
-        交换操作：随机选择两个位置并交换
+    strategy_map = {
+        "swap": swap_neighbor,
+        "insert": insert_neighbor,
+        "reverse": reverse_neighbor,
+        "multi_switch": multi_switch_neighbor,
+        "continuous": continuous_neighbor,
+        "adaptive": adaptive_neighborhood,
+    }
 
-        适用于：排列问题（TSP、调度等）
+    if strategy not in strategy_map:
+        raise ValueError(f"未知的邻域策略: {strategy}，可选: {list(strategy_map.keys())}")
 
-        参数:
-            solution: 当前解（排列）
-
-        返回:
-            新解
-        """
-        new_solution = solution.copy()
-        n = len(new_solution)
-        i, j = np.random.choice(n, 2, replace=False)
-        new_solution[i], new_solution[j] = new_solution[j], new_solution[i]
-        return new_solution
-
-    @staticmethod
-    def reverse(solution: List[int]) -> List[int]:
-        """
-        逆序操作（2-opt）：随机选择子序列并反转
-
-        适用于：TSP等路径优化问题
-
-        参数:
-            solution: 当前解（排列）
-
-        返回:
-            新解
-        """
-        new_solution = solution.copy()
-        n = len(new_solution)
-        i, j = sorted(np.random.choice(n, 2, replace=False))
-        new_solution[i:j + 1] = reversed(new_solution[i:j + 1])
-        return new_solution
-
-    @staticmethod
-    def insert(solution: List[int]) -> List[int]:
-        """
-        插入操作：随机选择一个元素并插入到另一个位置
-
-        适用于：调度问题、排列问题
-
-        参数:
-            solution: 当前解（排列）
-
-        返回:
-            新解
-        """
-        new_solution = solution.copy()
-        n = len(new_solution)
-
-        # 选择要移动的元素
-        i = np.random.randint(0, n)
-        # 选择插入位置（不能是原位置）
-        positions = list(range(n))
-        positions.remove(i)
-        j = np.random.choice(positions)
-
-        # 执行插入
-        element = new_solution.pop(i)
-        new_solution.insert(j, element)
-        return new_solution
-
-    @staticmethod
-    def or_opt(solution: List[int], max_segment: int = 3) -> List[int]:
-        """
-        Or-opt操作：移动一段连续元素到另一个位置
-
-        适用于：TSP等路径优化问题
-
-        参数:
-            solution: 当前解（排列）
-            max_segment: 最大片段长度
-
-        返回:
-            新解
-        """
-        new_solution = solution.copy()
-        n = len(new_solution)
-
-        # 随机选择片段长度
-        seg_len = np.random.randint(1, min(max_segment + 1, n))
-        seg_start = np.random.randint(0, n - seg_len + 1)
-
-        # 提取片段
-        segment = new_solution[seg_start:seg_start + seg_len]
-        remaining = new_solution[:seg_start] + new_solution[seg_start + seg_len:]
-
-        # 选择插入位置
-        insert_pos = np.random.randint(0, len(remaining) + 1)
-
-        # 插入片段
-        new_solution = remaining[:insert_pos] + segment + remaining[insert_pos:]
-        return new_solution
-
-    @staticmethod
-    def two_opt_swap(solution: List[int]) -> List[int]:
-        """
-        2-opt交换：交换两段不相邻的子序列
-
-        适用于：TSP等路径优化问题
-
-        参数:
-            solution: 当前解（排列）
-
-        返回:
-            新解
-        """
-        new_solution = solution.copy()
-        n = len(new_solution)
-
-        # 选择两个不相邻的断点
-        i = np.random.randint(0, n - 2)
-        j = np.random.randint(i + 2, n)
-
-        # 交换两段
-        new_solution[i + 1:j + 1] = reversed(new_solution[i + 1:j + 1])
-        return new_solution
-
-    @staticmethod
-    def create_mixed_neighbor(ops: List[Callable] = None, weights: List[float] = None) -> Callable:
-        """
-        创建混合邻域函数
-
-        随机选择多种邻域操作中的一种，可用于提高搜索多样性。
-
-        参数:
-            ops: 邻域操作列表
-            weights: 各操作的选择权重
-
-        返回:
-            混合邻域函数
-        """
-        if ops is None:
-            ops = [
-                NeighborhoodOps.swap,
-                NeighborhoodOps.reverse,
-                NeighborhoodOps.insert,
-                NeighborhoodOps.or_opt,
-            ]
-
-        if weights is None:
-            weights = [1.0 / len(ops)] * len(ops)
-
-        weights = np.array(weights)
-        weights = weights / weights.sum()
-
-        def mixed_neighbor(solution: List[int]) -> List[int]:
-            op_idx = np.random.choice(len(ops), p=weights)
-            return ops[op_idx](solution)
-
-        return mixed_neighbor
+    return strategy_map[strategy](solution, **kwargs)
 
 
-def demo_neighborhood_ops():
-    """演示邻域操作"""
-    print("邻域操作演示")
-    print("=" * 50)
+def swap_neighbor(solution: List) -> List:
+    """
+    交换邻域 (Swap Neighborhood)
 
-    # 创建示例解
-    solution = list(range(10))
-    print(f"原始解: {solution}")
-    print()
+    随机选择两个位置并交换它们的值。
 
-    ops = NeighborhoodOps()
+    适用于：排列问题（如 TSP）
 
-    # 交换操作
-    new_sol = ops.swap(solution)
-    print(f"交换操作: {new_sol}")
-
-    # 逆序操作
-    new_sol = ops.reverse(solution)
-    print(f"逆序操作: {new_sol}")
-
-    # 插入操作
-    new_sol = ops.insert(solution)
-    print(f"插入操作: {new_sol}")
-
-    # Or-opt操作
-    new_sol = ops.or_opt(solution)
-    print(f"Or-opt操作: {new_sol}")
-
-    # 2-opt交换
-    new_sol = ops.two_opt_swap(solution)
-    print(f"2-opt交换: {new_sol}")
-
-    # 混合邻域
-    mixed = ops.create_mixed_neighbor()
-    new_sol = mixed(solution)
-    print(f"混合邻域: {new_sol}")
-
-    print()
-    print("所有操作保持排列的完整性:")
-    for name, op in [
-        ("swap", ops.swap),
-        ("reverse", ops.reverse),
-        ("insert", ops.insert),
-        ("or_opt", ops.or_opt),
-        ("two_opt_swap", ops.two_opt_swap),
-    ]:
-        new_sol = op(solution)
-        assert sorted(new_sol) == sorted(solution), f"{name} 操作破坏了排列"
-        print(f"  {name}: OK")
-
-    print("\n演示完成!")
+    示例：
+        [1, 2, 3, 4, 5] → [1, 4, 3, 2, 5]  (交换位置 1 和 3)
+    """
+    new_sol = solution.copy()
+    i, j = random.sample(range(len(new_sol)), 2)
+    new_sol[i], new_sol[j] = new_sol[j], new_sol[i]
+    return new_sol
 
 
-if __name__ == "__main__":
-    demo_neighborhood_ops()
+def insert_neighbor(solution: List) -> List:
+    """
+    插入邻域 (Insert Neighborhood)
+
+    随机选择一个元素，插入到另一个随机位置。
+
+    适用于：排列问题（如 TSP）
+
+    示例：
+        [1, 2, 3, 4, 5] → [1, 3, 2, 4, 5]  (将 2 插入到位置 1)
+    """
+    new_sol = solution.copy()
+    i = random.randint(0, len(new_sol) - 1)
+    j = random.randint(0, len(new_sol) - 1)
+    while j == i:
+        j = random.randint(0, len(new_sol) - 1)
+    value = new_sol.pop(i)
+    new_sol.insert(j, value)
+    return new_sol
+
+
+def reverse_neighbor(solution: List) -> List:
+    """
+    反转邻域 (Reverse/Inversion Neighborhood)
+
+    随机选择两个位置，反转它们之间的子序列。
+
+    适用于：排列问题（如 TSP），2-opt 局部搜索的基础
+
+    示例：
+        [1, 2, 3, 4, 5] → [1, 4, 3, 2, 5]  (反转位置 1-3)
+    """
+    new_sol = solution.copy()
+    i, j = sorted(random.sample(range(len(new_sol)), 2))
+    new_sol[i:j+1] = reversed(new_sol[i:j+1])
+    return new_sol
+
+
+def multi_switch_neighbor(solution: List, num_switches: int = 2) -> List:
+    """
+    多交换邻域 (Multi-Switch Neighborhood)
+
+    进行多次交换操作，扩大搜索范围。
+
+    适用于：需要较大扰动的问题
+
+    Args:
+        solution: 当前解
+        num_switches: 交换次数
+
+    示例：
+        [1, 2, 3, 4, 5] → [3, 1, 5, 4, 2]  (进行 3 次交换)
+    """
+    new_sol = solution.copy()
+    for _ in range(num_switches):
+        i, j = random.sample(range(len(new_sol)), 2)
+        new_sol[i], new_sol[j] = new_sol[j], new_sol[i]
+    return new_sol
+
+
+def continuous_neighbor(solution, magnitude: float = 1.0) -> Any:
+    """
+    连续邻域搜索 (Continuous Neighborhood)
+
+    对连续变量施加高斯扰动。
+
+    适用于：连续优化问题
+
+    Args:
+        solution: 当前解（标量或数组）
+        magnitude: 扰动幅度（标准差）
+
+    示例：
+        x = 5.0 → x = 5.3  (高斯噪声 ±1.0)
+    """
+    if isinstance(solution, (int, float)):
+        return solution + random.gauss(0, magnitude)
+    elif isinstance(solution, list):
+        return [x + random.gauss(0, magnitude) for x in solution]
+    else:
+        # 尝试转换为列表
+        arr = list(solution)
+        return [x + random.gauss(0, magnitude) for x in arr]
+
+
+def adaptive_neighborhood(
+    solution: List,
+    strategies: Optional[List[str]] = None,
+    weights: Optional[List[float]] = None
+) -> List:
+    """
+    自适应邻域搜索 (Adaptive Neighborhood)
+
+    根据当前状态动态选择邻域策略。
+    - 高温时：倾向于大范围探索（如多交换）
+    - 低温时：倾向于精细搜索（如单交换）
+
+    Args:
+        solution: 当前解
+        strategies: 可选的策略列表
+        weights: 可选的策略权重
+
+    Returns:
+        新解
+    """
+    if strategies is None:
+        strategies = ["swap", "insert", "reverse"]
+    if weights is None:
+        weights = [0.4, 0.3, 0.3]
+
+    # 根据温度调整权重（模拟：高温时更多探索）
+    # 这里假设调用者会传入温度信息，简化版直接随机选择
+    strategy = random.choices(strategies, weights=weights, k=1)[0]
+
+    strategy_map = {
+        "swap": swap_neighbor,
+        "insert": insert_neighbor,
+        "reverse": reverse_neighbor,
+    }
+
+    return strategy_map[strategy](solution)

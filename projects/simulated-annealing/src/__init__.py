@@ -1,61 +1,63 @@
 """
-模拟退火算法包
+模拟退火优化算法库 (Simulated Annealing Optimization Library)
 
-提供模拟退火优化算法的完整实现，包括：
-- 核心算法（温度调度、Metropolis准则）
-- 邻域操作（交换、逆序、插入）
-- TSP旅行商问题
-- 函数优化
-- 调度问题
-- 可视化工具
+模拟退火算法受金属退火过程启发：
+1. 高温时粒子运动自由（探索空间大）
+2. 降温时逐渐稳定（收敛到最优解）
+3. 最终在低温时找到低能量状态（最优/近优解）
+
+核心概念：
+- 温度 T：控制接受差解的概率
+- 能量 E：目标函数的值（越小越好）
+- 邻域搜索：在当前解附近寻找新解
+- Metropolis 准则：以概率 exp(-ΔE/T) 接受差解
+- 冷却Schedule：控制温度下降的速度
 """
 
-from .simulated_annealing import SimulatedAnnealing, SAConfig, CoolingSchedule
-from .neighborhood import NeighborhoodOps
-from .tsp import TSP, City
-from .function_optimization import (
-    TestFunctions,
-    ContinuousNeighbor,
-    get_function_specs,
-    FunctionSpec
+from .core import SimulatedAnnealing, SAResult
+from .temperature import (
+    TemperatureScheduler,
+    ExponentialScheduler,
+    LinearScheduler,
+    LogarithmicScheduler,
+    AdaptiveScheduler,
 )
-from .scheduling import (
-    JobShopScheduling,
-    FlowShopScheduling,
-    SingleMachineScheduling,
-    ObjectiveType
+from .acceptance import metropolis_criterion, boltzmann_acceptance
+from .neighborhood import (
+    neighborhood_generator,
+    swap_neighbor,
+    insert_neighbor,
+    reverse_neighbor,
+    multi_switch_neighbor,
+    continuous_neighbor,
+    adaptive_neighborhood,
 )
-from .visualization import (
-    plot_convergence,
-    plot_tsp_path,
-    plot_optimization_animation,
-    plot_cooling_schedules
-)
+from .cooling import CoolingSchedule, ExponentialCooling, LinearCooling
+from .convergence import ConvergenceDetector, EarlyStopDetector
+from .restart import RestartManager, DiversificationRestart
 
-__version__ = "2.0.0"
 __all__ = [
-    # 核心算法
-    'SimulatedAnnealing',
-    'SAConfig',
-    'CoolingSchedule',
-    # 邻域操作
-    'NeighborhoodOps',
-    # TSP
-    'TSP',
-    'City',
-    # 函数优化
-    'TestFunctions',
-    'ContinuousNeighbor',
-    'get_function_specs',
-    'FunctionSpec',
-    # 调度问题
-    'JobShopScheduling',
-    'FlowShopScheduling',
-    'SingleMachineScheduling',
-    'ObjectiveType',
-    # 可视化
-    'plot_convergence',
-    'plot_tsp_path',
-    'plot_optimization_animation',
-    'plot_cooling_schedules',
+    "SimulatedAnnealing",
+    "SAResult",
+    "TemperatureScheduler",
+    "ExponentialScheduler",
+    "LinearScheduler",
+    "LogarithmicScheduler",
+    "AdaptiveScheduler",
+    "metropolis_criterion",
+    "boltzmann_acceptance",
+    "neighborhood_generator",
+    "swap_neighbor",
+    "insert_neighbor",
+    "reverse_neighbor",
+    "multi_switch_neighbor",
+    "continuous_neighbor",
+    "adaptive_neighborhood",
+    "CoolingSchedule",
+    "ExponentialCooling",
+    "LinearCooling",
+    "ConvergenceDetector",
+    "EarlyStopDetector",
+    "RestartManager",
+    "DiversificationRestart",
 ]

@@ -1,212 +1,200 @@
-# 约束求解器 (Constraint Solver)
+# Constraint Solver - CAD Geometric Constraint Solver Learning Project
 
-一个用 C++ 实现的 CAD 几何约束求解器，用于求解 2D 几何约束系统。
+## 约束求解器 - CAD 几何约束求解器学习项目
 
-## 项目简介
+---
 
-本项目实现了一个完整的几何约束求解器，支持多种几何约束类型，使用 Newton-Raphson 数值方法求解约束系统。
+## English
 
-### 核心功能
+### Description
 
-- **几何实体**：点、线段、圆
-- **约束类型**：距离、角度、相切、平行、垂直等
-- **数值求解**：Newton-Raphson 方法
-- **约束传播**：简单传播优化
+A learning project implementing a 2D CAD geometric constraint solver from scratch.
+The solver takes geometric entities (points, lines, circles) and constraints
+(distance, angle, parallel, perpendicular, etc.) as input, and computes the
+positions of all entities that satisfy all constraints simultaneously.
 
-### 技术栈
+**Core loop**: Constraint Definition → Equation Building → Numerical Solving → Geometry Update
 
-- **语言**：C++17
-- **构建**：CMake 3.14+
-- **依赖**：无（纯 C++ 实现）
+### Learning Objectives
 
-## 快速开始
+- Understand the principles of geometric constraint solving
+- Master numerical methods for solving non-linear systems (Newton-Raphson)
+- Learn constraint propagation and dependency analysis
+- Understand over-constrained and under-constrained system detection
 
-### 编译
+### Supported Constraint Types
+
+| Constraint | Description | Equation |
+|------------|-------------|----------|
+| **Distance** | Distance between two points | ‖P₁ - P₂‖ - d = 0 |
+| **Angle** | Angle between two rays | θ₁₂ - θ = 0 |
+| **Parallel** | Two lines are parallel | v₁ × v₂ = 0 |
+| **Perpendicular** | Two lines are perpendicular | v₁ · v₂ = 0 |
+| **Collinear** | Three+ points on same line | (P₂-P₁) × (P₃-P₁) = 0 |
+| **Concentric** | Two circles share center | C₁ - C₂ = 0 |
+| **Tangent** | Circle tangent to line/circle | dist = r |
+| **Equal Radius** | Two circles have equal radius | r₁ - r₂ = 0 |
+| **Midpoint** | Point is midpoint of segment | P - (P₁+P₂)/2 = 0 |
+| **Horizontal** | Line is horizontal | y₁ - y₂ = 0 |
+| **Vertical** | Line is vertical | x₁ - x₂ = 0 |
+
+### Numerical Methods Background
+
+#### Newton-Raphson Method
+
+The core solver uses the Newton-Raphson method to solve F(x) = 0:
+
+```
+x_{k+1} = x_k - J(x_k)⁻¹ · F(x_k)
+```
+
+where:
+- **F(x)**: Vector of constraint residuals (should be zero when satisfied)
+- **J(x)**: Jacobian matrix (partial derivatives dF/dx)
+- **x**: Vector of unknown point coordinates
+
+#### Key Implementation Details
+
+1. **Sparse Jacobian**: Uses scipy.sparse for efficient matrix operations
+2. **Finite Differences**: Numerical Jacobian computation via perturbation
+3. **Damping**: Step size limiting prevents divergence
+4. **Convergence**: Residual norm below tolerance indicates solution
+
+#### Constraint Propagation
+
+Before numerical solving, the engine propagates known values through the
+constraint network to identify directly solvable constraints, reducing
+the size of the numerical system.
+
+### How to Run Examples
 
 ```bash
-cd projects/constraint-solver
-mkdir build && cd build
-cmake ..
-make
+# Install dependencies
+pip install -r requirements.txt
+
+# Run simple sketch solver (rectangles, triangles)
+python examples/simple_sketch_solver.py
+
+# Run geometric construction examples
+python examples/geometric_construction.py
+
+# Run visualization (requires matplotlib)
+python examples/interactive_solver.py
+
+# Run text-based visualization
+python examples/visualization.py
+
+# Run tests
+python -m pytest tests/ -v
 ```
+
+### Project Structure
+
+```
+constraint-solver/
+├── src/
+│   ├── __init__.py          # Package init
+│   ├── entities.py          # Point, Line, Circle classes
+│   ├── constraints.py       # All constraint types
+│   ├── constraint_graph.py  # Graph builder & propagation
+│   └── solver.py            # Newton-Raphson solver
+├── examples/
+│   ├── simple_sketch_solver.py    # Rectangle & triangle examples
+│   ├── geometric_construction.py  # Complex geometric constructions
+│   ├── interactive_solver.py      # Matplotlib visualization
+│   └── visualization.py           # Text-based ASCII visualization
+├── tests/
+│   ├── test_constraints.py  # Constraint unit tests
+│   └── test_solver.py       # Solver integration tests
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 中文
+
+### 项目描述
+
+从零实现一个 2D CAD 几何约束求解器。求解器接收几何实体（点、线、圆）和约束
+（距离、角度、平行、垂直等）作为输入，计算满足所有约束的几何实体位置。
+
+**核心循环**：约束定义 → 方程构建 → 数值求解 → 几何更新
+
+### 学习目标
+
+- 理解几何约束求解原理
+- 掌握非线性方程组数值求解方法（牛顿-拉夫森法）
+- 学习约束传播和依赖分析
+- 理解过约束和欠约束系统检测
+
+### 支持的约束类型
+
+| 约束类型 | 描述 | 方程 |
+|----------|------|------|
+| **距离** | 两点间距离 | ‖P₁ - P₂‖ - d = 0 |
+| **角度** | 两射线间夹角 | θ₁₂ - θ = 0 |
+| **平行** | 两线平行 | v₁ × v₂ = 0 |
+| **垂直** | 两线垂直 | v₁ · v₂ = 0 |
+| **共线** | 三点及以上共线 | (P₂-P₁) × (P₃-P₁) = 0 |
+| **同心** | 两圆同心 | C₁ - C₂ = 0 |
+| **相切** | 圆与线/圆相切 | dist = r |
+| **等半径** | 两圆半径相等 | r₁ - r₂ = 0 |
+| **中点** | 点为线段中点 | P - (P₁+P₂)/2 = 0 |
+| **水平** | 线为水平 | y₁ - y₂ = 0 |
+| **垂直** | 线为垂直 | x₁ - x₂ = 0 |
+
+### 数值方法背景
+
+#### 牛顿-拉夫森法
+
+核心求解器使用牛顿-拉夫森法求解 F(x) = 0：
+
+```
+x_{k+1} = x_k - J(x_k)⁻¹ · F(x_k)
+```
+
+其中：
+- **F(x)**: 约束残差向量（满足时为零）
+- **J(x)**: Jacobian 矩阵（dF/dx 偏导数）
+- **x**: 未知点坐标向量
+
+#### 实现要点
+
+1. **稀疏 Jacobian**: 使用 scipy.sparse 进行高效矩阵运算
+2. **有限差分**: 通过扰动数值计算 Jacobian
+3. **阻尼**: 步长限制防止发散
+4. **收敛**: 残差范数低于容差即表示收敛
+
+#### 约束传播
+
+在数值求解之前，引擎通过约束网络传播已知值，识别可直接求解的约束，
+减少数值系统的大小。
 
 ### 运行示例
 
 ```bash
-# 基础示例
-./basic_example
+# 安装依赖
+pip install -r requirements.txt
 
-# CAD 草图示例
-./cad_sketch
+# 运行简单草图求解器（矩形、三角形）
+python examples/simple_sketch_solver.py
 
-# 相切约束演示
-./tangent_demo
+# 运行几何构造示例
+python examples/geometric_construction.py
+
+# 运行可视化（需要 matplotlib）
+python examples/interactive_solver.py
+
+# 运行文本可视化
+python examples/visualization.py
+
+# 运行测试
+python -m pytest tests/ -v
 ```
 
-### 运行测试
+---
 
-```bash
-ctest
-```
+## License
 
-## 使用示例
-
-### 基本约束求解
-
-```cpp
-#include "solver.h"
-using namespace cadsolver;
-
-int main() {
-    ConstraintSolver solver;
-
-    // 创建两个点
-    int p1 = solver.addPoint(0.0, 0.0);
-    int p2 = solver.addPoint(1.0, 0.0);
-
-    // 添加距离约束
-    solver.addDistance(p1, p2, 5.0);
-
-    // 求解
-    auto result = solver.solve();
-
-    if (result.success()) {
-        auto p2_final = solver.getPoint(p2);
-        std::cout << "P2: " << p2_final.toString() << std::endl;
-    }
-
-    return 0;
-}
-```
-
-### 约束类型
-
-| 约束类型 | 描述 | 用法 |
-|---------|------|------|
-| Coincident | 两点重合 | `solver.addCoincident(p1, p2)` |
-| Distance | 距离约束 | `solver.addDistance(p1, p2, 5.0)` |
-| Horizontal | 水平约束 | `solver.addHorizontal(line)` |
-| Vertical | 垂直约束 | `solver.addVertical(line)` |
-| Parallel | 平行约束 | `solver.addParallel(l1, l2)` |
-| Perpendicular | 垂直约束 | `solver.addPerpendicular(l1, l2)` |
-| Angle | 角度约束 | `solver.addAngle(l1, l2, M_PI/4)` |
-| Radius | 半径约束 | `solver.addRadius(circle, 5.0)` |
-| Concentric | 同心约束 | `solver.addConcentric(c1, c2)` |
-| Tangent | 相切约束 | `solver.addTangent(line, circle)` |
-| PointOnLine | 点在线上 | `solver.addPointOnLine(p, line)` |
-| PointOnCircle | 点在圆上 | `solver.addPointOnCircle(p, circle)` |
-| Length | 长度约束 | `solver.addLength(line, 10.0)` |
-
-### 求解器配置
-
-```cpp
-SolverConfig config;
-config.tolerance = 1e-10;       // 收敛容差
-config.max_iterations = 100;    // 最大迭代次数
-config.damping = 1.0;           // 阻尼系数
-config.verbose = false;         // 打印迭代细节
-
-ConstraintSolver solver(config);
-```
-
-## 项目结构
-
-```
-constraint-solver/
-├── CMakeLists.txt              # 构建配置
-├── README.md                   # 项目文档
-├── LEARNING_NOTES.md           # 学习笔记
-├── include/
-│   ├── geometry.h             # 几何实体定义
-│   ├── constraint.h           # 约束定义
-│   └── solver.h               # 求解器接口
-├── src/
-│   └── solver.cpp             # 求解器实现
-├── tests/
-│   ├── test_constraints.cpp   # 约束单元测试
-│   └── test_solver.cpp        # 求解器集成测试
-├── examples/
-│   ├── basic_example.cpp      # 基础示例
-│   ├── cad_sketch.cpp         # CAD 草图示例
-│   └── tangent_demo.cpp       # 相切约束演示
-└── docs/
-    ├── 01-RESEARCH.md         # 研究报告
-    ├── 02-DESIGN.md           # 设计文档
-    ├── 03-IMPLEMENTATION.md   # 实现细节
-    ├── 04-TESTING.md          # 测试文档
-    └── 05-DEVELOPMENT.md      # 开发日志
-```
-
-## 算法说明
-
-### Newton-Raphson 方法
-
-1. 计算残差向量 F(x)
-2. 计算雅可比矩阵 J = ∂F/∂x
-3. 求解线性系统 J·Δx = -F
-4. 更新参数 x = x + Δx
-5. 重复直到收敛
-
-### 正则化
-
-使用 Tikhonov 正则化防止奇异矩阵：
-
-```
-(J^T·J + λI)·Δx = -J^T·F
-```
-
-## 学习目标
-
-通过本项目，你可以学到：
-
-1. **约束求解原理**：理解几何约束的数学表示
-2. **数值求解方法**：掌握 Newton-Raphson 方法
-3. **约束传播**：了解如何优化初始猜测
-4. **CAD 系统**：理解参数化设计的核心功能
-
-## 文档
-
-- [研究报告](docs/01-RESEARCH.md)：背景知识和调研结果
-- [设计文档](docs/02-DESIGN.md)：架构设计和数据结构
-- [实现细节](docs/03-IMPLEMENTATION.md)：核心算法实现
-- [测试文档](docs/04-TESTING.md)：测试策略和用例
-- [开发日志](docs/05-DEVELOPMENT.md)：开发过程和经验
-- [学习笔记](LEARNING_NOTES.md)：学习总结和收获
-
-## 参考资源
-
-### 开源项目
-
-- [Solvespace](https://github.com/solvespace/solvespace) - 开源参数化 CAD
-- [FreeCAD](https://github.com/FreeCAD/FreeCAD) - 开源 3D CAD
-- [OpenCASCADE](https://github.com/Open-Cascade-SAS/OCCT) - CAD 内核
-
-### 学术论文
-
-- Fudos & Hoffmann, "A Graph-Constructive Approach to Solving Systems of Geometric Constraints" (1997)
-- Joan-Arinyo et al., "Constructive Geometric Constraint Solving" (2003)
-
-### 在线资源
-
-- [OpenCASCADE 文档](https://dev.opencascade.org)
-- [FreeCAD 开发者文档](https://wiki.freecad.org/Developer_hub)
-
-## 未来改进
-
-1. **图分解**：利用约束图结构提高效率
-2. **增量求解**：支持增量约束添加
-3. **3D 支持**：扩展到三维约束
-4. **更多约束类型**：添加样条曲线、曲面约束
-5. **性能优化**：稀疏矩阵、并行计算
-
-## 许可证
-
-本项目仅供学习使用。
-
-## 作者
-
-AI Assistant
-
-## 致谢
-
-感谢所有开源 CAD 项目的贡献者，特别是 Solvespace 和 FreeCAD 团队。
+MIT License

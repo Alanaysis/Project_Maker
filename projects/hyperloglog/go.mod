@@ -1,3 +1,3 @@
-module github.com/hyperloglog
+module hyperloglog
 
 go 1.21

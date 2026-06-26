@@ -56,6 +56,7 @@
 
 pub mod error;
 pub mod history;
+pub mod hierarchical;
 pub mod state_machine;
 pub mod transition;
 

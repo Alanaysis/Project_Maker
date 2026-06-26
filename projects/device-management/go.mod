@@ -1,3 +1,3 @@
-module github.com/yourusername/device-management
+module device-management
 
-go 1.21
+go 1.22

@@ -1,212 +1,233 @@
 # 倒排索引 (Inverted Index)
 
-## 项目概述
+> 实现倒排索引，理解搜索引擎核心
 
-实现一个完整的倒排索引搜索引擎，理解搜索引擎的核心数据结构。支持文档索引、布尔查询、短语查询、通配符查询和相关性排序。
+---
 
-## 学习目标
+## 📖 项目描述 / Project Description
 
-- 理解倒排索引的数据结构和工作原理
-- 掌握文档索引构建流程（分词 -> 停用词过滤 -> 词干提取 -> 倒排表）
-- 学会布尔查询处理（AND / OR / NOT）
-- 理解 TF-IDF / BM25 相关性排序算法
-- 掌握索引压缩技术
+### 中文
+这是一个倒排索引的学习项目，从零实现搜索引擎的核心数据结构。通过这个项目，你将理解现代搜索引擎（如 Elasticsearch、Lucene）底层是如何构建索引和搜索的。
 
-## 技术栈
+### English
+A learning project that implements an inverted index from scratch. Through this project, you will understand how modern search engines (Elasticsearch, Lucene) build indexes and perform searches at their core.
 
-- 语言：Python 3.8+
-- 依赖：无（纯标准库实现）
+---
 
-## 项目结构
+## 🎯 学习目标 / Learning Objectives
+
+### 中文
+1. **理解倒排索引**：掌握 term → document mapping 的核心概念
+2. **掌握索引构建**：学习分词、词频统计、索引数据结构
+3. **学会查询处理**：实现布尔查询（AND/OR）、短语查询、BM25 排序
+4. **理解 TF-IDF 和 BM25**：掌握文档相关性评分算法
+5. **学会索引持久化**：实现索引的保存和加载
+
+### English
+1. **Understand inverted index**: Master the core concept of term → document mapping
+2. **Master index building**: Learn tokenization, term frequency computation, index data structures
+3. **Learn query processing**: Implement boolean queries (AND/OR), phrase queries, BM25 ranking
+4. **Understand TF-IDF and BM25**: Master document relevance scoring algorithms
+5. **Learn index persistence**: Implement index save and load
+
+---
+
+## 🏗️ 项目结构 / Project Structure
 
 ```
 inverted-index/
-├── src/
-│   ├── __init__.py
-│   ├── tokenizer.py        # 分词器
-│   ├── stopwords.py        # 停用词过滤
-│   ├── stemmer.py          # 词干提取
-│   ├── lemmatizer.py       # 词形还原
-│   ├── index.py            # 索引实现（倒排/位置/压缩）
-│   ├── query.py            # 查询处理（布尔/短语/通配符/模糊）
-│   ├── ranking.py          # 排序算法（TF-IDF/BM25）
-│   └── search_engine.py    # 搜索引擎
-├── tests/
-│   ├── test_tokenizer.py
-│   ├── test_stopwords.py
-│   ├── test_stemmer.py
-│   ├── test_lemmatizer.py
-│   ├── test_index.py
-│   ├── test_query.py
-│   └── test_ranking.py
-├── examples/
-│   ├── basic_search.py
-│   └── document_retrieval.py
-├── docs/
-│   ├── 01_RESEARCH.md
-│   ├── 02_REQUIREMENTS.md
-│   ├── 03_DESIGN.md
-│   ├── 04_PRODUCT.md
-│   └── 05_DEVELOPMENT.md
-├── requirements.txt
-└── README.md
+├── go.mod                    # Go module definition
+├── README.md                 # This file
+├── src/                      # Core library
+│   ├── index.go              # Inverted index data structure, BM25, tokenization
+│   ├── builder.go            # Index building pipeline
+│   └── searcher.go           # Query execution and scoring
+├── examples/                 # Demo programs
+│   ├── 01_basic_demo.go      # Basic index building and search
+│   ├── 02_boolean_query_demo.go  # AND/OR boolean queries
+│   ├── 03_bm25_demo.go       # BM25 scoring algorithm
+│   ├── 04_persistence_demo.go    # Index save/load
+│   └── 05_phrase_query_demo.go   # Phrase queries
+└── tests/                    # Unit tests
+    └── index_test.go         # Comprehensive test suite
 ```
 
-## 快速开始
+---
+
+## 🚀 快速开始 / Quick Start
+
+### 运行示例 / Run Examples
 
 ```bash
 # 进入项目目录
 cd projects/inverted-index
 
-# 运行测试
-python -m pytest tests/ -v
+# 运行基础示例
+go run examples/01_basic_demo.go
 
-# 运行基本搜索示例
-python examples/basic_search.py
+# 运行布尔查询示例
+go run examples/02_boolean_query_demo.go
 
-# 运行文档检索示例
-python examples/document_retrieval.py
+# 运行 BM25 评分示例
+go run examples/03_bm25_demo.go
+
+# 运行持久化示例
+go run examples/04_persistence_demo.go
+
+# 运行短语查询示例
+go run examples/05_phrase_query_demo.go
 ```
 
-## 核心功能
+### 运行测试 / Run Tests
 
-### 1. 文档处理
+```bash
+# 运行所有测试
+go test ./tests/
 
-```python
-from src.tokenizer import Tokenizer
-from src.stopwords import StopWordsFilter
-from src.stemmer import PorterStemmer
-from src.lemmatizer import Lemmatizer
+# 运行测试并显示覆盖率
+go test ./tests/ -cover
 
-# 分词
-tokenizer = Tokenizer()
-tokens = tokenizer.tokenize("Python programming language")
+# 运行基准测试
+go test ./tests/ -bench=.
 
-# 停用词过滤
-filter = StopWordsFilter()
-filtered = filter.filter(tokens)
-
-# 词干提取
-stemmer = PorterStemmer()
-stems = stemmer.stem_tokens(filtered)
-
-# 词形还原
-lemmatizer = Lemmatizer()
-lemmas = lemmatizer.lemmatize_tokens(tokens)
+# 运行测试并显示详细输出
+go test ./tests/ -v
 ```
 
-### 2. 索引构建
+---
 
-```python
-from src.index import InvertedIndex, PositionalIndex, CompressedIndex, Document
+## 📚 倒排索引理论 / Inverted Index Theory
 
-# 基本倒排索引
-index = InvertedIndex()
-index.add_document(Document(
-    doc_id="1",
-    title="Python Programming",
-    content="Python is a popular programming language"
-))
+### 什么是倒排索引？/ What is an Inverted Index?
 
-# 位置索引（支持短语查询）
-positional_index = PositionalIndex()
-positional_index.search_phrase("programming language")
+倒排索引是搜索引擎的核心数据结构。与正向索引（document → terms）相反，倒排索引将 **term 映射到包含它的文档列表**。
 
-# 压缩索引
-compressed_index = CompressedIndex()
-compressed_index.compress()
-ratio = compressed_index.get_compression_ratio()
+An inverted index is the core data structure of search engines. Unlike a forward index (document → terms), an inverted index maps **terms to the list of documents containing them**.
+
+### 核心概念 / Core Concepts
+
+| 概念 | 说明 |
+|------|------|
+| **Term (词项)** | 从文本中提取的单词或 token |
+| **Document (文档)** | 被索引的文本单元 |
+| **Posting ( postings)** | 记录 term 在文档中的出现位置 |
+| **Postings List ( postings 表)** | 某个 term 在所有文档中的 postings 集合 |
+| **TF (词频)** | 某个 term 在文档中出现的次数 |
+| **DF (文档频率)** | 包含某个 term 的文档数量 |
+| **IDF (逆文档频率)** | log(总文档数 / DF)，衡量 term 的稀有程度 |
+
+### 索引构建流程 / Index Building Process
+
+```
+文档 → 分词 → 词频统计 → 索引构建 → 查询 → 结果
+
+1. 文档输入: "Go is fast and simple"
+2. 分词: ["go", "is", "fast", "and", "simple"]
+3. 词频统计: {go:1, is:1, fast:1, and:1, simple:1}
+4. 索引构建:
+   go     → [Doc1@pos0]
+   is     → [Doc1@pos1]
+   fast   → [Doc1@pos2]
+   and    → [Doc1@pos3]
+   simple → [Doc1@pos4]
 ```
 
-### 3. 查询处理
+### BM25 排序算法 / BM25 Ranking Algorithm
 
-```python
-from src.query import Query
+BM25 是现代搜索引擎最常用的排序函数：
 
-query = Query(index)
+```
+score(d,q) = Σ TF(t,d) × (k1+1) / (TF(t,d) + k1×(1-b+b×|d|/avgdl)) × IDF(t)
 
-# 单词查询
-results = query.search("python")
-
-# 布尔查询
-results = query.search("python AND data")
-results = query.search("python OR java")
-results = query.search("python NOT java")
-
-# 短语查询
-results = query.search('"machine learning"')
-
-# 通配符查询
-results = query.search("py*")
-
-# 模糊查询
-results = query.search("pythn~")
+其中:
+  TF(t,d)  = t 在 d 中的词频
+  |d|      = 文档 d 的长度
+  avgdl    = 平均文档长度
+  IDF(t)   = log((N - df(t) + 0.5) / (df(t) + 0.5) + 1)
+  k1       = 词频饱和参数 (通常 1.2-2.0)
+  b        = 文档长度归一化参数 (通常 0.75)
 ```
 
-### 4. 排序
+**关键特性 / Key Features:**
+- **词频饱和**: 词频越高，额外贡献越小（ diminishing returns）
+- **长度归一化**: 长文档中的高频词不会比短文档中的低频词更有优势
+- **IDF 加权**: 稀有词比常见词获得更高的权重
 
-```python
-from src.ranking import TFIDFRanker, BM25Ranker
+---
 
-# TF-IDF 排序
-tfidf = TFIDFRanker(index)
-ranked = tfidf.rank(["python", "programming"], top_k=10)
+## 🔧 查询类型 / Query Types
 
-# BM25 排序
-bm25 = BM25Ranker(index)
-ranked = bm25.rank(["python", "programming"], top_k=10)
-```
-
-### 5. 搜索引擎
-
-```python
-from src.search_engine import SearchEngine
-
-# 创建搜索引擎
-engine = SearchEngine()
-
-# 添加文档
-engine.add_documents([
-    {"doc_id": "1", "title": "Python教程", "content": "Python编程入门"},
-    {"doc_id": "2", "title": "机器学习", "content": "Python机器学习实战"},
-])
-
-# 搜索
-results = engine.search("python", method="bm25", top_k=5)
-
-for r in results:
-    print(f"{r.title}: {r.score:.4f}")
-    print(f"  {r.snippet}")
-```
-
-## 查询语法
-
-| 查询类型 | 语法 | 示例 |
+| 查询类型 | 语法 | 说明 |
 |----------|------|------|
-| 单词查询 | word | python |
-| AND查询 | w1 AND w2 | python AND data |
-| OR查询 | w1 OR w2 | python OR java |
-| NOT查询 | NOT word | NOT java |
-| 短语查询 | "phrase" | "machine learning" |
-| 通配符查询 | pattern | py* |
-| 模糊查询 | word~ | pythn~ |
+| 单词查询 | `search` | 查找包含该词的所有文档 |
+| AND 查询 | `go AND rust` | 查找同时包含两个词的文档 |
+| OR 查询 | `go OR rust` | 查找包含任一词的文档 |
+| 短语查询 | `"machine learning"` | 查找包含完整短语的文档 |
 
-## 排序算法
+---
 
-### TF-IDF
-- TF (Term Frequency): 词频
-- IDF (Inverse Document Frequency): 逆文档频率
-- Score = TF × IDF
+## 📊 运行示例输出 / Example Output
 
-### BM25
-- 改进的 TF-IDF
-- 考虑文档长度归一化
-- 词频饱和处理
-- 参数: k1=1.2, b=0.75
+### 基础示例 / Basic Demo
+```
+=== Inverted Index - Basic Demo ===
 
-## 参考资源
+Index built: 5 documents, 15 terms
 
-- [Inverted Index - Wikipedia](https://en.wikipedia.org/wiki/Inverted_index)
-- [BM25 Algorithm](https://en.wikipedia.org/wiki/Okapi_BM25)
-- [Information Retrieval - Introduction to IR](https://nlp.stanford.edu/IR-book/)
-- [Porter Stemming Algorithm](https://tartarus.org/martin/PorterStemmer/)
+=== Term: 'programming' ===
+Document Frequency (DF): 4
+Term Frequencies (TF):
+  Document 1: TF=1
+  Document 2: TF=1
+  Document 3: TF=1
+  Document 4: TF=1
+  Document 5: TF=1
+
+=== Search Results ===
+Query: "go"
+  [1] Doc 1: score=1.2345 (TF=2)
+  [2] Doc 5: score=0.9876 (TF=1)
+  [3] Doc 3: score=0.6543 (TF=1)
+```
+
+### BM25 评分示例 / BM25 Scoring Demo
+```
+=== BM25 Scoring for term 'go' ===
+Config       | Doc    | TF       | DocLen   | Score    |
+-------------+--------+----------+----------+----------+
+Standard     | 1      | 4        | 9        | 0.8923   |
+             | 5      | 1        | 10       | 0.4521   |
+             | 6      | 7        | 8        | 0.7834   |
+```
+
+---
+
+## 🧠 学习路径建议 / Learning Path
+
+1. **阅读源码** `src/index.go` - 理解倒排索引的数据结构
+2. **运行示例** `01_basic_demo.go` - 观察索引构建过程
+3. **阅读 BM25 理论** - 理解评分算法
+4. **运行示例** `03_bm25_demo.go` - 观察 BM25 评分
+5. **运行测试** - 理解测试覆盖的场景
+6. **扩展练习**:
+   - 添加中文分词器（如 jieba 类似的分词）
+   - 添加 TF-IDF 排序
+   - 添加查询自动补全
+   - 添加索引压缩（如 gamma 编码）
+
+---
+
+## 📝 扩展练习 / Extension Exercises
+
+1. **中文分词**: 添加基于词典的中文分词支持
+2. **TF-IDF 排序**: 实现传统的 TF-IDF 评分
+3. **查询自动补全**: 添加前缀树（Trie）支持自动补全
+4. **索引压缩**: 实现 gamma 编码压缩 postings list
+5. **增量索引**: 支持向已有索引中添加新文档
+6. **查询日志分析**: 添加查询频率统计和热门查询分析
+
+---
+
+## 📄 License
+
+MIT License

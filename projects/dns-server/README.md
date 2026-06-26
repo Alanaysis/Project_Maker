@@ -1,274 +1,319 @@
-# DNS 服务器 (DNS Server)
+# DNS Server / DNS 服务器
 
-一个完整的 DNS 服务器项目，涵盖 DNS 协议的核心技术。
+> A learning project implementing a DNS server from scratch in Go, covering DNS protocol, caching, zone files, and recursive resolution.
 
-## 项目概述
+---
 
-本项目实现了一个全面的 DNS 服务器，包含：
-- DNS 协议实现（报文格式、查询类型、响应码）
-- DNS 解析（递归解析、迭代解析、反向解析、缓存）
-- 区域管理（区域文件解析、区域传输、动态更新）
-- 安全特性（DNSSEC、TSIG 认证、访问控制、速率限制）
-- 性能优化（异步 I/O、多线程、连接池）
-- 监控和日志（查询统计、性能监控、审计日志）
-- 实际应用（权威服务器、递归服务器、转发器、负载均衡）
+## English
 
-## 核心流程
+### Description
+
+A DNS (Domain Name System) server implemented from scratch in Go for educational purposes. This project demonstrates the complete DNS protocol stack including packet encoding/decoding, domain name compression, resource record types, caching with TTL, zone file parsing, and recursive query resolution.
+
+### Learning Objectives / 学习目标
+
+**DNS Protocol Understanding:**
+- DNS packet format (header, questions, answers, authority, additional sections)
+- Domain name wire format and label compression
+- Resource record types (A, AAAA, CNAME, MX, TXT, NS, SOA, PTR)
+- Query/response flags and opcodes
+- EDNS0 and extension mechanisms
+
+**Implementation Skills:**
+- Binary protocol encoding and decoding in Go
+- Domain name compression (RFC 1035 section 4.1.4)
+- TTL-based cache with eviction
+- Zone file parsing (BIND format)
+- Recursive query resolution
+- Upstream DNS forwarding
+
+### DNS Protocol Overview
+
+The DNS protocol works as follows:
 
 ```
-客户端查询 → 接收请求 → 解析报文 → 查询处理 → 构建响应 → 返回结果
-                ↓
-            访问控制 → 缓存查询 → 区域查询 → 递归解析
-                ↓
-            记录日志 → 更新统计 → 缓存结果
+Client                     Server
+  |                          |
+  |---- Query (UDP 53) ---->|
+  |                          |
+  |<--- Response (UDP 53) ---|
 ```
 
-## 功能特性
-
-### DNS 协议
-- DNS 报文格式（Header/Question/Answer/Authority/Additional）
-- 查询类型（A, AAAA, MX, CNAME, NS, TXT, SRV, PTR）
-- 响应码（NOERROR, NXDOMAIN, SERVFAIL, REFUSED 等）
-- 递归查询和迭代查询
-- EDNS0 扩展
-
-### DNS 解析
-- 递归解析器
-- 迭代解析器
-- 反向解析（IP -> 域名）
-- 缓存机制（LRU 淘汰、TTL 管理、负缓存）
-- 转发机制
-
-### 区域管理
-- 区域文件解析（标准 BIND 格式）
-- 区域传输（AXFR 全量、IXFR 增量）
-- 动态更新（RFC 2136）
-- SOA 记录管理
-
-### 安全特性
-- DNSSEC（DNSKEY, RRSIG, DS, NSEC 记录）
-- TSIG 认证（HMAC-MD5, HMAC-SHA256）
-- 访问控制列表（ACL）
-- 速率限制
-- 查询过滤（黑名单/白名单）
-
-### 性能优化
-- epoll 异步 I/O
-- 线程池
-- 连接池
-- 异步 DNS 查询
-- 消息压缩
-
-### 监控和日志
-- 查询统计（按类型、响应码、客户端）
-- 性能监控（CPU、内存、网络）
-- 错误日志（分级日志、文件轮转）
-- 审计日志（操作记录、安全事件）
-- ISC 格式查询日志
-
-### 实际应用
-- 权威 DNS 服务器
-- 递归 DNS 服务器
-- DNS 转发器
-- DNS 负载均衡器（加权轮询、健康检查）
-
-## 系统要求
-
-- Linux/macOS
-- GCC 9+ / Clang 10+
-- CMake 3.16+
-- OpenSSL 1.1+
-
-## 快速开始
-
-### 安装依赖
-
-#### Ubuntu/Debian
-```bash
-sudo apt update
-sudo apt install build-essential cmake libssl-dev
+**Packet Structure:**
+```
++---------------------+
+|        ID           |  Transaction identifier
++---------------------+
+|   QR  Opcode   |AA |  Flags (16 bits)
+|   TC  |RD|RA|   Z  |
++---------------------+
+|       QDCount       |  Questions count
++---------------------+
+|       ANCount       |  Answers count
++---------------------+
+|       NSCount       |  Authority count
++---------------------+
+|       ARCount       |  Additional count
++---------------------+
+|       Questions     |
++---------------------+
+|       Answers       |
++---------------------+
+|      Authority      |
++---------------------+
+|      Additional     |
++---------------------+
 ```
 
-#### macOS
-```bash
-brew install cmake openssl
+**Domain Name Wire Format:**
+```
+"www.example.com" -> [03 w w w 07 e x a m p l e 03 c o m 00]
+```
+Each label is prefixed with its length. A zero byte terminates the name.
+
+**Label Compression:**
+```
+Pointer: [C0 offset] -> references name at 'offset' position
 ```
 
-### 构建项目
+### Core Resolution Loop
+
+```
+DNS Query -> Protocol Parse -> Domain Lookup -> Cache -> Response
+                              -> Zone Files
+                              -> Upstream Forward
+```
+
+### How to Run Examples / 如何运行示例
 
 ```bash
+# Navigate to the project directory
 cd projects/dns-server
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
+
+# Run example 1: DNS query and response demo
+go run examples/01_query_response.go
+
+# Run example 2: Caching demo
+go run examples/02_caching.go
+
+# Run example 3: Zone file loading demo
+go run examples/03_zone_file.go
+
+# Run example 4: Recursive resolution demo
+go run examples/04_recursive_resolution.go
+
+# Run all tests
+go test ./tests/...
+
+# Run tests with verbose output
+go test -v ./tests/...
+
+# Run tests with coverage
+go test -cover ./tests/...
+```
+
+### Project Structure / 项目结构
+
+```
+dns-server/
+├── go.mod              # Go module definition
+├── README.md           # This file
+├── src/                # Core library
+│   ├── packet.go       # DNS packet format, encoding/decoding
+│   ├── zone.go         # Zone file parsing and lookup
+│   ├── resolver.go     # Resolver, forwarder, query handling
+│   └── server.go       # DNS server implementation
+├── examples/           # Demo programs
+│   ├── 01_query_response.go    # Wire format demo
+│   ├── 02_caching.go           # Cache behavior demo
+│   ├── 03_zone_file.go         # Zone file parsing demo
+│   └── 04_recursive_resolution.go  # Resolution demo
+└── tests/              # Unit tests
+    ├── packet_test.go
+    ├── zone_test.go
+    └── resolver_test.go
+```
+
+### DNS Record Types Implemented
+
+| Type | Name | Description |
+|------|------|-------------|
+| A    | Address | IPv4 address (4 bytes) |
+| AAAA | IPv6 Address | IPv6 address (16 bytes) |
+| CNAME | Canonical Name | Domain alias |
+| MX   | Mail Exchange | Mail server with preference |
+| TXT  | Text | Arbitrary text data |
+| NS   | Nameserver | Authoritative nameserver |
+| SOA  | Start of Authority | Zone metadata |
+| PTR  | Pointer | Reverse DNS lookup |
+
+### DNS Caching
+
+The DNS cache implements:
+- TTL-based expiration (respects authoritative server's TTL)
+- LRU eviction when cache is full
+- Cache key: `name:type:class` (e.g., `www.example.com:A:IN`)
+- Minimum TTL from all answer records
+
+---
+
+## 中文
+
+### 项目描述
+
+用 Go 从零实现的 DNS（域名系统）服务器，用于教学目的。本项目展示了完整的 DNS 协议栈，包括数据包编解码、域名压缩、资源记录类型、TTL 缓存、区域文件解析和递归查询解析。
+
+### 学习目标
+
+**理解 DNS 协议：**
+- DNS 数据包格式（头部、问题、答案、授权、附加部分）
+- 域名线格式和标签压缩
+- 资源记录类型（A、AAAA、CNAME、MX、TXT、NS、SOA、PTR）
+- 查询/响应标志和操作码
+- EDNS0 扩展机制
+
+**掌握实现技能：**
+- Go 中的二进制协议编解码
+- 域名压缩（RFC 1035 第 4.1.4 节）
+- 基于 TTL 的缓存和驱逐
+- 区域文件解析（BIND 格式）
+- 递归查询解析
+- 上游 DNS 转发
+
+### DNS 协议概述
+
+DNS 协议工作流程：
+
+```
+客户端                     服务器
+  |                        |
+  |---- 查询 (UDP 53) ---->|
+  |                        |
+  |<--- 响应 (UDP 53) -----|
+```
+
+**数据包结构：**
+```
++---------------------+
+|        ID           |  事务标识符
++---------------------+
+|   QR  Opcode   |AA |  标志（16 位）
+|   TC  |RD|RA|   Z  |
++---------------------+
+|       QDCount       |  问题计数
++---------------------+
+|       ANCount       |  答案计数
++---------------------+
+|       NSCount       |  授权计数
++---------------------+
+|       ARCount       |  附加计数
++---------------------+
+|       问题区        |
++---------------------+
+|       答案区        |
++---------------------+
+|       授权区        |
++---------------------+
+|       附加区        |
++---------------------+
+```
+
+**域名线格式：**
+```
+"www.example.com" -> [03 w w w 07 e x a m p l e 03 c o m 00]
+```
+每个标签前缀为其长度。零字节终止域名。
+
+**标签压缩：**
+```
+指针: [C0 offset] -> 引用 'offset' 位置的名称
+```
+
+### 核心解析循环
+
+```
+DNS 查询 → 协议解析 → 域名查找 → 缓存 → 响应
+                          → 区域文件
+                          → 上游转发
 ```
 
 ### 运行示例
 
 ```bash
-# 基本 DNS 服务器
-./bin/basic_server
+# 进入项目目录
+cd projects/dns-server
 
-# 权威 DNS 服务器
-./bin/authoritative_server_example
+# 运行示例 1：DNS 查询和响应演示
+go run examples/01_query_response.go
 
-# 递归 DNS 服务器
-./bin/recursive_server_example
+# 运行示例 2：缓存演示
+go run examples/02_caching.go
 
-# DNS 转发器
-./bin/forwarder_example
+# 运行示例 3：区域文件加载演示
+go run examples/03_zone_file.go
 
-# DNS 负载均衡器
-./bin/load_balancer_example
+# 运行示例 4：递归解析演示
+go run examples/04_recursive_resolution.go
 
-# DNS 客户端
-./bin/dns_client_example
+# 运行所有测试
+go test ./tests/...
+
+# 详细输出运行测试
+go test -v ./tests/...
+
+# 运行测试并生成覆盖率
+go test -cover ./tests/...
 ```
 
-### 运行测试
-
-```bash
-cd build
-ctest --output-on-failure
-```
-
-## 项目结构
+### 项目结构
 
 ```
 dns-server/
-├── CMakeLists.txt              # CMake 构建配置
-├── README.md                   # 项目说明
-├── include/                    # 头文件
-│   ├── protocol/               # DNS 协议
-│   │   ├── dns_message.h       # DNS 报文
-│   │   └── dns_server.h        # DNS 服务器
-│   ├── resolver/               # DNS 解析
-│   │   ├── dns_resolver.h      # DNS 解析器
-│   │   └── dns_cache.h         # DNS 缓存
-│   ├── zone/                   # 区域管理
-│   │   └── zone_manager.h      # 区域管理器
-│   ├── security/               # 安全特性
-│   │   ├── dnssec.h            # DNSSEC
-│   │   └── access_control.h    # 访问控制
-│   ├── performance/            # 性能优化
-│   │   └── async_io.h          # 异步 I/O
-│   ├── monitoring/             # 监控日志
-│   │   └── dns_monitor.h       # 监控系统
-│   └── application/            # 应用实现
-│       ├── authoritative_server.h  # 权威服务器
-│       ├── recursive_server.h      # 递归服务器
-│       └── dns_forwarder.h         # 转发器/负载均衡
-├── src/                        # 源代码
-│   ├── protocol/               # 协议实现
-│   ├── resolver/               # 解析器实现
-│   ├── zone/                   # 区域管理实现
-│   ├── security/               # 安全特性实现
-│   ├── performance/            # 性能优化实现
-│   ├── monitoring/             # 监控日志实现
-│   └── application/            # 应用实现
-├── examples/                   # 示例程序
-│   ├── basic_server.cpp        # 基本服务器
-│   ├── authoritative_server_example.cpp  # 权威服务器
-│   ├── recursive_server_example.cpp      # 递归服务器
-│   ├── forwarder_example.cpp             # 转发器
-│   ├── load_balancer_example.cpp         # 负载均衡
-│   └── dns_client_example.cpp            # DNS 客户端
-├── tests/                      # 测试代码
-│   ├── test_dns_message.cpp    # 报文测试
-│   ├── test_cache.cpp          # 缓存测试
-│   └── test_zone.cpp           # 区域测试
-└── docs/                       # 文档
-    ├── 01_RESEARCH.md          # 市场调研
-    ├── 02_REQUIREMENTS.md      # 需求分析
-    ├── 03_DESIGN.md            # 技术设计
-    ├── 04_PRODUCT.md           # 产品思考
-    └── 05_DEVELOPMENT.md       # 开发手册
+├── go.mod              # Go 模块定义
+├── README.md           # 本文件
+├── src/                # 核心库
+│   ├── packet.go       # DNS 数据包格式、编解码
+│   ├── zone.go         # 区域文件解析和查找
+│   ├── resolver.go     # 解析器、转发器、查询处理
+│   └── server.go       # DNS 服务器实现
+├── examples/           # 演示程序
+│   ├── 01_query_response.go    # 线格式演示
+│   ├── 02_caching.go           # 缓存行为演示
+│   ├── 03_zone_file.go         # 区域文件解析演示
+│   └── 04_recursive_resolution.go  # 解析演示
+└── tests/              # 单元测试
+    ├── packet_test.go
+    ├── zone_test.go
+    └── resolver_test.go
 ```
 
-## 配置说明
+### 已实现的 DNS 记录类型
 
-### DNS 服务器配置
+| 类型 | 名称 | 描述 |
+|------|------|------|
+| A    | 地址 | IPv4 地址（4 字节） |
+| AAAA | IPv6 地址 | IPv6 地址（16 字节） |
+| CNAME | 规范名称 | 域名别名 |
+| MX   | 邮件交换 | 带优先级的邮件服务器 |
+| TXT  | 文本 | 任意文本数据 |
+| NS   | 名称服务器 | 权威名称服务器 |
+| SOA  | 起始授权 | 区域元数据 |
+| PTR  | 指针 | 反向 DNS 查找 |
 
-```cpp
-DnsServerConfig config;
-config.bind_address = "0.0.0.0";  // 绑定地址
-config.port = 53;                  // 监听端口
-config.thread_pool_size = 4;       // 线程池大小
-config.max_connections = 1000;     // 最大连接数
-config.enable_udp = true;          // 启用 UDP
-config.enable_tcp = true;          // 启用 TCP
-```
+### DNS 缓存
 
-### 缓存配置
-
-```cpp
-CacheConfig config;
-config.max_entries = 10000;        // 最大缓存条目
-config.min_ttl = 60;               // 最小 TTL
-config.max_ttl = 86400;            // 最大 TTL
-config.negative_ttl = 300;         // 负缓存 TTL
-config.enable_negative_cache = true; // 启用负缓存
-```
-
-### 区域文件格式
-
-```bind
-$ORIGIN example.com.
-$TTL 3600
-
-@       IN  SOA   ns1.example.com. admin.example.com. (
-                  2024010101  ; Serial
-                  3600        ; Refresh
-                  900         ; Retry
-                  604800      ; Expire
-                  86400       ; Minimum TTL
-                  )
-
-@       IN  NS    ns1.example.com.
-@       IN  NS    ns2.example.com.
-
-ns1     IN  A     192.168.1.1
-ns2     IN  A     192.168.1.2
-
-www     IN  CNAME example.com.
-mail    IN  A     192.168.1.10
-
-@       IN  MX    10 mail.example.com.
-@       IN  TXT   "v=spf1 mx ~all"
-
-_http   IN  SRV   10 60 80 www.example.com.
-```
-
-## 学习资源
-
-- [RFC 1035 - Domain Names](https://tools.ietf.org/html/rfc1035)
-- [RFC 1034 - Domain Concepts](https://tools.ietf.org/html/rfc1034)
-- [RFC 2136 - Dynamic Updates](https://tools.ietf.org/html/rfc2136)
-- [RFC 4034 - DNSSEC](https://tools.ietf.org/html/rfc4034)
-- [RFC 2845 - TSIG](https://tools.ietf.org/html/rfc2845)
-
-## 常见问题
-
-### Q: 如何修改监听端口？
-A: 修改 `DnsServerConfig` 中的 `port` 参数，注意 53 以下端口需要 root 权限。
-
-### Q: 如何添加自定义记录？
-A: 通过 `Zone::add_record()` 方法添加记录，或修改区域文件后重新加载。
-
-### Q: 如何启用 DNSSEC？
-A: 使用 `DnssecSigner` 生成密钥对并签名区域，配置信任锚点。
-
-### Q: 如何配置转发器？
-A: 在 `RecursiveConfig` 中设置 `forwarders` 列表。
-
-## 许可证
-
-MIT License
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
+DNS 缓存实现：
+- 基于 TTL 的过期（遵循权威服务器的 TTL）
+- 缓存满时的 LRU 驱逐
+- 缓存键：`name:type:class`（例如 `www.example.com:A:IN`）
+- 所有答案记录中的最小 TTL
 
 ---
 
-[返回主目录](../../README.md)
+## References / 参考资料
+
+- [RFC 1035 - DNS](https://tools.ietf.org/html/rfc1035)
+- [RFC 2181 - Clarifications to DNS](https://tools.ietf.org/html/rfc2181)
+- [RFC 2671 - EDNS0](https://tools.ietf.org/html/rfc2671)
+- [CoreDNS](https://coredns.io/)
+- [miekg/dns](https://github.com/miekg/dns)

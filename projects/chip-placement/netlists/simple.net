@@ -1,0 +1,32 @@
+NETLIST simple_circuit
+
+# Input pads
+CELL u_io0 IO_PAD 2 0.5
+CELL u_io1 IO_PAD 2 0.5
+
+# Flip-flops
+CELL u_ff0 FF 2 1.0 D CLK Q
+CELL u_ff1 FF 2 1.0 D CLK Q
+CELL u_ff2 FF 2 1.0 D CLK Q
+
+# Logic cells
+CELL u_lut0 LUT 2 0.8 A B Y
+CELL u_lut1 LUT 2 0.8 A B Y
+
+# Buffers
+CELL u_buf0 BUFFER 1 0.3 A Y
+
+# Nets
+NET clk { u_ff0:CLK u_ff1:CLK u_ff2:CLK }
+NET input { u_io0:Q u_ff0:D }
+NET stage1 { u_ff0:Q u_lut0:A }
+NET stage2 { u_lut0:Y u_lut1:A }
+NET stage3 { u_lut1:Y u_ff1:D }
+NET stage4 { u_ff1:Q u_buf0:A }
+NET stage5 { u_buf0:Y u_ff2:D }
+NET output { u_ff2:Q u_io1:D }
+
+# Timing constraint: 1ns clock period
+CONSTRAINT clk_constraint 1000.0 0.0 0.0
+
+END

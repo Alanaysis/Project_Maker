@@ -1,18 +1,23 @@
-# Exactly-Once Semantics
+# Exactly-Once Semantics | Exactly-once 语义
 
 A Go implementation of exactly-once message processing semantics, built for understanding message delivery guarantees, idempotency, transactional processing, and consumption acknowledgment.
 
-## Overview
+Go 实现的 Exactly-once 消息处理语义，用于理解消息交付保证、幂等性、事务处理和消费确认。
+
+## Overview | 概述
 
 This project implements the core building blocks for exactly-once message processing:
 
-- **Message Deduplication**: Detect and skip duplicate messages using idempotency keys
-- **Idempotent Processing**: Ensure the same message produces the same result regardless of delivery count
-- **Transactional Operations**: Group multiple operations into atomic units with rollback support
-- **State Tracking**: Complete audit trail of message lifecycle events
-- **Consumption Acknowledgment**: Manual ack, batch ack, and automatic retry with backoff
-- **Transactional Outbox**: Atomic business logic + message publishing via the outbox pattern
-- **Practical Examples**: Payment system, order system, and message queue demos
+本项目实现了 Exactly-once 消息处理的核心构建模块：
+
+- **Message Deduplication**: Detect and skip duplicate messages using idempotency keys | **消息去重**: 使用幂等键检测和跳过重复消息
+- **Idempotent Processing**: Ensure the same message produces the same result regardless of delivery count | **幂等处理**: 确保相同消息无论交付多少次都产生相同结果
+- **Transactional Operations**: Group multiple operations into atomic units with rollback support | **事务操作**: 将多个操作分组为原子单元，支持回滚
+- **State Tracking**: Complete audit trail of message lifecycle events | **状态追踪**: 完整的消息生命周期事件审计追踪
+- **Consumption Acknowledgment**: Manual ack, batch ack, and automatic retry with backoff | **消费确认**: 手动确认、批量确认和自动重试（退避策略）
+- **Transactional Outbox**: Atomic business logic + message publishing via the outbox pattern | **事务发件箱**: 通过发件箱模式实现原子业务逻辑+消息发布
+- **Offset Management**: Track message consumption offsets for reliable replay | **偏移量管理**: 追踪消息消费偏移量以支持可靠重放
+- **Practical Examples**: Payment system, order system, and message queue demos | **实用示例**: 支付系统、订单系统和消息队列演示
 
 ## Architecture
 

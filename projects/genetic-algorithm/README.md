@@ -1,180 +1,305 @@
-# 遗传算法 (Genetic Algorithm)
+# 遗传算法优化框架 / Genetic Algorithm Optimization Framework
 
-## 项目概述
+## 简介 / Overview
 
-实现一个完整的遗传算法优化框架，支持多种编码方式、选择算子、交叉算子和变异算子。框架包含函数优化、TSP 旅行商问题、背包问题等经典应用场景，并支持多目标优化（NSGA-II）和自适应参数调整。
+一个教育性的遗传算法（GA）优化框架实现，涵盖进化算法的核心组件。
+旨在帮助学习者理解遗传算法的原理和实现细节。
 
-## 学习目标
+An educational Genetic Algorithm (GA) optimization framework implementation covering the core components of evolutionary algorithms. Designed to help learners understand the principles and implementation details of genetic algorithms.
 
-- 理解进化算法的基本原理和生物学背景
-- 掌握遗传算法的核心算子：选择、交叉、变异
-- 学会设计有效的适应度函数
-- 实践遗传算法在组合优化和连续优化问题中的应用
-- 了解多目标优化和自适应策略
+---
 
-## 技术栈
+## 学习目标 / Learning Objectives
 
-- **主语言**: Python 3.8+
-- **可视化**: matplotlib
-- **依赖**: numpy, matplotlib, pytest
+### 中文
+- 理解进化算法的基本原理和生物启发机制
+- 掌握选择、交叉、变异三种遗传算子的实现
+- 学会针对不同问题设计适应度函数
+- 理解种群多样性和收敛检测的重要性
+- 掌握实数编码和排列编码的应用场景
 
-## 项目结构
+### English
+- Understand the basic principles of evolutionary algorithms and biological inspiration
+- Master the implementation of selection, crossover, and mutation operators
+- Learn to design fitness functions for different problems
+- Understand the importance of population diversity and convergence detection
+- Master the application scenarios of real-valued and permutation encoding
+
+---
+
+## 项目结构 / Project Structure
 
 ```
 genetic-algorithm/
-├── README.md                    # 项目说明
-├── LEARNING_NOTES.md           # 学习笔记
-├── requirements.txt            # 依赖
-├── docs/                        # 文档目录
-│   ├── 01-RESEARCH.md          # 市场调研
-│   ├── 02-ARCHITECTURE.md      # 架构设计
-│   ├── 03-IMPLEMENTATION.md    # 实现细节
-│   ├── 04-TESTING.md           # 测试策略
-│   └── 05-DEVELOPMENT.md       # 开发计划
-├── src/                         # 源代码
-│   ├── __init__.py
-│   ├── core/                   # 核心算法
-│   │   ├── __init__.py
-│   │   ├── individual.py       # 个体表示
-│   │   ├── population.py       # 种群管理
-│   │   ├── ga_engine.py        # GA 引擎
-│   │   └── multi_objective.py  # NSGA-II 多目标优化
-│   ├── operators/              # 遗传算子
-│   │   ├── __init__.py
-│   │   ├── selection.py        # 选择算子
-│   │   ├── crossover.py        # 交叉算子
-│   │   └── mutation.py         # 变异算子
-│   └── problems/               # 优化问题
-│       ├── __init__.py
-│       ├── base.py             # 基类
-│       ├── tsp.py              # TSP 问题
-│       ├── function_opt.py     # 函数优化问题
-│       └── knapsack.py         # 背包问题
-├── tests/                       # 测试文件
-│   ├── __init__.py
-│   ├── test_individual.py
-│   ├── test_population.py
-│   ├── test_operators.py
-│   ├── test_new_operators.py   # 新算子测试
-│   ├── test_tsp.py
-│   ├── test_function_opt.py    # 函数优化测试
-│   ├── test_knapsack.py        # 背包问题测试
-│   ├── test_multi_objective.py # 多目标优化测试
-│   └── test_integration.py
-└── examples/                    # 示例代码
-    ├── basic_ga.py             # 基础示例
-    ├── tsp_solver.py           # TSP 求解
-    ├── knapsack_solver.py      # 背包问题求解
-    ├── multi_objective_example.py # 多目标优化示例
-    ├── adaptive_ga.py          # 自适应 GA 示例
-    └── visualization.py        # 可视化
+├── src/                          # 源代码
+│   ├── __init__.py               # 包初始化
+│   ├── individual.py             # 个体和种群管理
+│   ├── selection.py              # 选择方法（锦标赛、轮盘赌、排名、精英）
+│   ├── crossover.py              # 交叉算子（单点、多点、均匀、算术、顺序）
+│   ├── mutation.py               # 变异算子（位翻转、交换、逆序、高斯）
+│   ├── convergence.py            # 收敛检测
+│   ├── config.py                 # 参数配置
+│   ├── core.py                   # 核心引擎（世代/稳态模式）
+│   └── suites.py                 # 标准测试函数库
+├── examples/                     # 演示脚本
+│   ├── function_optimization.py  # 函数优化演示
+│   ├── tsp_solver.py             # TSP 旅行商问题
+│   ├── knapsack_problem.py       # 背包问题
+│   └── visualization.py          # 可视化演示
+├── tests/                        # 单元测试
+│   └── test_genetic_algorithm.py
+├── requirements.txt              # 依赖
+└── README.md                     # 本文件
 ```
 
-## 核心循环
+---
 
-```
-初始种群 → 适应度评估 → 精英保留 → 选择 → 交叉 → 变异 → 新种群
-```
+## 遗传算法理论背景 / GA Theory Background
 
-## 快速开始
+### 什么是遗传算法？
 
-### 1. 安装依赖
+遗传算法是一种受自然进化启发的优化算法。它模拟生物进化过程中的"适者生存"机制：
+
+> **Genetic Algorithm** is an optimization algorithm inspired by natural evolution. It simulates the "survival of the fittest" mechanism in biological evolution:
+
+1. **初始化**：随机生成一组解（种群）
+2. **评估**：用适应度函数评价每个解的质量
+3. **选择**：优质个体更有可能被选中繁殖
+4. **交叉**：两个父代交换基因，产生子代
+5. **变异**：以低概率随机改变基因，维持多样性
+6. **迭代**：重复步骤 2-5，直到满足终止条件
+
+### 核心组件 / Core Components
+
+#### 1. 编码方案 / Encoding
+
+| 编码类型 | 适用问题 | 示例 |
+|---------|---------|------|
+| 二进制编码 | 离散优化 | [1, 0, 1, 1, 0] |
+| 实数编码 | 连续优化 | [1.5, -2.3, 0.7] |
+| 排列编码 | 排序/路径问题 | [3, 1, 4, 0, 2] |
+
+#### 2. 选择方法 / Selection Methods
+
+- **锦标赛选择 (Tournament Selection)**：随机选 k 个个体，选最优者
+- **轮盘赌选择 (Roulette Wheel)**：按适应度比例选择
+- **排名选择 (Rank-Based)**：按排名分配选择概率
+- **精英保留 (Elitism)**：直接保留最优个体
+
+#### 3. 交叉算子 / Crossover Operators
+
+- **单点交叉**：随机选一个交叉点交换基因
+- **多点交叉**：选多个交叉点交替交换
+- **均匀交叉**：每个基因位独立决定是否交换
+- **算术交叉**：实数编码的线性组合
+- **顺序交叉 (OX)**：TSP 等排列问题的专用交叉
+
+#### 4. 变异算子 / Mutation Operators
+
+- **位翻转**：二进制编码的基因翻转
+- **交换变异**：交换排列中的两个位置
+- **逆序变异**：反转排列中的一段子序列
+- **高斯变异**：实数编码的高斯扰动
+- **边界变异**：将基因变异到边界值
+
+### 关键参数 / Key Parameters
+
+| 参数 | 典型范围 | 说明 |
+|------|---------|------|
+| 种群大小 | 50-200 | 种群个体数量 |
+| 交叉概率 | 0.6-0.9 | 执行交叉的概率 |
+| 变异概率 | 0.01-0.1 | 每个基因变异的概率 |
+| 锦标赛大小 | 2-5 | 锦标赛选择的个体数 |
+| 精英数量 | 1-5 | 保留的精英个体数 |
+| 最大代数 | 100-1000 | 进化终止条件 |
+
+---
+
+## 快速开始 / Quick Start
+
+### 安装依赖 / Install Dependencies
 
 ```bash
-pip install numpy matplotlib pytest
+pip install -r requirements.txt
 ```
 
-### 2. 运行基础示例
+### 运行示例 / Run Examples
+
+#### 1. 函数优化 / Function Optimization
 
 ```bash
-python examples/basic_ga.py
+python examples/function_optimization.py
 ```
 
-### 3. 求解 TSP 问题
+优化 Sphere、Rosenbrock、Rastrigin、Ackley 四个经典测试函数。
+
+#### 2. TSP 旅行商问题 / TSP
 
 ```bash
 python examples/tsp_solver.py
 ```
 
-### 4. 求解背包问题
+求解 20 和 50 城市 TSP 问题。
+
+#### 3. 背包问题 / Knapsack Problem
 
 ```bash
-python examples/knapsack_solver.py
+python examples/knapsack_problem.py
 ```
 
-### 5. 多目标优化
+求解 0/1 背包问题。
+
+#### 4. 可视化 / Visualization
 
 ```bash
-python examples/multi_objective_example.py
+python examples/visualization.py
 ```
 
-### 6. 运行测试
+生成适应度进化曲线、选择方法对比图等。
+
+### 运行测试 / Run Tests
 
 ```bash
-pytest tests/ -v
+python -m pytest tests/ -v
 ```
 
-## 算法特性
+---
 
-### 编码方式
-- **二进制编码**: 适用于离散问题
-- **实数编码**: 适用于连续优化
-- **排列编码**: 适用于 TSP 等组合问题
+## API 使用示例 / API Usage Example
 
-### 选择算子
-- **轮盘赌选择 (Roulette Wheel)**: 适应度越高，被选中概率越大
-- **锦标赛选择 (Tournament)**: 随机选择 k 个个体，取最优
-- **精英保留 (Elitism)**: 保留适应度最高的 n 个个体
+### 基本用法 / Basic Usage
 
-### 交叉算子
-- **单点交叉 (Single Point)**: 随机选择一个切点，交换后半部分
-- **两点交叉 (Two Point)**: 随机选择两个切点，交换中间部分
-- **均匀交叉 (Uniform)**: 每个基因以相同概率从两个父代中随机选择
-- **算术交叉 (Arithmetic)**: 对实数编码的父代进行线性组合
-- **顺序交叉 (OX)**: 保持城市访问的相对顺序，专用于 TSP
+```python
+from src.core import GeneticAlgorithm
+from src.individual import Individual, Population
+import random
 
-### 变异算子
-- **位翻转变异 (Bit Flip)**: 随机翻转染色体上的位，适用于二进制编码
-- **交换变异 (Swap)**: 随机交换两个位置的值，适用于排列编码
-- **逆序变异 (Inversion)**: 随机选择一段子序列并反转，适用于排列编码
-- **高斯变异 (Gaussian)**: 对实数编码的基因添加高斯噪声
-- **自适应变异 (Adaptive)**: 根据种群适应度自动调整变异率
+# 定义适应度函数（最大化）
+def fitness(gene):
+    return sum(g ** 2 for g in gene)  # Sphere 函数
 
-### 高级特性
-- **精英保留策略**: 确保最优个体不丢失
-- **自适应变异**: 根据进化状态动态调整变异率
-- **多目标优化 (NSGA-II)**: 非支配排序和拥挤度距离选择
+# 创建初始种群
+def init_population():
+    individuals = []
+    for _ in range(100):
+        gene = [random.uniform(-5.12, 5.12) for _ in range(10)]
+        individuals.append(Individual(gene=gene, fitness=0.0))
+    return Population(size=100, individuals=individuals)
 
-## 实际应用
+# 创建并运行遗传算法
+ga = GeneticAlgorithm(
+    population_size=100,
+    fitness_func=fitness,
+    max_generations=300,
+    selection_method='tournament',
+    tournament_size=3,
+    crossover_operator='arithmetic',
+    mutation_operator='gaussian',
+    crossover_rate=0.8,
+    mutation_rate=0.05,
+    elite_count=2,
+    seed=42,
+    verbose=True,
+)
 
-### 1. 函数优化
-- Sphere 函数（单模态）
-- Rastrigin 函数（多模态）
-- Rosenbrock 函数（香蕉函数）
-- Ackley 函数
-- Griewank 函数
+result = ga.optimize(fitness_func=fitness, initial_population=init_population())
 
-### 2. TSP 旅行商问题
-- 给定一组城市，找到访问每个城市一次并返回起点的最短路径
-- 使用排列编码和顺序交叉 (OX)
+print(f"最佳适应度: {result.best_fitness}")
+print(f"最佳基因: {result.best_individual.gene}")
+```
 
-### 3. 背包问题
-- 0/1 背包问题：在容量限制下最大化总价值
-- 多重背包问题：将物品分配到多个背包中
+### 比较不同选择方法 / Compare Selection Methods
 
-### 4. 多目标优化
-- ZDT1/ZDT2 测试问题
-- Pareto 最优解集
-- NSGA-II 算法
+```python
+from src.selection import get_selection_method
 
-## 参考资源
+# 创建不同的选择方法
+tournament = get_selection_method('tournament', tournament_size=3)
+roulette = get_selection_method('roulette')
+rank = get_selection_method('rank')
+elitism = get_selection_method('elitism', elite_count=5)
+```
 
-- [遗传算法 Wikipedia](https://zh.wikipedia.org/wiki/遗传算法)
-- [DEAP 框架文档](https://deap.readthedocs.io/)
-- [NSGA-II 论文](https://ieeexplore.ieee.org/document/996017)
-- 书籍: 《Introduction to Evolutionary Computing》
-- 书籍: 《Genetic Algorithms in Search, Optimization, and Machine Learning》
+### 比较不同交叉算子 / Compare Crossover Operators
 
-## 许可证
+```python
+from src.crossover import get_crossover_operator
+
+single_point = get_crossover_operator('single_point')
+arithmetic = get_crossover_operator('arithmetic')
+order = get_crossover_operator('order')
+```
+
+---
+
+## 测试函数库 / Test Function Suite
+
+框架内置了多个经典优化测试函数：
+
+| 函数 | 维度 | 特点 | 全局最优 |
+|------|------|------|---------|
+| Sphere | n | 单峰、可分离 | [0,...,0], f=0 |
+| Rosenbrock | n | 峡谷地形 | [1,...,1], f=0 |
+| Rastrigin | n | 多峰 | [0,...,0], f=0 |
+| Ackley | n | 多峰、平坦最优区 | [0,...,0], f=0 |
+| Griewank | n | 多峰、大搜索空间 | [0,...,0], f=0 |
+
+---
+
+## 进化模式 / Evolution Modes
+
+### 世代模式 (Generational Mode)
+
+- 每代完全替换旧种群
+- 适合并行化
+- 探索性强
+
+### 稳态模式 (Steady-State Mode)
+
+- 每次只替换少量个体
+- 种群变化更平滑
+- 探索更充分
+
+---
+
+## 收敛检测 / Convergence Detection
+
+| 检测器 | 原理 | 适用场景 |
+|--------|------|---------|
+| Diversity | 种群多样性低于阈值 | 通用 |
+| Fitness Gain | 适应度提升低于阈值 | 通用 |
+| Combined | 结合以上两种 | 鲁棒性要求高 |
+| Generation Limit | 达到最大代数 | 基本终止条件 |
+
+---
+
+## 常见问题 / FAQ
+
+### Q: 如何选择交叉/变异算子？
+
+**A**: 根据编码类型选择：
+- 二进制编码 → 单点交叉 + 位翻转变异
+- 实数编码 → 算术交叉 + 高斯变异
+- 排列编码 → 顺序交叉 + 逆序变异
+
+### Q: 种群大小怎么设置？
+
+**A**: 根据问题维度：
+- 低维问题（<10）：50-100
+- 中维问题（10-50）：100-200
+- 高维问题（>50）：200-500
+
+### Q: 如何防止早熟收敛？
+
+**A**:
+1. 增大种群大小
+2. 提高变异率
+3. 使用排名选择代替轮盘赌
+4. 使用组合收敛检测器
+5. 增加精英保留数量
+
+---
+
+## 许可证 / License
 
 MIT License

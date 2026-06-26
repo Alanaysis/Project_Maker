@@ -1,257 +1,255 @@
-# Raft 共识算法实现
+# Raft 共识算法实现 | Raft Consensus Algorithm Implementation
 
-## 项目概述
+## 中文
 
-这是一个完整的 Raft 共识算法实现项目，包含领导者选举、日志复制、快照机制、成员变更等核心功能。通过 Go 语言和 gRPC 构建高性能的分布式共识系统。
+### 项目描述
+本项目是一个教育性的 Raft 共识算法 Go 语言实现。它旨在帮助开发者深入理解分布式系统中的共识算法原理。
 
-## 学习目标
+Raft 是一种易于理解的分布式共识算法，用于管理复制日志。它将共识分解为几个相对独立的部分：领导者选举、日志复制和安全性。
 
-- **理解 Raft 原理**：掌握 Raft 算法的核心概念和设计思想
-- **掌握领导者选举**：实现完整的选举流程，包括任期管理、投票机制
-- **学会日志复制**：实现日志的一致性复制和提交机制
-- **实践分布式系统**：使用 Go 和 gRPC 构建分布式系统
+### 学习目标
+- **理解 Raft 原理**：掌握 Raft 算法的核心思想和设计原则
+- **掌握领导者选举**：学习节点如何通过投票机制选出领导者
+- **学会日志复制**：理解日志如何在集群中同步和提交
+- **安全性保证**：了解 Raft 如何保证一致性和容错性
 
-## 技术栈
+### 核心循环
+```
+领导者选举 → 日志复制 → 安全性 → 成员变更
+```
 
-- **主语言**：Go 1.22+
-- **RPC 框架**：gRPC
-- **序列化**：Protocol Buffers
-- **存储**：内存存储（可扩展）
-- **测试**：Go testing + testify
-
-## 项目结构
-
+### 项目结构
 ```
 raft-consensus/
-├── cmd/
-│   └── server/
-│       └── main.go              # 服务器入口
-├── internal/
-│   ├── raft/
-│   │   ├── raft.go              # Raft 核心实现
-│   │   ├── election.go          # 领导者选举
-│   │   ├── log_replication.go   # 日志复制
-│   │   ├── state.go             # 状态管理
-│   │   ├── snapshot.go          # 快照管理
-│   │   ├── membership.go        # 成员变更
-│   │   └── client.go            # 客户端交互
-│   ├── pb/
-│   │   ├── raft.proto           # gRPC 服务定义
-│   │   ├── raft.pb.go           # 生成的代码
-│   │   └── raft_grpc.pb.go      # gRPC 服务代码
-│   ├── statemachine/
-│   │   └── kv.go                # KV 状态机实现
-│   └── storage/
-│       └── memory.go            # 内存存储实现
-├── configs/
-│   └── config.toml              # 配置文件
-├── test/
-│   ├── election_test.go         # 选举测试
-│   ├── log_replication_test.go  # 日志复制测试
-│   ├── snapshot_test.go         # 快照测试
-│   ├── membership_test.go       # 成员变更测试
-│   ├── network_partition_test.go # 网络分区测试
-│   ├── node_failure_test.go     # 节点故障测试
-│   └── integration_test.go      # 集成测试
-├── docs/
-│   ├── 01-RESEARCH.md           # 市场调研
-│   ├── 02-ARCHITECTURE.md       # 架构设计
-│   ├── 03-IMPLEMENTATION.md     # 实现细节
-│   ├── 04-TESTING.md            # 测试策略
-│   └── 05-DEVELOPMENT.md        # 开发日志
-├── LEARNING_NOTES.md            # 学习笔记
-├── go.mod                       # Go 模块文件
-└── README.md                    # 项目说明
+├── src/                    # Raft 核心实现
+│   ├── raft.go             # 基础类型和状态定义
+│   ├── node.go             # 节点管理和状态机
+│   ├── election.go         # 领导者选举实现
+│   ├── log_replication.go  # 日志复制实现
+│   ├── safety.go           # 安全性属性验证
+│   └── cluster.go          # 集群成员管理
+├── examples/               # 演示程序
+│   ├── leader_election.go  # 领导者选举演示
+│   ├── log_replication.go  # 日志复制演示
+│   ├── log_consistency.go  # 日志一致性演示
+│   └── cluster_demo.go     # 完整集群演示
+├── tests/                  # 单元测试
+│   └── raft_test.go
+├── go.mod
+└── README.md
 ```
 
-## 快速开始
+### 运行示例
 
-### 环境要求
-
-- Go 1.22+
-- Protocol Buffers 编译器
-- gRPC 工具
-
-### 安装依赖
-
+#### 1. 领导者选举演示
 ```bash
-# 安装 Go 依赖
-go mod tidy
-
-# 安装 protobuf 编译器
-# macOS
-brew install protobuf
-
-# Linux
-apt-get install -y protobuf-compiler
-
-# 安装 Go protobuf 插件
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+cd examples
+go run leader_election.go
 ```
 
-### 生成 gRPC 代码
-
+#### 2. 日志复制演示
 ```bash
-protoc --go_out=. --go-grpc_out=. internal/pb/raft.proto
+cd examples
+go run log_replication.go
 ```
 
-### 运行测试
-
+#### 3. 日志一致性演示
 ```bash
-# 运行所有测试
-go test ./...
-
-# 运行特定测试
-go test ./internal/raft/ -v -run TestElection
-
-# 运行集成测试
-go test ./test/ -v -run TestCluster
+cd examples
+go run log_consistency.go
 ```
 
-### 启动服务器
-
+#### 4. 完整集群演示
 ```bash
-# 启动单个节点
-go run cmd/server/main.go -id 1 -port 50051
-
-# 启动集群（需要多个终端）
-go run cmd/server/main.go -id 1 -port 50051 -peers "localhost:50052,localhost:50053"
-go run cmd/server/main.go -id 2 -port 50052 -peers "localhost:50051,localhost:50053"
-go run cmd/server/main.go -id 3 -port 50053 -peers "localhost:50051,localhost:50052"
+cd examples
+go run cluster_demo.go
 ```
 
-## 核心概念
-
-### 1. 领导者选举
-
-Raft 使用随机化的选举超时来避免选票分割。当跟随者在超时时间内没有收到领导者的心跳时，它会转变为候选人并发起选举。
-
-**特性：**
-- 任期机制：每个任期最多一个领导者
-- 投票请求：包含候选人的日志信息
-- 心跳机制：领导者定期发送心跳维持权威
-- 选举超时：随机化避免选票分割
-
-### 2. 日志复制
-
-领导者接收客户端请求，将命令追加到日志中，然后并行地将日志条目复制到所有跟随者。当大多数节点确认后，日志被提交。
-
-**特性：**
-- 日志条目：包含索引、任期和命令
-- AppendEntries RPC：复制日志和心跳
-- 日志一致性检查：通过 PrevLogIndex 和 PrevLogTerm
-- 提交规则：大多数节点确认后提交
-
-### 3. 安全性
-
-- **选举限制**：只有包含所有已提交日志的候选人才能赢得选举
-- **日志匹配**：如果两个日志在某个索引处有相同的任期号，那么它们在该索引之前的所有条目都相同
-- **领导者完整性**：如果一个日志条目在某个任期被提交，那么该条目会出现在所有更高任期的领导者日志中
-
-### 4. 快照机制
-
-日志压缩通过快照实现，防止日志无限增长。
-
-**特性：**
-- 状态机快照：保存当前状态
-- 日志截断：快照点之前的日志可以删除
-- 快照传输：领导者可以发送快照给落后太多的跟随者
-
-### 5. 成员变更
-
-支持集群成员动态调整。
-
-**特性：**
-- 单节点变更：一次只添加或移除一个节点
-- 安全性保证：变更过程中保持一致性
-- 联合共识：支持两阶段成员变更
-
-### 6. 客户端交互
-
-提供线性一致性的客户端接口。
-
-**特性：**
-- 线性一致性读：确保读取到最新提交的数据
-- 命令转发：非领导者自动转发请求到领导者
-- 请求去重：防止重复命令执行
-
-## API 接口
-
-### gRPC 服务
-
-```protobuf
-service RaftService {
-    rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse);
-    rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
-    rpc InstallSnapshot(InstallSnapshotRequest) returns (InstallSnapshotResponse);
-}
+#### 5. 运行测试
+```bash
+go test ./tests/...
 ```
 
-### Go API
+### Raft 算法详解
 
-```go
-// 创建 Raft 节点
-node := raft.NewRaftNode(config)
+#### 节点状态
+Raft 节点有三种状态：
 
-// 启动节点
-node.Start()
+1. **Follower（跟随者）**
+   - 响应领导者的心跳和候选人的请求
+   - 可以被选举为候选人
+   - 默认状态
 
-// 提交命令
-response := node.SubmitCommand("PUT key value", commandID)
+2. **Candidate（候选人）**
+   - 发起选举，请求投票
+   - 获得多数票后成为领导者
+   - 超时后重新发起选举
 
-// 线性一致性读
-value, err := node.LinearizableRead("key")
+3. **Leader（领导者）**
+   - 处理客户端请求
+   - 复制日志到跟随者
+   - 发送心跳维持权威
 
-// 创建快照
-node.CreateSnapshot(lastIncludedIndex, snapshotData)
+#### 领导者选举
+1. 节点启动时是 Follower
+2. 选举超时后，转为 Candidate
+3. Candidate 投票给自己并请求其他节点的投票
+4. 获得多数票的 Candidate 成为 Leader
+5. Leader 定期发送心跳防止重新选举
 
-// 成员变更
-node.AddNode(nodeID, address)
-node.RemoveNode(nodeID)
+#### 日志复制
+1. 客户端向 Leader 发送请求
+2. Leader 将命令追加到自己的日志中
+3. Leader 发送 AppendEntries RPC 到所有 Follower
+4. Follower 将条目追加到自己的日志中
+5. Leader 收到多数确认后提交条目
+6. Leader 将命令应用到状态机
 
-// 获取集群信息
-members := node.GetClusterMembers()
-leaderID, leaderAddr, err := node.GetLeaderAddress()
+#### 安全性
+- **选举限制**：候选人必须拥有所有已提交的条目
+- **日志匹配**：相同索引和-term 的条目必须相同
+- **状态机安全**：已提交的条目在所有节点上相同
+
+---
+
+## English
+
+### Project Description
+This project is an educational implementation of the Raft consensus algorithm in Go. It aims to help developers deeply understand the principles of consensus algorithms in distributed systems.
+
+Raft is a consensus algorithm designed to be more understandable than Paxos. It divides consensus into several relatively independent parts: leader election, log replication, and safety.
+
+### Learning Objectives
+- **Understand Raft Principles**: Master the core ideas and design principles of the Raft algorithm
+- **Master Leader Election**: Learn how nodes elect a leader through voting
+- **Learn Log Replication**: Understand how logs are synchronized and committed across the cluster
+- **Safety Guarantees**: Understand how Raft ensures consistency and fault tolerance
+
+### Core Loop
+```
+Leader Election → Log Replication → Safety → Membership Changes
 ```
 
-## 配置说明
-
-配置文件 `configs/config.toml` 示例：
-
-```toml
-[node]
-id = 1
-address = "localhost:50051"
-
-[election]
-timeout_min = 150      # 最小选举超时（毫秒）
-timeout_max = 300      # 最大选举超时（毫秒）
-heartbeat_interval = 50 # 心跳间隔（毫秒）
-
-[log]
-max_entries = 10000    # 最大日志条目数
+### Project Structure
+```
+raft-consensus/
+├── src/                    # Core Raft implementation
+│   ├── raft.go             # Base types and state definitions
+│   ├── node.go             # Node management and state machine
+│   ├── election.go         # Leader election implementation
+│   ├── log_replication.go  # Log replication implementation
+│   ├── safety.go           # Safety property verification
+│   └── cluster.go          # Cluster membership management
+├── examples/               # Demo programs
+│   ├── leader_election.go  # Leader election demo
+│   ├── log_replication.go  # Log replication demo
+│   ├── log_consistency.go  # Log consistency demo
+│   └── cluster_demo.go     # Full cluster demo
+├── tests/                  # Unit tests
+│   └── raft_test.go
+├── go.mod
+└── README.md
 ```
 
-## 学习路径
+### Running Examples
 
-1. **第一阶段**：理解 Raft 论文和核心概念
-2. **第二阶段**：实现领导者选举
-3. **第三阶段**：实现日志复制
-4. **第四阶段**：实现状态机应用
-5. **第五阶段**：测试和优化
+#### 1. Leader Election Demo
+```bash
+cd examples
+go run leader_election.go
+```
 
-## 参考资源
+#### 2. Log Replication Demo
+```bash
+cd examples
+go run log_replication.go
+```
 
-- [Raft 论文](https://raft.github.io/raft.pdf)
-- [Raft 可视化](http://raft.github.io/)
-- [etcd/raft 实现](https://github.com/etcd-io/raft)
-- [hashicorp/raft 实现](https://github.com/hashicorp/raft)
+#### 3. Log Consistency Demo
+```bash
+cd examples
+go run log_consistency.go
+```
 
-## 许可证
+#### 4. Full Cluster Demo
+```bash
+cd examples
+go run cluster_demo.go
+```
 
-MIT License
+#### 5. Run Tests
+```bash
+go test ./tests/...
+```
 
-## 贡献
+### Raft Algorithm Explained
 
-欢迎提交 Issue 和 Pull Request！
+#### Node States
+Raft nodes have three states:
+
+1. **Follower**
+   - Responds to leader heartbeats and candidate vote requests
+   - Can be elected as a candidate
+   - Default state
+
+2. **Candidate**
+   - Initiates election, requests votes
+   - Becomes leader if it receives majority votes
+   - Retransmits election if timeout occurs
+
+3. **Leader**
+   - Handles client requests
+   - Replicates logs to followers
+   - Sends heartbeats to maintain authority
+
+#### Leader Election
+1. Nodes start as Followers
+2. On election timeout, transition to Candidate
+3. Candidate votes for itself and requests votes from others
+4. Candidate with majority votes becomes Leader
+5. Leader sends periodic heartbeats to prevent re-election
+
+#### Log Replication
+1. Client sends request to Leader
+2. Leader appends command to its log
+3. Leader sends AppendEntries RPC to all Followers
+4. Followers append entry to their logs
+5. Leader commits entry after majority acknowledgment
+6. Leader applies command to state machine
+
+#### Safety Properties
+- **Election Restriction**: A candidate must have all committed entries
+- **Log Matching**: Entries with same index and term must be identical
+- **State Machine Safety**: Committed entries are the same on all nodes
+
+### 技术栈 | Tech Stack
+- **语言**: Go
+- **框架**: 无
+- **库**: gRPC (用于生产环境 RPC)
+
+### 优先级 | Priority
+P1
+
+### 预计时间 | Estimated Time
+12 小时
+
+---
+
+## Raft 算法核心概念 | Core Raft Concepts
+
+### Term (任期)
+Raft 将时间划分为任意长度的任期，任期编号从 1 开始递增。每个任期要么是空白的（没有选出领导者），要幺有一个领导者管理整个任期。
+
+### Vote (投票)
+每个节点在每个任期内最多只能投一票。投票顺序决定了选举结果。
+
+### Log Entry (日志条目)
+每个日志条目包含 (term, command) 对。条目一旦追加就不会被修改，只能追加。
+
+### Commit Index (提交索引)
+最高已知已提交的日志索引。领导者只有知道大多数服务器已经复制了条目后才会提交。
+
+### 一致性保证 | Consistency Guarantees
+1. **日志匹配属性**: 如果两个日志有相同索引和-term 的条目，则它们存储相同的命令
+2. **领导者追加-only**: 领导者永远不会覆盖或删除自己的日志条目
+3. **状态机安全**: 如果服务器在给定索引应用了日志条目，则没有其他服务器会在该索引应用不同的条目

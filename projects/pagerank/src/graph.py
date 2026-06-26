@@ -1,195 +1,301 @@
-"""Web Graph representation for PageRank algorithm."""
+"""
+图表示模块 - Graph Representation Module
+
+提供 PageRank 算法所需的图数据结构：
+- 邻接矩阵 (Adjacency Matrix): 稠密表示，适合小规模图
+- 邻接表 (Adjacency List): 稀疏表示，适合大规模图
+- 转移矩阵 (Transition Matrix): PageRank 计算专用
+
+PageRank 需要将有向图转换为概率转移矩阵，
+表示从一页跳转到另一页的概率。
+"""
 
 import numpy as np
 from scipy import sparse
-from typing import Dict, List, Set, Optional, Tuple
+from typing import List, Tuple, Dict, Optional
 
 
-class WebGraph:
+class Graph:
     """
-    Represents a web graph structure for PageRank computation.
+    有向图 - Directed Graph
 
-    Attributes:
-        num_pages: Total number of pages in the graph
-        adjacency: Sparse matrix representation of links
-        page_names: Mapping of page indices to names
+    用两种方式存储图结构：
+    1. 邻接矩阵 (稠密) - 便于理解和小规模计算
+    2. 邻接表 (稀疏) - 便于大规模计算
+
+    对于 PageRank，我们需要将图转换为转移矩阵：
+    - 如果页面 j 有 L 条出链，则每条链的转移概率为 1/L
+    - 悬垂节点 (无出链) 需要特殊处理
     """
 
-    def __init__(self):
-        """Initialize an empty web graph."""
-        self._edges: List[Tuple[int, int]] = []
-        self._page_names: Dict[int, str] = {}
-        self._name_to_index: Dict[str, int] = {}
-        self._next_index: int = 0
-
-    def add_page(self, name: str) -> int:
+    def __init__(self, num_nodes: int):
         """
-        Add a page to the graph.
+        初始化图
 
-        Args:
-            name: Page name/identifier
+        Parameters:
+            num_nodes: 节点数量 (网页数量)
+        """
+        self.num_nodes = num_nodes
+        self.adj_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float64)
+        self.adj_list: Dict[int, List[int]] = {i: [] for i in range(num_nodes)}
+        self.edge_count = 0
+
+    def add_edge(self, from_node: int, to_node: int):
+        """
+        添加有向边 from_node -> to_node
+
+        Parameters:
+            from_node: 源节点索引
+            to_node: 目标节点索引
+        """
+        if from_node < 0 or from_node >= self.num_nodes:
+            raise ValueError(f"from_node {from_node} out of range [0, {self.num_nodes})")
+        if to_node < 0 or to_node >= self.num_nodes:
+            raise ValueError(f"to_node {to_node} out of range [0, {self.num_nodes})")
+
+        # 如果边已存在，不重复添加
+        if self.adj_matrix[from_node, to_node] == 0:
+            self.adj_matrix[from_node, to_node] = 1.0
+            self.adj_list[from_node].append(to_node)
+            self.edge_count += 1
+
+    def remove_edge(self, from_node: int, to_node: int):
+        """移除一条边"""
+        if self.adj_matrix[from_node, to_node] == 1.0:
+            self.adj_matrix[from_node, to_node] = 0.0
+            if to_node in self.adj_list[from_node]:
+                self.adj_list[from_node].remove(to_node)
+            self.edge_count -= 1
+
+    def get_out_degree(self, node: int) -> int:
+        """获取节点的出度 (外链数量)"""
+        return len(self.adj_list[node])
+
+    def get_in_degree(self, node: int) -> int:
+        """获取节点的入度 (入链数量)"""
+        return int(np.sum(self.adj_matrix[:, node]))
+
+    def get_neighbors(self, node: int, direction: str = "out") -> List[int]:
+        """
+        获取邻居节点
+
+        Parameters:
+            node: 节点索引
+            direction: 'out' 或 'in'
 
         Returns:
-            Page index
+            邻居节点列表
         """
-        if name in self._name_to_index:
-            return self._name_to_index[name]
+        if direction == "out":
+            return self.adj_list[node]
+        elif direction == "in":
+            return [i for i in range(self.num_nodes) if self.adj_matrix[i, node] == 1.0]
+        else:
+            raise ValueError(f"Unknown direction: {direction}")
 
-        index = self._next_index
-        self._next_index += 1
-        self._page_names[index] = name
-        self._name_to_index[name] = index
-        return index
-
-    def add_link(self, from_page: str, to_page: str) -> None:
+    def to_transition_matrix(self) -> np.ndarray:
         """
-        Add a directed link from one page to another.
+        将图转换为转移矩阵 (Transition Matrix)
 
-        Args:
-            from_page: Source page name
-            to_page: Target page name
-        """
-        from_idx = self.add_page(from_page)
-        to_idx = self.add_page(to_page)
-        self._edges.append((from_idx, to_idx))
-
-    def build_adjacency_matrix(self) -> sparse.csr_matrix:
-        """
-        Build sparse adjacency matrix from edges.
+        PageRank 的转移矩阵 M 满足：
+        - M[i,j] = 1/L(j) 如果 j 指向 i (即从 j 可以跳转到 i)
+        - M[i,j] = 0 如果 j 不指向 i
+        - 对于悬垂节点 (L(j)=0)，M[:,j] = 1/N (均匀分布)
 
         Returns:
-            CSR sparse matrix where entry (i,j) = 1 if page i links to page j
+            转移矩阵，形状为 (N, N)
         """
-        if not self._edges:
-            return sparse.csr_matrix((self.num_pages, self.num_pages))
+        M = np.zeros((self.num_nodes, self.num_nodes), dtype=np.float64)
 
-        rows = [e[0] for e in self._edges]
-        cols = [e[1] for e in self._edges]
-        data = np.ones(len(self._edges))
+        for j in range(self.num_nodes):
+            out_degree = len(self.adj_list[j])
+            if out_degree > 0:
+                # 正常节点：按出链均匀分布 PageRank
+                for i in self.adj_list[j]:
+                    M[i, j] = 1.0 / out_degree
+            else:
+                # 悬垂节点：PageRank 均匀分配给所有节点
+                M[:, j] = 1.0 / self.num_nodes
 
-        return sparse.csr_matrix(
-            (data, (rows, cols)),
-            shape=(self.num_pages, self.num_pages)
-        )
+        return M
 
-    def build_transition_matrix(self) -> sparse.csr_matrix:
+    def to_sparse_transition_matrix(self) -> sparse.csr_matrix:
         """
-        Build column-stochastic transition matrix.
+        将图转换为稀疏转移矩阵
 
-        Each column is normalized so that it sums to 1.
-        Pages with no outgoing links get uniform distribution.
+        使用 CSR (Compressed Sparse Row) 格式存储，
+        节省内存并加速矩阵运算。
 
         Returns:
-            Column-stochastic sparse matrix
+            稀疏转移矩阵
         """
-        adj = self.build_adjacency_matrix()
+        rows, cols, data = [], [], []
 
-        # Calculate out-degree for each page
-        out_degree = np.array(adj.sum(axis=1)).flatten()
+        for j in range(self.num_nodes):
+            out_degree = len(self.adj_list[j])
+            if out_degree > 0:
+                for i in self.adj_list[j]:
+                    rows.append(i)
+                    cols.append(j)
+                    data.append(1.0 / out_degree)
+            else:
+                # 悬垂节点：均匀分布
+                for i in range(self.num_nodes):
+                    rows.append(i)
+                    cols.append(j)
+                    data.append(1.0 / self.num_nodes)
 
-        # Handle dangling nodes (no outgoing links)
-        dangling_mask = out_degree == 0
-        out_degree[dangling_mask] = 1  # Avoid division by zero
+        return sparse.csr_matrix((data, (rows, cols)),
+                                  shape=(self.num_nodes, self.num_nodes))
 
-        # Create diagonal matrix of inverse out-degrees
-        inv_degree = sparse.diags(1.0 / out_degree)
-
-        # Transition matrix: column-normalized
-        transition = adj.T @ inv_degree
-
-        # Handle dangling nodes: distribute uniformly
-        dangling_pages = np.where(dangling_mask)[0]
-        if len(dangling_pages) > 0:
-            # For dangling nodes, their column should be uniform 1/N
-            # Create a matrix where each dangling page's column is uniform
-            rows = np.tile(np.arange(self.num_pages), len(dangling_pages))
-            cols = np.repeat(dangling_pages, self.num_pages)
-            data = np.ones(len(dangling_pages) * self.num_pages) / self.num_pages
-            dangling_contribution = sparse.csr_matrix(
-                (data, (rows, cols)),
-                shape=(self.num_pages, self.num_pages)
-            )
-            transition = transition + dangling_contribution
-
-        return transition
-
-    @property
-    def num_pages(self) -> int:
-        """Get number of pages in the graph."""
-        return self._next_index
-
-    @property
-    def page_names(self) -> Dict[int, str]:
-        """Get mapping of page indices to names."""
-        return self._page_names.copy()
-
-    def get_page_index(self, name: str) -> Optional[int]:
+    def to_adjacency_list(self) -> Dict[int, List[int]]:
         """
-        Get page index by name.
-
-        Args:
-            name: Page name
+        返回邻接表的深拷贝
 
         Returns:
-            Page index or None if not found
+            {节点: [邻居节点列表]}
         """
-        return self._name_to_index.get(name)
+        return {k: list(v) for k, v in self.adj_list.items()}
 
-    def get_outgoing_links(self, page: str) -> List[str]:
+    def get_dangling_nodes(self) -> List[int]:
         """
-        Get list of pages that the given page links to.
-
-        Args:
-            page: Page name
+        获取所有悬垂节点 (没有出链的节点)
 
         Returns:
-            List of target page names
+            悬垂节点列表
         """
-        page_idx = self._name_to_index.get(page)
-        if page_idx is None:
-            return []
+        return [i for i in range(self.num_nodes) if len(self.adj_list[i]) == 0]
 
-        targets = []
-        for from_idx, to_idx in self._edges:
-            if from_idx == page_idx:
-                targets.append(self._page_names[to_idx])
-        return targets
+    def get_density(self) -> float:
+        """获取图的边密度"""
+        max_edges = self.num_nodes * (self.num_nodes - 1)
+        if max_edges == 0:
+            return 0.0
+        return self.edge_count / max_edges
 
-    def get_incoming_links(self, page: str) -> List[str]:
-        """
-        Get list of pages that link to the given page.
+    def __repr__(self):
+        return (f"Graph(num_nodes={self.num_nodes}, edges={self.edge_count}, "
+                f"density={self.get_density():.4f})")
 
-        Args:
-            page: Page name
 
-        Returns:
-            List of source page names
-        """
-        page_idx = self._name_to_index.get(page)
-        if page_idx is None:
-            return []
+def create_web_graph() -> Graph:
+    """
+    创建一个示例网页图
 
-        sources = []
-        for from_idx, to_idx in self._edges:
-            if to_idx == page_idx:
-                sources.append(self._page_names[from_idx])
-        return sources
+    模拟一个小型网站，包含 6 个页面：
+    A -> B, C
+    B -> C, D
+    C -> A
+    D -> C, E
+    E -> A, D
+    F -> E
 
-    @classmethod
-    def from_edges(cls, edges: List[Tuple[str, str]]) -> 'WebGraph':
-        """
-        Create graph from list of edge tuples.
+    这个图包含一个悬垂节点 (无出链的节点) 用于演示处理。
 
-        Args:
-            edges: List of (from_page, to_page) tuples
+    Returns:
+        包含示例网页链接的 Graph 对象
+    """
+    graph = Graph(6)
 
-        Returns:
-            WebGraph instance
-        """
-        graph = cls()
-        for from_page, to_page in edges:
-            graph.add_link(from_page, to_page)
-        return graph
+    # 定义链接结构
+    edges = [
+        (0, 1), (0, 2),  # A -> B, C
+        (1, 2), (1, 3),  # B -> C, D
+        (2, 0),          # C -> A
+        (3, 2), (3, 4),  # D -> C, E
+        (4, 0), (4, 3),  # E -> A, D
+        (5, 4),          # F -> E
+    ]
 
-    def __repr__(self) -> str:
-        return f"WebGraph(pages={self.num_pages}, links={len(self._edges)})"
+    for from_node, to_node in edges:
+        graph.add_edge(from_node, to_node)
+
+    return graph
+
+
+def create_random_graph(n: int, m: int, seed: Optional[int] = None) -> Graph:
+    """
+    创建随机有向图
+
+    使用 Erdős–Rényi 模型生成随机图：
+    - n: 节点数
+    - m: 边数
+    - 每个节点至少有 1 条出链 (避免悬垂节点)
+
+    Parameters:
+        n: 节点数量
+        m: 边数量
+        seed: 随机种子
+
+    Returns:
+        随机有向图
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    graph = Graph(n)
+
+    # 确保每个节点至少有一条出链
+    for i in range(n):
+        j = np.random.randint(0, n)
+        if j != i:
+            graph.add_edge(i, j)
+
+    # 添加额外边
+    edges_added = n
+    attempts = 0
+    while edges_added < m and attempts < m * 10:
+        i = np.random.randint(0, n)
+        j = np.random.randint(0, n)
+        if i != j:
+            graph.add_edge(i, j)
+            edges_added += 1
+        attempts += 1
+
+    return graph
+
+
+def create_scale_free_graph(n: int, m_per_node: int = 2, seed: Optional[int] = None) -> Graph:
+    """
+    创建无标度图 (Scale-Free Graph)
+
+    使用优先连接 (preferential attachment) 模型：
+    新节点更倾向于链接到已有高入度的节点。
+
+    这更真实地模拟了互联网的链接结构。
+
+    Parameters:
+        n: 节点数量
+        m_per_node: 每个新节点添加的边数
+        seed: 随机种子
+
+    Returns:
+        无标度有向图
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    graph = Graph(n)
+
+    # 先创建一个小的完整图作为种子
+    for i in range(min(m_per_node + 1, n)):
+        for j in range(i + 1, min(i + m_per_node + 1, n)):
+            graph.add_edge(i, j)
+
+    # 逐步添加节点，使用优先连接
+    for new_node in range(m_per_node + 1, n):
+        # 计算选择概率 (与入度成正比)
+        in_degrees = np.array([graph.get_in_degree(i) for i in range(new_node)])
+        total = in_degrees.sum()
+        if total == 0:
+            in_degrees = np.ones(new_node) / new_node
+        else:
+            in_degrees = in_degrees / total
+
+        # 选择 m_per_node 个目标节点
+        targets = np.random.choice(new_node, size=min(m_per_node, new_node),
+                                   replace=False, p=in_degrees)
+        for target in targets:
+            graph.add_edge(new_node, int(target))
+
+    return graph

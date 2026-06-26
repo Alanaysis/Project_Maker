@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.16)
+
+add_executable(example_basic example_basic.cpp)
+target_link_libraries(example_basic physics_simulation)
+
+add_executable(example_collision example_collision.cpp)
+target_link_libraries(example_collision physics_simulation)
+
+add_executable(example_gravity example_gravity.cpp)
+target_link_libraries(example_gravity physics_simulation)

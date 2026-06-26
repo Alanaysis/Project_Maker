@@ -1,708 +1,599 @@
+#!/usr/bin/env python3
 """
-模拟退火算法测试
-
-测试模拟退火算法的各个组件：
-- 核心算法（温度调度、Metropolis准则）
-- 邻域操作（交换、逆序、插入）
-- TSP旅行商问题
-- 函数优化
-- 调度问题
+模拟退火算法库单元测试
 """
 
-import pytest
-import numpy as np
 import sys
 import os
+import math
+import random
 
-# 添加项目路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.simulated_annealing import SimulatedAnnealing, SAConfig, CoolingSchedule
-from src.neighborhood import NeighborhoodOps
-from src.tsp import TSP, City
-from src.function_optimization import (
-    TestFunctions, ContinuousNeighbor, get_function_specs
+import pytest
+from src.core import SimulatedAnnealing, SAResult
+from src.temperature import (
+    ExponentialScheduler,
+    LinearScheduler,
+    LogarithmicScheduler,
+    AdaptiveScheduler,
 )
-from src.scheduling import (
-    JobShopScheduling, FlowShopScheduling, SingleMachineScheduling,
-    ObjectiveType, Job
+from src.acceptance import metropolis_criterion, boltzmann_acceptance
+from src.neighborhood import (
+    swap_neighbor,
+    insert_neighbor,
+    reverse_neighbor,
+    multi_switch_neighbor,
+    continuous_neighbor,
 )
+from src.cooling import ExponentialCooling, LinearCooling, AdaptiveCooling, create_cooling_schedule
+from src.convergence import ConvergenceDetector, EarlyStopDetector
+from src.restart import RestartManager, DiversificationRestart
+
+
+# ============================================================
+# 辅助函数
+# ============================================================
+
+def sphere(x):
+    """Sphere 目标函数"""
+    return sum(xi ** 2 for xi in x)
+
+
+def rastrigin(x):
+    """Rastrigin 目标函数"""
+    n = len(x)
+    return 10 * n + sum(xi ** 2 - 10 * math.cos(2 * math.pi * xi) for xi in x)
+
+
+def objective_1d(x):
+    """单变量目标函数"""
+    return (x[0] - 3.0) ** 2
 
 
 # ============================================================
 # 核心算法测试
 # ============================================================
 
-class TestSAConfig:
-    """测试SA配置"""
+class TestSimulatedAnnealing:
+    """模拟退火核心算法测试"""
 
-    def test_default_config(self):
-        """测试默认配置"""
-        config = SAConfig()
-        assert config.initial_temp == 100.0
-        assert config.final_temp == 0.01
-        assert config.cooling_rate == 0.99
-        assert config.max_iterations == 1000
-        assert config.cooling_schedule == CoolingSchedule.EXPONENTIAL
+    def test_basic_optimization(self):
+        """测试基本优化功能"""
+        sa = SimulatedAnnealing(
+            initial_temp=1000.0,
+            min_temp=1e-10,
+            cooling_rate=0.99,
+            iterations_per_temp=50,
+            seed=42,
+        )
 
-    def test_custom_config(self):
-        """测试自定义配置"""
-        config = SAConfig(
-            initial_temp=200.0,
-            final_temp=0.001,
-            cooling_rate=0.95,
+        initial_sol = [10.0, 10.0]
+
+        def neighbor_gen(sol):
+            return [sol[0] + random.gauss(0, 1), sol[1] + random.gauss(0, 1)]
+
+        result = sa.optimize(
+            objective=sphere,
+            initial_solution=initial_sol,
+            neighbor_generator=neighbor_gen,
             max_iterations=500,
-            cooling_schedule=CoolingSchedule.LINEAR
         )
-        assert config.initial_temp == 200.0
-        assert config.final_temp == 0.001
-        assert config.cooling_rate == 0.95
-        assert config.max_iterations == 500
-        assert config.cooling_schedule == CoolingSchedule.LINEAR
 
+        assert result.best_energy < 1.0, f"最优能量 {result.best_energy} 应该小于 1.0"
+        assert result.iteration_count > 0
+        assert result.runtime > 0
+        assert len(result.energy_history) > 0
+        assert len(result.temperature_history) > 0
 
-class TestCoolingSchedule:
-    """测试冷却策略"""
-
-    def setup_method(self):
-        """设置测试环境"""
-        self.config = SAConfig(initial_temp=100.0, final_temp=0.01, cooling_rate=0.99)
-
-        def objective(x):
-            return x ** 2
-
-        def neighbor(x):
-            return x + np.random.randn()
-
-        self.optimizer = SimulatedAnnealing(
-            self.config, objective, neighbor, 10.0
+    def test_result_summary(self):
+        """测试结果摘要输出"""
+        sa = SimulatedAnnealing(seed=42)
+        result = SAResult(
+            best_solution=[1.0, 2.0],
+            best_energy=5.0,
+            iteration_count=100,
+            runtime=1.5,
         )
+        summary = result.summary()
+        assert "最优能量值" in summary
+        assert "100" in summary
+        assert "1.5" in summary
+
+    def test_optimization_finds_minimum(self):
+        """测试优化是否找到最小值"""
+        sa = SimulatedAnnealing(
+            initial_temp=500.0,
+            min_temp=1e-10,
+            cooling_rate=0.995,
+            iterations_per_temp=100,
+            seed=42,
+        )
+
+        initial_sol = [5.0]
+        result = sa.optimize(
+            objective=objective_1d,
+            initial_solution=initial_sol,
+            neighbor_generator=lambda sol: [sol[0] + random.gauss(0, 0.5)],
+            max_iterations=1000,
+        )
+
+        assert abs(result.best_solution[0] - 3.0) < 0.5, \
+            f"最优解 {result.best_solution[0]} 应该接近 3.0"
+
+
+# ============================================================
+# 温度调度测试
+# ============================================================
+
+class TestTemperatureSchedulers:
+    """温度调度器测试"""
+
+    def test_exponential_scheduler(self):
+        """测试指数冷却调度器"""
+        scheduler = ExponentialScheduler(rate=0.9)
+        temp = 1000.0
+
+        for _ in range(10):
+            temp = scheduler.next_temperature(temp)
+
+        assert temp < 1000.0, "温度应该下降"
+        assert temp > 0, "温度应该大于 0"
+        assert abs(scheduler.get_rate() - 0.9) < 1e-10
+
+    def test_exponential_scheduler_invalid_rate(self):
+        """测试无效冷却率"""
+        with pytest.raises(ValueError):
+            ExponentialScheduler(rate=1.5)
+        with pytest.raises(ValueError):
+            ExponentialScheduler(rate=0.0)
+
+    def test_linear_scheduler(self):
+        """测试线性冷却调度器"""
+        scheduler = LinearScheduler(delta=10.0)
+        temp = 1000.0
+
+        for _ in range(50):
+            temp = scheduler.next_temperature(temp)
+
+        assert temp == 0.0, "线性冷却应该达到 0"
+
+    def test_linear_scheduler_negative_delta(self):
+        """测试负降温步长"""
+        with pytest.raises(ValueError):
+            LinearScheduler(delta=-1.0)
+
+    def test_logarithmic_scheduler(self):
+        """测试对数冷却调度器"""
+        scheduler = LogarithmicScheduler(initial_temp=1000.0)
+        temp = scheduler.next_temperature(1000.0)
+        assert temp > 0
+
+        temp = scheduler.next_temperature(temp)
+        assert temp < 1000.0, "温度应该下降"
+
+    def test_adaptive_scheduler(self):
+        """测试自适应调度器"""
+        scheduler = AdaptiveScheduler(
+            initial_rate=0.95,
+            target_acceptance=0.44,
+            adjustment_factor=0.01,
+        )
+
+        initial_rate = scheduler.get_rate()
+        # 模拟高接受率
+        for _ in range(50):
+            scheduler.update(0.8)
+        new_rate = scheduler.get_rate()
+        assert new_rate >= initial_rate, "高接受率应该增加冷却速率"
+
+    def test_adaptive_scheduler_reset(self):
+        """测试自适应调度器重置"""
+        scheduler = AdaptiveScheduler()
+        scheduler.update(0.8)
+        scheduler.reset()
+        assert abs(scheduler.get_rate() - scheduler.initial_rate) < 1e-10
+
+
+# ============================================================
+# 接受准则测试
+# ============================================================
+
+class TestAcceptanceCriterion:
+    """接受准则测试"""
+
+    def test_metropolis_better_solution(self):
+        """测试 Metropolis 准则：更好的解应该被接受"""
+        random.seed(42)
+        for _ in range(100):
+            assert metropolis_criterion(delta_e=-1.0, temperature=100.0) is True
+
+    def test_metropolis_worse_solution(self):
+        """测试 Metropolis 准则：差解以概率接受"""
+        random.seed(42)
+        # 高温时差解也应该被接受
+        probs = []
+        for _ in range(1000):
+            probs.append(metropolis_criterion(delta_e=10.0, temperature=1000.0))
+        acceptance_rate = sum(probs) / len(probs)
+        assert acceptance_rate > 0.01, "高温时应该有显著的接受率"
+
+    def test_metropolis_zero_temperature(self):
+        """测试零温度：差解不应该被接受"""
+        random.seed(42)
+        for _ in range(100):
+            assert metropolis_criterion(delta_e=1.0, temperature=0.0) is False
+
+    def test_boltzmann_acceptance_probability(self):
+        """测试 Boltzmann 接受概率"""
+        # ΔE < 0 时概率为 1
+        assert boltzmann_acceptance(-1.0, 100.0) == 1.0
+
+        # ΔE > 0 时概率在 (0, 1) 之间
+        prob = boltzmann_acceptance(1.0, 100.0)
+        assert 0.0 < prob < 1.0
+
+    def test_boltzmann_zero_temperature(self):
+        """测试 Boltzmann 零温度"""
+        assert boltzmann_acceptance(1.0, 0.0) == 0.0
+
+
+# ============================================================
+# 邻域生成测试
+# ============================================================
+
+class TestNeighborhoodGeneration:
+    """邻域生成测试"""
+
+    def test_swap_neighbor(self):
+        """测试交换邻域"""
+        sol = [1, 2, 3, 4, 5]
+        new_sol = swap_neighbor(sol)
+        assert len(new_sol) == len(sol)
+        assert new_sol != sol
+        assert sorted(new_sol) == sorted(sol)
+
+    def test_insert_neighbor(self):
+        """测试插入邻域"""
+        sol = [1, 2, 3, 4, 5]
+        new_sol = insert_neighbor(sol)
+        assert len(new_sol) == len(sol)
+        assert new_sol != sol
+        assert sorted(new_sol) == sorted(sol)
+
+    def test_reverse_neighbor(self):
+        """测试反转邻域"""
+        sol = [1, 2, 3, 4, 5]
+        new_sol = reverse_neighbor(sol)
+        assert len(new_sol) == len(sol)
+        assert new_sol != sol
+        assert sorted(new_sol) == sorted(sol)
+
+    def test_multi_switch_neighbor(self):
+        """测试多交换邻域"""
+        sol = [1, 2, 3, 4, 5]
+        new_sol = multi_switch_neighbor(sol, num_switches=3)
+        assert len(new_sol) == len(sol)
+        assert sorted(new_sol) == sorted(sol)
+
+    def test_continuous_neighbor_scalar(self):
+        """测试连续邻域（标量）"""
+        sol = 5.0
+        new_sol = continuous_neighbor(sol, magnitude=0.1)
+        assert isinstance(new_sol, float)
+        assert new_sol != sol
+
+    def test_continuous_neighbor_list(self):
+        """测试连续邻域（列表）"""
+        sol = [1.0, 2.0, 3.0]
+        new_sol = continuous_neighbor(sol, magnitude=0.1)
+        assert len(new_sol) == len(sol)
+        assert new_sol != sol
+
+    def test_neighborhood_generator_auto(self):
+        """测试自动邻域生成"""
+        from src.neighborhood import neighborhood_generator
+
+        # 列表自动选择 swap
+        sol = [1, 2, 3, 4, 5]
+        new_sol = neighborhood_generator(sol, strategy="auto")
+        assert len(new_sol) == len(sol)
+
+        # 标量自动选择 continuous
+        sol = 5.0
+        new_sol = neighborhood_generator(sol, strategy="auto")
+        assert isinstance(new_sol, float)
+
+    def test_neighborhood_generator_invalid(self):
+        """测试无效策略"""
+        from src.neighborhood import neighborhood_generator
+        with pytest.raises(ValueError):
+            neighborhood_generator([1, 2, 3], strategy="invalid")
+
+
+# ============================================================
+# 冷却方案测试
+# ============================================================
+
+class TestCoolingSchedules:
+    """冷却方案测试"""
 
     def test_exponential_cooling(self):
         """测试指数冷却"""
-        self.optimizer.config.cooling_schedule = CoolingSchedule.EXPONENTIAL
-        self.optimizer.iteration = 100
-        temp = self.optimizer.cooling_exponential()
-        expected = 100.0 * (0.99 ** 100)
-        assert abs(temp - expected) < 1e-10
+        schedule = ExponentialCooling(alpha=0.9)
+        temp = schedule.compute_temperature(1000.0, 0)
+        assert temp == 1000.0
+
+        temp = schedule.compute_temperature(1000.0, 10)
+        assert temp < 1000.0
+        assert abs(temp - 1000.0 * (0.9 ** 10)) < 1e-10
+
+    def test_exponential_cooling_invalid_alpha(self):
+        """测试无效 alpha"""
+        with pytest.raises(ValueError):
+            ExponentialCooling(alpha=1.5)
 
     def test_linear_cooling(self):
         """测试线性冷却"""
-        self.optimizer.config.cooling_schedule = CoolingSchedule.LINEAR
-        self.optimizer.iteration = 500
-        self.optimizer.config.max_iterations = 1000
-        temp = self.optimizer.cooling_linear()
-        expected = 100.0 - (100.0 - 0.01) * 500 / 1000
-        assert abs(temp - expected) < 1e-10
+        schedule = LinearCooling()
+        temp = schedule.compute_temperature(1000.0, 0, 100)
+        assert temp == 1000.0
 
-    def test_logarithmic_cooling(self):
-        """测试对数冷却"""
-        self.optimizer.config.cooling_schedule = CoolingSchedule.LOGARITHMIC
-        self.optimizer.iteration = 100
-        temp = self.optimizer.cooling_logarithmic()
-        expected = 100.0 / (1 + 0.99 * np.log(1 + 100))
-        assert abs(temp - expected) < 1e-10
+        temp = schedule.compute_temperature(1000.0, 50, 100)
+        assert abs(temp - 500.0) < 1e-10
+
+        temp = schedule.compute_temperature(1000.0, 100, 100)
+        assert temp < 1e-9
+
+    def test_adaptive_cooling_update(self):
+        """测试自适应冷却更新"""
+        schedule = AdaptiveCooling()
+        alpha = schedule.update(improved=False)
+        assert alpha >= schedule.base_alpha - 0.001
+
+    def test_adaptive_cooling_reset(self):
+        """测试自适应冷却重置"""
+        schedule = AdaptiveCooling()
+        for _ in range(20):
+            schedule.update(improved=False)
+        schedule.reset()
+        assert schedule._current_alpha == schedule.base_alpha
+
+    def test_create_cooling_schedule(self):
+        """测试工厂函数"""
+        s1 = create_cooling_schedule("exponential", alpha=0.95)
+        assert isinstance(s1, ExponentialCooling)
+
+        s2 = create_cooling_schedule("linear")
+        assert isinstance(s2, LinearCooling)
+
+        s3 = create_cooling_schedule("adaptive")
+        assert isinstance(s3, AdaptiveCooling)
+
+    def test_create_cooling_schedule_invalid(self):
+        """测试无效方案类型"""
+        with pytest.raises(ValueError):
+            create_cooling_schedule("invalid")
 
 
-class TestMetropolis:
-    """测试Metropolis接受准则"""
+# ============================================================
+# 收敛检测测试
+# ============================================================
 
-    def setup_method(self):
-        """设置测试环境"""
-        self.config = SAConfig(initial_temp=100.0, final_temp=0.01, cooling_rate=0.99)
+class TestConvergenceDetection:
+    """收敛检测测试"""
 
-        def objective(x):
-            return x ** 2
-
-        def neighbor(x):
-            return x + np.random.randn()
-
-        self.optimizer = SimulatedAnnealing(
-            self.config, objective, neighbor, 10.0
+    def test_energy_convergence(self):
+        """测试能量收敛检测"""
+        detector = ConvergenceDetector(
+            energy_threshold=1e-6,
+            window_size=20,
+            min_iterations=25,
         )
 
-    def test_accept_better_solution(self):
-        """测试总是接受更优解"""
-        prob = self.optimizer.calculate_acceptance_probability(-10.0, 100.0)
-        assert prob == 1.0
-
-    def test_accept_worse_solution_with_probability(self):
-        """测试以概率接受较差解"""
-        np.random.seed(42)
-        prob = self.optimizer.calculate_acceptance_probability(10.0, 100.0)
-        assert 0 < prob < 1
-        assert abs(prob - np.exp(-10.0 / 100.0)) < 1e-10
-
-    def test_reject_worse_solution_at_low_temp(self):
-        """测试低温时拒绝较差解的概率很高"""
-        prob = self.optimizer.calculate_acceptance_probability(10.0, 0.01)
-        assert prob < 0.001  # 概率应该非常小
-
-    def test_zero_delta_cost(self):
-        """测试成本差为零时总是接受"""
-        prob = self.optimizer.calculate_acceptance_probability(0.0, 100.0)
-        assert prob == 1.0
-
-
-# ============================================================
-# 邻域操作测试
-# ============================================================
-
-class TestNeighborhoodOps:
-    """测试邻域操作"""
-
-    def setup_method(self):
-        self.solution = list(range(10))
-        self.ops = NeighborhoodOps()
-
-    def test_swap_preserves_elements(self):
-        """测试交换操作保持元素完整"""
-        new_sol = self.ops.swap(self.solution)
-        assert sorted(new_sol) == sorted(self.solution)
-        assert len(new_sol) == len(self.solution)
-
-    def test_swap_changes_position(self):
-        """测试交换操作改变位置"""
-        np.random.seed(42)
-        new_sol = self.ops.swap(self.solution)
-        # 大多数情况下应该改变
-        assert new_sol != self.solution or True  # 随机性，不做严格断言
-
-    def test_reverse_preserves_elements(self):
-        """测试逆序操作保持元素完整"""
-        new_sol = self.ops.reverse(self.solution)
-        assert sorted(new_sol) == sorted(self.solution)
-        assert len(new_sol) == len(self.solution)
-
-    def test_insert_preserves_elements(self):
-        """测试插入操作保持元素完整"""
-        new_sol = self.ops.insert(self.solution)
-        assert sorted(new_sol) == sorted(self.solution)
-        assert len(new_sol) == len(self.solution)
-
-    def test_or_opt_preserves_elements(self):
-        """测试Or-opt操作保持元素完整"""
-        new_sol = self.ops.or_opt(self.solution)
-        assert sorted(new_sol) == sorted(self.solution)
-        assert len(new_sol) == len(self.solution)
-
-    def test_two_opt_swap_preserves_elements(self):
-        """测试2-opt交换保持元素完整"""
-        new_sol = self.ops.two_opt_swap(self.solution)
-        assert sorted(new_sol) == sorted(self.solution)
-        assert len(new_sol) == len(self.solution)
-
-    def test_mixed_neighbor_preserves_elements(self):
-        """测试混合邻域保持元素完整"""
-        mixed = self.ops.create_mixed_neighbor()
-        for _ in range(100):
-            new_sol = mixed(self.solution)
-            assert sorted(new_sol) == sorted(self.solution)
-            assert len(new_sol) == len(self.solution)
-
-    def test_mixed_neighbor_with_custom_weights(self):
-        """测试自定义权重的混合邻域"""
-        ops_list = [self.ops.swap, self.ops.reverse]
-        weights = [0.7, 0.3]
-        mixed = self.ops.create_mixed_neighbor(ops_list, weights)
-        new_sol = mixed(self.solution)
-        assert sorted(new_sol) == sorted(self.solution)
-
-
-# ============================================================
-# TSP测试
-# ============================================================
-
-class TestTSP:
-    """测试TSP问题"""
-
-    def setup_method(self):
-        """设置测试环境"""
-        self.cities = [
-            City(0, 0, "A"),
-            City(10, 0, "B"),
-            City(10, 10, "C"),
-            City(0, 10, "D"),
-        ]
-        self.tsp = TSP(self.cities)
-
-    def test_distance_calculation(self):
-        """测试距离计算"""
-        dist = self.tsp._calculate_distance(self.cities[0], self.cities[1])
-        assert abs(dist - 10.0) < 1e-10
-
-    def test_total_distance(self):
-        """测试总距离计算"""
-        path = [0, 1, 2, 3]
-        total = self.tsp.calculate_total_distance(path)
-        expected = 10.0 + 10.0 + 10.0 + 10.0  # 矩形周长
-        assert abs(total - expected) < 1e-10
-
-    def test_random_neighbor(self):
-        """测试邻域操作"""
-        np.random.seed(42)
-        path = [0, 1, 2, 3]
-        new_path = self.tsp.random_neighbor(path)
-        assert len(new_path) == len(path)
-        assert set(new_path) == set(path)  # 包含相同的元素
-
-    def test_random_solution(self):
-        """测试随机解生成"""
-        np.random.seed(42)
-        solution = self.tsp.generate_random_solution()
-        assert len(solution) == self.tsp.n_cities
-        assert set(solution) == set(range(self.tsp.n_cities))
-
-    def test_random_instance(self):
-        """测试随机实例创建"""
-        np.random.seed(42)
-        tsp = TSP.create_random_instance(5, seed=42)
-        assert tsp.n_cities == 5
-        assert len(tsp.cities) == 5
-
-    def test_or_opt_neighbor(self):
-        """测试Or-opt邻域操作"""
-        np.random.seed(42)
-        path = [0, 1, 2, 3, 4]
-        new_path = self.tsp.or_opt_neighbor(path)
-        # or_opt_neighbor需要至少5个城市才能正常工作
-        assert len(new_path) == len(path)
-        assert set(new_path) == set(path)
-
-    def test_distance_matrix_symmetry(self):
-        """测试距离矩阵对称性"""
-        n = self.tsp.n_cities
-        for i in range(n):
-            for j in range(n):
-                assert abs(self.tsp.distance_matrix[i][j] - self.tsp.distance_matrix[j][i]) < 1e-10
-
-    def test_distance_matrix_diagonal(self):
-        """测试距离矩阵对角线为0"""
-        n = self.tsp.n_cities
-        for i in range(n):
-            assert abs(self.tsp.distance_matrix[i][i]) < 1e-10
-
-
-# ============================================================
-# 函数优化测试
-# ============================================================
-
-class TestTestFunctions:
-    """测试测试函数"""
-
-    def test_sphere_at_origin(self):
-        """测试Sphere函数在原点为0"""
-        x = np.zeros(2)
-        assert abs(TestFunctions.sphere(x)) < 1e-10
-
-    def test_rastrigin_at_origin(self):
-        """测试Rastrigin函数在原点为0"""
-        x = np.zeros(2)
-        assert abs(TestFunctions.rastrigin(x)) < 1e-10
-
-    def test_ackley_at_origin(self):
-        """测试Ackley函数在原点为0"""
-        x = np.zeros(2)
-        assert abs(TestFunctions.ackley(x)) < 1e-10
-
-    def test_griewank_at_origin(self):
-        """测试Griewank函数在原点为0"""
-        x = np.zeros(2)
-        assert abs(TestFunctions.griewank(x)) < 1e-10
-
-    def test_rosenbrock_at_optimum(self):
-        """测试Rosenbrock函数在最优解为0"""
-        x = np.ones(2)
-        assert abs(TestFunctions.rosenbrock(x)) < 1e-10
-
-    def test_levy_at_optimum(self):
-        """测试Levy函数在最优解为0"""
-        x = np.ones(2)
-        assert abs(TestFunctions.levy(x)) < 1e-10
-
-    def test_sphere_positive(self):
-        """测试Sphere函数非负"""
-        x = np.array([1.0, 2.0])
-        assert TestFunctions.sphere(x) >= 0
-
-    def test_rastrigin_positive(self):
-        """测试Rastrigin函数在某些点为正"""
-        x = np.array([1.0, 1.0])
-        assert TestFunctions.rastrigin(x) > 0
-
-
-class TestContinuousNeighbor:
-    """测试连续空间邻域生成器"""
-
-    def test_within_bounds(self):
-        """测试生成的解在边界内"""
-        np.random.seed(42)
-        neighbor = ContinuousNeighbor(bounds=(-5.0, 5.0), dim=2, step_size=0.5)
-        x = np.array([0.0, 0.0])
-
-        for _ in range(100):
-            new_x = neighbor(x)
-            assert np.all(new_x >= -5.0)
-            assert np.all(new_x <= 5.0)
-
-    def test_different_from_original(self):
-        """测试生成的解与原解不同"""
-        np.random.seed(42)
-        neighbor = ContinuousNeighbor(bounds=(-5.0, 5.0), dim=2, step_size=1.0)
-        x = np.array([0.0, 0.0])
-
-        different_count = 0
-        for _ in range(100):
-            new_x = neighbor(x)
-            if not np.array_equal(new_x, x):
-                different_count += 1
-
-        assert different_count > 90  # 应该大多数不同
-
-    def test_adaptive_step_size(self):
-        """测试自适应步长调整"""
-        np.random.seed(42)
-        # 使用较小的初始步长，使得增大后不会被裁剪
-        neighbor = ContinuousNeighbor(
-            bounds=(-50.0, 50.0), dim=2, step_size=0.5, adaptive=True
-        )
-        initial_step = neighbor.step_size
-
-        # 模拟高接受率（100次后触发调整，再100次再次调整）
-        for _ in range(200):
-            neighbor.update_step_size(True)
-
-        # 步长应该增大（经过2轮调整: 0.5 * 1.2 * 1.2 = 0.72）
-        assert neighbor.step_size > initial_step
-
-    def test_adaptive_step_size_decrease(self):
-        """测试自适应步长在低接受率时减小"""
-        np.random.seed(42)
-        neighbor = ContinuousNeighbor(
-            bounds=(-5.0, 5.0), dim=2, step_size=1.0, adaptive=True
-        )
-        initial_step = neighbor.step_size
-
-        # 模拟低接受率（约16.7%接受率，小于20%阈值）
-        for i in range(200):
-            neighbor.update_step_size(i % 6 == 0)
-
-        # 步长应该减小（经过2轮调整: 1.0 * 0.8 * 0.8 = 0.64）
-        assert neighbor.step_size < initial_step
-
-
-class TestGetFunctionSpecs:
-    """测试函数规格获取"""
-
-    def test_returns_all_functions(self):
-        """测试返回所有函数"""
-        specs = get_function_specs(2)
-        expected = ['rastrigin', 'rosenbrock', 'ackley', 'griewank', 'sphere', 'levy']
-        assert set(specs.keys()) == set(expected)
-
-    def test_function_spec_attributes(self):
-        """测试函数规格属性"""
-        specs = get_function_specs(2)
-        for name, spec in specs.items():
-            assert spec.name is not None
-            assert spec.func is not None
-            assert spec.dim == 2
-            assert spec.bounds is not None
-            assert spec.global_minimum is not None
-
-
-# ============================================================
-# 调度问题测试
-# ============================================================
-
-class TestJobShopScheduling:
-    """测试作业车间调度"""
-
-    def setup_method(self):
-        np.random.seed(42)
-        self.jsp = JobShopScheduling.create_random_instance(5, 3, seed=42)
-
-    def test_random_instance_creation(self):
-        """测试随机实例创建"""
-        assert self.jsp.n_jobs == 5
-        assert self.jsp.n_machines == 3
-        assert len(self.jsp.jobs) == 5
-
-    def test_evaluate_returns_positive(self):
-        """测试评估返回正值"""
-        solution = self.jsp.generate_random_solution()
-        makespan = self.jsp.evaluate(solution)
-        assert makespan > 0
-
-    def test_generate_random_solution(self):
-        """测试生成随机解"""
-        solution = self.jsp.generate_random_solution()
-        assert len(solution) == self.jsp.n_jobs
-        assert set(solution) == set(range(self.jsp.n_jobs))
-
-    def test_neighbor_swap_preserves_elements(self):
-        """测试交换邻域保持元素完整"""
-        solution = self.jsp.generate_random_solution()
-        new_solution = self.jsp.neighbor_swap(solution)
-        assert sorted(new_solution) == sorted(solution)
-
-    def test_neighbor_insert_preserves_elements(self):
-        """测试插入邻域保持元素完整"""
-        solution = self.jsp.generate_random_solution()
-        new_solution = self.jsp.neighbor_insert(solution)
-        assert sorted(new_solution) == sorted(solution)
-
-    def test_neighbor_reverse_preserves_elements(self):
-        """测试逆序邻域保持元素完整"""
-        solution = self.jsp.generate_random_solution()
-        new_solution = self.jsp.neighbor_reverse(solution)
-        assert sorted(new_solution) == sorted(solution)
-
-    def test_sa_optimization_improves(self):
-        """测试SA优化能够改善解"""
-        np.random.seed(42)
-        initial_solution = self.jsp.generate_random_solution()
-        initial_makespan = self.jsp.evaluate(initial_solution)
-
-        config = SAConfig(
-            initial_temp=100.0,
-            final_temp=0.01,
-            cooling_rate=0.995,
-            max_iterations=2000,
-            cooling_schedule=CoolingSchedule.EXPONENTIAL
+        # 模拟能量收敛
+        for i in range(30):
+            converged = detector.update(
+                current_energy=0.0001 if i > 10 else i * 0.1,
+                acceptance_rate=0.5 if i < 10 else 0.001,
+                improved=i < 10,
+                iteration=i,
+            )
+
+        # 应该检测到收敛
+        assert detector.is_converged or detector.convergence_iteration is not None
+
+    def test_acceptance_convergence(self):
+        """测试接受率收敛检测"""
+        detector = ConvergenceDetector(
+            acceptance_threshold=0.01,
+            window_size=20,
+            min_iterations=25,
         )
 
-        optimizer = SimulatedAnnealing(
-            config,
-            self.jsp.evaluate,
-            self.jsp.neighbor_swap,
-            initial_solution
+        for i in range(30):
+            converged = detector.update(
+                current_energy=i * 0.1,
+                acceptance_rate=0.5 if i < 10 else 0.001,
+                improved=i < 10,
+                iteration=i,
+            )
+
+        assert detector.is_converged or detector.convergence_iteration is not None
+
+    def test_no_improve_convergence(self):
+        """测试连续未改进检测"""
+        detector = ConvergenceDetector(
+            no_improve_threshold=10,
+            min_iterations=5,
         )
 
-        best_solution, best_makespan, _ = optimizer.optimize()
-        assert best_makespan <= initial_makespan
+        for i in range(15):
+            detector.update(
+                current_energy=i * 0.1,
+                acceptance_rate=0.5,
+                improved=False,
+                iteration=i,
+            )
+
+        assert detector.is_converged or detector.convergence_iteration is not None
+
+    def test_early_stop_detector(self):
+        """测试早停检测器"""
+        detector = EarlyStopDetector(patience=5, min_iterations=3)
+
+        # 前 3 次不应该停止
+        for i in range(3):
+            assert not detector.update(current_energy=i * 0.1, iteration=i)
+
+        # 连续 5 次未改进应该停止
+        for i in range(5, 10):
+            should_stop = detector.update(current_energy=i * 0.1, iteration=i)
+            if i >= 9:
+                assert should_stop
+
+    def test_convergence_detector_reset(self):
+        """测试收敛检测器重置"""
+        detector = ConvergenceDetector()
+        detector.update(current_energy=0.1, acceptance_rate=0.5, improved=True, iteration=10)
+        detector.reset()
+        assert not detector.is_converged
+        assert detector.convergence_iteration is None
 
 
-class TestFlowShopScheduling:
-    """测试流水车间调度"""
+# ============================================================
+# 重启机制测试
+# ============================================================
 
-    def setup_method(self):
-        np.random.seed(42)
-        self.fsp = FlowShopScheduling.create_random_instance(6, 4, seed=42)
+class TestRestartMechanism:
+    """重启机制测试"""
 
-    def test_random_instance_creation(self):
-        """测试随机实例创建"""
-        assert self.fsp.n_jobs == 6
-        assert self.fsp.n_machines == 4
-        assert self.fsp.process_times.shape == (6, 4)
+    def test_restart_trigger(self):
+        """测试重启触发"""
+        manager = RestartManager(max_restarts=5, restart_threshold=10)
 
-    def test_evaluate_returns_positive(self):
-        """测试评估返回正值"""
-        solution = self.fsp.generate_random_solution()
-        makespan = self.fsp.evaluate(solution)
-        assert makespan > 0
+        # 连续未改进触发重启
+        for i in range(15):
+            should_restart = manager.check_restart(
+                current_energy=100.0,
+                best_energy=50.0,
+                iteration=i,
+            )
+            if i >= 10:
+                assert should_restart is True
 
-    def test_generate_random_solution(self):
-        """测试生成随机解"""
-        solution = self.fsp.generate_random_solution()
-        assert len(solution) == self.fsp.n_jobs
-        assert set(solution) == set(range(self.fsp.n_jobs))
+    def test_restart_limit(self):
+        """测试重启次数限制"""
+        manager = RestartManager(max_restarts=2, restart_threshold=1)
 
-    def test_neighbor_operations_preserve_elements(self):
-        """测试邻域操作保持元素完整"""
-        solution = self.fsp.generate_random_solution()
+        for _ in range(5):
+            manager.check_restart(current_energy=100.0, best_energy=50.0, iteration=0)
+            manager.trigger_restart()
 
-        new_sol = self.fsp.neighbor_swap(solution)
-        assert sorted(new_sol) == sorted(solution)
+        assert manager.restart_count == 2
 
-        new_sol = self.fsp.neighbor_insert(solution)
-        assert sorted(new_sol) == sorted(solution)
+    def test_restart_manager_record(self):
+        """测试结果记录"""
+        manager = RestartManager()
+        manager.record_result([1.0, 2.0], 5.0)
+        assert len(manager._history) == 1
 
-        new_sol = self.fsp.neighbor_reverse(solution)
-        assert sorted(new_sol) == sorted(solution)
+    def test_diversification_restart(self):
+        """测试多样化重启"""
+        restart = DiversificationRestart()
+        history = [([1.0, 2.0], 5.0), ([3.0, 4.0], 3.0)]
+        new_sol = restart.generate_restart_point(history, [0.0, 0.0], 0.0)
+        assert new_sol is not None
 
-
-class TestSingleMachineScheduling:
-    """测试单机调度"""
-
-    def setup_method(self):
-        np.random.seed(42)
-        self.sms = SingleMachineScheduling.create_random_instance(8, seed=42)
-
-    def test_random_instance_creation(self):
-        """测试随机实例创建"""
-        assert self.sms.n_jobs == 8
-        assert len(self.sms.process_times) == 8
-        assert len(self.sms.due_dates) == 8
-        assert len(self.sms.weights) == 8
-
-    def test_evaluate_returns_non_negative(self):
-        """测试评估返回非负值"""
-        solution = self.sms.generate_random_solution()
-        tardiness = self.sms.evaluate(solution)
-        assert tardiness >= 0
-
-    def test_generate_random_solution(self):
-        """测试生成随机解"""
-        solution = self.sms.generate_random_solution()
-        assert len(solution) == self.sms.n_jobs
-        assert set(solution) == set(range(self.sms.n_jobs))
-
-    def test_neighbor_operations_preserve_elements(self):
-        """测试邻域操作保持元素完整"""
-        solution = self.sms.generate_random_solution()
-
-        new_sol = self.sms.neighbor_swap(solution)
-        assert sorted(new_sol) == sorted(solution)
-
-        new_sol = self.sms.neighbor_insert(solution)
-        assert sorted(new_sol) == sorted(solution)
-
-    def test_sa_optimization_improves(self):
-        """测试SA优化能够改善解"""
-        np.random.seed(42)
-        initial_solution = self.sms.generate_random_solution()
-        initial_tardiness = self.sms.evaluate(initial_solution)
-
-        config = SAConfig(
-            initial_temp=100.0,
-            final_temp=0.01,
-            cooling_rate=0.995,
-            max_iterations=2000,
-            cooling_schedule=CoolingSchedule.EXPONENTIAL
-        )
-
-        optimizer = SimulatedAnnealing(
-            config,
-            self.sms.evaluate,
-            self.sms.neighbor_swap,
-            initial_solution
-        )
-
-        best_solution, best_tardiness, _ = optimizer.optimize()
-        assert best_tardiness <= initial_tardiness
+    def test_restart_manager_reset(self):
+        """测试重启管理器重置"""
+        manager = RestartManager()
+        manager.trigger_restart()
+        manager.record_result([1.0], 1.0)
+        manager.reset()
+        assert manager.restart_count == 0
+        assert len(manager._history) == 0
 
 
 # ============================================================
 # 集成测试
 # ============================================================
 
-class TestSimulatedAnnealing:
-    """测试模拟退火优化器"""
+class TestIntegration:
+    """集成测试"""
 
-    def test_optimize_simple_function(self):
-        """测试优化简单函数"""
-        np.random.seed(42)
+    def test_full_sa_workflow(self):
+        """测试完整的 SA 工作流"""
+        random.seed(42)
 
-        config = SAConfig(
-            initial_temp=100.0,
-            final_temp=0.01,
-            cooling_rate=0.99,
-            max_iterations=500,
-            cooling_schedule=CoolingSchedule.EXPONENTIAL
-        )
-
-        def objective(x):
-            return x ** 2
-
-        def neighbor(x):
-            return x + np.random.randn() * 2
-
-        initial_solution = np.random.randn() * 10
-        optimizer = SimulatedAnnealing(config, objective, neighbor, initial_solution)
-        best_solution, best_cost, history = optimizer.optimize()
-
-        # 检查结果
-        assert best_cost >= 0
-        assert abs(best_solution) < abs(initial_solution)  # 应该更接近0
-        assert len(history['temperature']) == optimizer.iteration
-
-    def test_tsp_optimization(self):
-        """测试TSP优化"""
-        np.random.seed(42)
-
-        # 创建小型TSP实例
-        tsp = TSP.create_random_instance(10, seed=42)
-        initial_solution = tsp.generate_random_solution()
-        initial_distance = tsp.calculate_total_distance(initial_solution)
-
-        config = SAConfig(
+        sa = SimulatedAnnealing(
             initial_temp=1000.0,
-            final_temp=0.1,
-            cooling_rate=0.995,
-            max_iterations=2000,
-            cooling_schedule=CoolingSchedule.EXPONENTIAL
+            min_temp=1e-10,
+            cooling_rate=0.99,
+            iterations_per_temp=50,
+            seed=42,
         )
 
-        optimizer = SimulatedAnnealing(
-            config,
-            tsp.calculate_total_distance,
-            tsp.random_neighbor,
-            initial_solution
-        )
-
-        best_solution, best_distance, history = optimizer.optimize()
-
-        # 检查结果
-        assert best_distance <= initial_distance
-        assert len(best_solution) == tsp.n_cities
-        assert set(best_solution) == set(range(tsp.n_cities))
-
-    def test_function_optimization_integration(self):
-        """测试函数优化集成"""
-        np.random.seed(42)
-
-        config = SAConfig(
-            initial_temp=100.0,
-            final_temp=0.001,
-            cooling_rate=0.995,
-            max_iterations=3000,
-            cooling_schedule=CoolingSchedule.EXPONENTIAL
-        )
-
-        # 使用Sphere函数
-        neighbor = ContinuousNeighbor(bounds=(-5.0, 5.0), dim=2, step_size=0.5)
-        initial_solution = np.random.uniform(-5, 5, 2)
-
-        optimizer = SimulatedAnnealing(
-            config,
-            TestFunctions.sphere,
-            neighbor,
-            initial_solution
-        )
-
-        best_solution, best_cost, _ = optimizer.optimize()
-
-        # Sphere函数最优值为0
-        assert best_cost >= 0
-        assert best_cost < initial_solution.dot(initial_solution)  # 应该比初始解好
-
-    def test_scheduling_optimization_integration(self):
-        """测试调度优化集成"""
-        np.random.seed(42)
-
-        jsp = JobShopScheduling.create_random_instance(4, 3, seed=42)
-        initial_solution = jsp.generate_random_solution()
-        initial_makespan = jsp.evaluate(initial_solution)
-
-        config = SAConfig(
-            initial_temp=100.0,
-            final_temp=0.01,
-            cooling_rate=0.995,
+        initial_sol = [5.0, 5.0]
+        result = sa.optimize(
+            objective=sphere,
+            initial_solution=initial_sol,
+            neighbor_generator=lambda sol: [
+                sol[0] + random.gauss(0, 1),
+                sol[1] + random.gauss(0, 1),
+            ],
             max_iterations=1000,
-            cooling_schedule=CoolingSchedule.EXPONENTIAL
         )
 
-        optimizer = SimulatedAnnealing(
-            config,
-            jsp.evaluate,
-            jsp.neighbor_swap,
-            initial_solution
+        assert result.best_energy < 1.0
+        assert result.iteration_count > 0
+        assert len(result.energy_history) > 0
+        assert len(result.temperature_history) > 0
+        assert len(result.acceptance_history) > 0
+
+    def test_temperature_scheduler_integration(self):
+        """测试温度调度器集成"""
+        scheduler = ExponentialScheduler(rate=0.95)
+        sa = SimulatedAnnealing(
+            initial_temp=1000.0,
+            cooling_rate=0.99,
+            seed=42,
         )
 
-        best_solution, best_makespan, _ = optimizer.optimize()
-        assert best_makespan <= initial_makespan
+        result = sa.optimize(
+            objective=sphere,
+            initial_solution=[5.0, 5.0],
+            neighbor_generator=lambda sol: [
+                sol[0] + random.gauss(0, 0.1),
+                sol[1] + random.gauss(0, 0.1),
+            ],
+            max_iterations=100,
+            temperature_scheduler=scheduler,
+        )
+
+        assert result.best_energy < 10.0
+
+    def test_convergence_integration(self):
+        """测试收敛检测集成"""
+        detector = ConvergenceDetector(
+            energy_threshold=1e-4,
+            min_iterations=10,
+        )
+
+        converged = False
+        for i in range(50):
+            e = 0.001 if i > 20 else i * 0.1
+            converged = detector.update(
+                current_energy=e,
+                acceptance_rate=0.5 if i < 20 else 0.0001,
+                improved=i < 20,
+                iteration=i,
+            )
+            if converged:
+                break
+
+        assert converged
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

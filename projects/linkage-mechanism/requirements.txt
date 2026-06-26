@@ -1,0 +1,7 @@
+# Linkage Mechanism Analysis Learning Project
+# 连杆机构分析学习项目
+
+## Dependencies / 依赖
+
+numpy>=1.21.0
+matplotlib>=3.4.0

@@ -1,27 +1,16 @@
 """
-线性规划库 (Linear Programming Library)
+线性规划求解器 (Linear Programming Solver)
 
-核心模块：
-- linear_program: 线性规划问题表示
-- simplex: 单纯形法（标准、大M法、两阶段法）
-- duality: 对偶理论与对偶单纯形法
-- sensitivity: 敏感性分析
-- applications: 实际应用（生产计划、运输、指派）
+实现单纯形法及其变体，用于求解标准形式的线性规划问题。
+
+问题形式:
+    最小化 c^T * x
+    满足: A * x <= b
+          x >= 0
+
+核心算法:
+    1. 标准形转换 (Standard Form Conversion)
+    2. 两阶段单纯形法 (Two-Phase Simplex Method)
+    3. 大M法 (Big-M Method)
+    4. 对偶问题求解 (Dual Problem Solver)
 """
-
-from .linear_program import LinearProgram
-from .simplex import SimplexSolver
-from .duality import DualSimplexSolver
-from .sensitivity import SensitivityAnalyzer
-from .applications import ProductionPlanner, TransportationSolver, AssignmentSolver
-
-__version__ = "1.0.0"
-__all__ = [
-    "LinearProgram",
-    "SimplexSolver",
-    "DualSimplexSolver",
-    "SensitivityAnalyzer",
-    "ProductionPlanner",
-    "TransportationSolver",
-    "AssignmentSolver",
-]

@@ -1,129 +1,179 @@
-"""
-高斯过程回归测试
-"""
+"""Tests for Gaussian Process regression."""
 
 import numpy as np
 import pytest
 from src.gaussian_process import GaussianProcess
-from src.kernels import RBF, Matern, WhiteNoise
+from src.kernel import RBFKernel, MaternKernel
 
 
 class TestGaussianProcess:
-    """高斯过程测试类"""
+    """Test suite for GP regression."""
 
-    def setup_method(self):
-        """测试前准备"""
-        np.random.seed(42)
+    def test_gp_fit_predict(self):
+        """GP should fit and predict without errors."""
+        gp = GaussianProcess(kernel=RBFKernel())
+        X = np.random.randn(20, 3)
+        y = np.sum(X ** 2, axis=1)
+        gp.fit(X, y)
+        X_test = np.random.randn(5, 3)
+        mu, var = gp.predict(X_test)
+        assert mu.shape == (5,)
+        assert var.shape == (5,)
 
-        # 生成测试数据
-        self.X_train = np.random.uniform(-5, 5, (20, 1))
-        self.y_train = np.sin(self.X_train).ravel() + 0.1 * np.random.randn(20)
+    def test_gp_predict_variance_positive(self):
+        """Predictive variance should be non-negative."""
+        gp = GaussianProcess(kernel=RBFKernel())
+        X = np.random.randn(20, 3)
+        y = np.sum(X ** 2, axis=1)
+        gp.fit(X, y)
+        X_test = np.random.randn(10, 3)
+        mu, var = gp.predict(X_test)
+        assert np.all(var >= 0)
 
-        self.X_test = np.random.uniform(-5, 5, (10, 1))
+    def test_gp_variance_decreases_near_data(self):
+        """Variance should be lower near training points."""
+        gp = GaussianProcess(kernel=RBFKernel(length_scale=1.0))
+        X = np.random.randn(10, 2)
+        y = np.sin(X[:, 0])
+        gp.fit(X, y)
 
-    def test_initialization(self):
-        """测试初始化"""
+        # Points close to training data
+        X_near = X[:3] + np.random.randn(3, 2) * 0.01
+        # Points far from training data
+        X_far = np.random.randn(3, 2) * 10
+
+        _, var_near = gp.predict(X_near)
+        _, var_far = gp.predict(X_far)
+
+        assert np.mean(var_near) < np.mean(var_far), \
+            "Variance should be lower near training points"
+
+    def test_gp_chaining(self):
+        """fit() should return self for chaining."""
         gp = GaussianProcess()
-        assert gp.kernel is not None
-        assert gp.noise_variance == 1e-6
+        X = np.random.randn(10, 2)
+        y = np.random.randn(10)
+        assert gp.fit(X, y) is gp
 
-    def test_fit(self):
-        """测试拟合"""
-        gp = GaussianProcess(kernel=RBF(length_scale=1.0))
-        gp.fit(self.X_train, self.y_train)
+    def test_gp_repr(self):
+        """GP string representation should be informative."""
+        gp = GaussianProcess(kernel=RBFKernel())
+        repr_str = repr(gp)
+        assert "GP" in repr_str
 
-        assert gp.X_train is not None
-        assert gp.y_train is not None
-        assert gp.alpha is not None
-        assert gp.L is not None
-
-    def test_predict_shape(self):
-        """测试预测形状"""
+    def test_gp_repr_after_fit(self):
+        """GP representation should include training count after fit."""
         gp = GaussianProcess()
-        gp.fit(self.X_train, self.y_train)
+        X = np.random.randn(15, 2)
+        y = np.random.randn(15)
+        gp.fit(X, y)
+        repr_str = repr(gp)
+        assert "n_train=15" in repr_str
 
-        y_mean, y_std = gp.predict(self.X_test, return_std=True)
-
-        assert y_mean.shape == (len(self.X_test),)
-        assert y_std.shape == (len(self.X_test),)
-
-    def test_predict_without_fit(self):
-        """测试未拟合时预测"""
+    def test_gp_unfitted_raises(self):
+        """Predict should raise error if GP not fitted."""
         gp = GaussianProcess()
-
+        X_test = np.random.randn(5, 2)
         with pytest.raises(RuntimeError):
-            gp.predict(self.X_test)
+            gp.predict(X_test)
 
-    def test_predict_variance(self):
-        """测试预测方差非负"""
+    def test_gp_log_marginal_likelihood(self):
+        """Log marginal likelihood should be finite."""
         gp = GaussianProcess()
-        gp.fit(self.X_train, self.y_train)
+        X = np.random.randn(10, 2)
+        y = np.random.randn(10)
+        gp.fit(X, y)
+        lml = gp.get_log_marginal_likelihood()
+        assert np.isfinite(lml)
+        assert lml < 0  # Log probability should be negative
 
-        _, y_std = gp.predict(self.X_test, return_std=True)
-
-        assert np.all(y_std >= 0)
-
-    def test_sample_shape(self):
-        """测试采样形状"""
+    def test_gp_update(self):
+        """GP should update with new data points."""
         gp = GaussianProcess()
-        gp.fit(self.X_train, self.y_train)
+        X1 = np.random.randn(5, 2)
+        y1 = np.random.randn(5)
+        gp.fit(X1, y1)
 
-        n_samples = 5
-        samples = gp.sample(self.X_test, n_samples=n_samples)
+        X2 = np.random.randn(3, 2)
+        y2 = np.random.randn(3)
+        gp.update(X2, y2)
 
-        assert samples.shape == (len(self.X_test), n_samples)
+        assert gp.X_train.shape[0] == 8
+        assert gp.y_train.shape[0] == 8
 
-    def test_rbf_kernel(self):
-        """测试 RBF 核"""
-        kernel = RBF(length_scale=1.0, signal_variance=1.0)
-        K = kernel(self.X_train, self.X_train)
+    def test_gp_sample(self):
+        """GP should sample from posterior."""
+        gp = GaussianProcess()
+        X_train = np.random.randn(10, 2)
+        y_train = np.sin(X_train[:, 0])
+        gp.fit(X_train, y_train)
 
-        assert K.shape == (len(self.X_train), len(self.X_train))
-        assert np.allclose(K, K.T)  # 对称性
-        assert np.all(np.diag(K) > 0)  # 正定性
+        X_test = np.linspace(-2, 2, 20).reshape(-1, 1)
+        X_test = np.hstack([X_test, np.zeros((20, 1))])
+        samples = gp.sample(X_test, n_samples=5)
+        assert samples.shape == (5, 20)
 
-    def test_matern_kernel(self):
-        """测试 Matérn 核"""
-        kernel = Matern(length_scale=1.0, signal_variance=1.0, nu=2.5)
-        K = kernel(self.X_train, self.X_train)
+    def test_gp_different_kernels(self):
+        """GP should work with different kernel types."""
+        X = np.random.randn(15, 2)
+        y = np.sin(X[:, 0]) + 0.1 * np.random.randn(15)
 
-        assert K.shape == (len(self.X_train), len(self.X_train))
-        assert np.allclose(K, K.T)
-
-    def test_white_noise_kernel(self):
-        """测试白噪声核"""
-        kernel = WhiteNoise(noise_variance=1.0)
-        K = kernel(self.X_train, self.X_train)
-
-        assert K.shape == (len(self.X_train), len(self.X_train))
-        assert np.allclose(K, np.eye(len(self.X_train)))
-
-    def test_different_kernels(self):
-        """测试不同核函数"""
-        kernels = [
-            RBF(length_scale=1.0),
-            RBF(length_scale=2.0),
-            Matern(length_scale=1.0, nu=1.5),
-            Matern(length_scale=1.0, nu=2.5),
-        ]
-
-        for kernel in kernels:
+        for kernel in [RBFKernel(), MaternKernel(nu=2.5)]:
             gp = GaussianProcess(kernel=kernel)
-            gp.fit(self.X_train, self.y_train)
+            gp.fit(X, y)
+            mu, var = gp.predict(X[:3])
+            assert mu.shape == (3,)
+            assert np.all(var >= 0)
 
-            y_mean, y_std = gp.predict(self.X_test, return_std=True)
+    def test_gp_noise_regularization(self):
+        """Higher noise should increase predictive variance at new points."""
+        X = np.random.randn(10, 2)
+        y = np.sin(X[:, 0])
 
-            assert y_mean.shape == (len(self.X_test),)
-            assert y_std.shape == (len(self.X_test),)
+        gp_low = GaussianProcess(likelihood_noise=0.001)
+        gp_low.fit(X, y)
 
-    def test_log_marginal_likelihood(self):
-        """测试边际似然计算"""
-        gp = GaussianProcess(kernel=RBF(length_scale=1.0))
-        gp.fit(self.X_train, self.y_train)
+        gp_high = GaussianProcess(likelihood_noise=0.1)
+        gp_high.fit(X, y)
 
-        assert gp.log_marginal_likelihood is not None
-        assert np.isfinite(gp.log_marginal_likelihood)
+        # Test at points far from training data
+        X_test = np.random.randn(3, 2) * 5
+        _, var_low = gp_low.predict(X_test)
+        _, var_high = gp_high.predict(X_test)
+
+        assert np.mean(var_high) > np.mean(var_low), \
+            f"Higher noise should increase variance: {np.mean(var_high)} vs {np.mean(var_low)}"
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+class TestGaussianProcessInterpolation:
+    """Test GP interpolation properties."""
+
+    def test_gp_interpolates_training_data(self):
+        """GP should approximately interpolate noiseless training data."""
+        gp = GaussianProcess(likelihood_noise=1e-10)
+        X = np.linspace(-1, 1, 20).reshape(-1, 1)
+        y = np.sin(X[:, 0])
+        gp.fit(X, y)
+
+        mu, _ = gp.predict(X)
+        # At training points, prediction should be very close to observation
+        assert np.max(np.abs(mu - y)) < 0.01
+
+    def test_gp_uncertainty_grows_with_distance(self):
+        """GP uncertainty should grow as we move away from training data."""
+        gp = GaussianProcess(kernel=RBFKernel(length_scale=0.5))
+        X = np.array([[0.0], [1.0], [2.0]])
+        y = np.sin(X[:, 0])
+        gp.fit(X, y)
+
+        # Test at various distances
+        distances = [0.1, 0.5, 1.0, 2.0, 5.0]
+        variances = []
+        for d in distances:
+            X_test = np.array([[d]])
+            _, var = gp.predict(X_test)
+            variances.append(var[0])
+
+        # Variance should generally increase with distance
+        assert variances[-1] > variances[0], \
+            "Variance should increase with distance from training data"

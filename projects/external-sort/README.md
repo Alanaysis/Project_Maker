@@ -1,213 +1,182 @@
-# 外部排序 (External Sort)
+# 外部排序 (External Sorting)
 
-大规模数据排序库，适用于无法全部装入内存的数据排序场景。
+> 实现大文件外部排序算法的学习项目
 
-## 项目概述
+## English
 
-外部排序是一种用于处理超大数据集的排序算法，当数据量超过可用内存时，需要将数据分块处理并合并。本项目实现了完整的外部排序库，包含初始归并段生成、多路归并、置换选择排序等核心算法。
+A learning project implementing the **External Sorting** algorithm for sorting
+large files that exceed available memory.
 
-### 核心特性
+## 中文
 
-- **初始归并段生成**: 内部排序法和置换选择排序
-- **多路归并**: 基于最小堆的高效归并
-- **置换选择排序**: 生成更长的初始归并段（平均长度 2M）
-- **缓冲 I/O**: 减少磁盘 I/O 次数
-- **多趟归并**: 支持超多路归并
-- **实际应用**: 大文件排序、日志排序、数据库排序
+一个实现**外部排序**算法的学习项目，用于排序超出可用内存的大文件。
 
-## 目录结构
+---
+
+## 学习目标 / Learning Objectives
+
+### 核心概念 / Core Concepts
+
+1. **外部排序原理** - Understand External Sorting Principles
+   - 为什么需要外部排序 (Why external sorting is needed)
+   - 内存与磁盘的权衡 (Memory vs. disk trade-offs)
+   - 时间复杂度与 I/O 复杂度的关系 (Time vs. I/O complexity)
+
+2. **多路归并** - Master K-Way Merge
+   - 最小堆在归并中的应用 (Min-heap for merge)
+   - 归并路数对性能的影响 (Impact of merge degree on performance)
+   - 多阶段归并策略 (Multi-stage merge strategies)
+
+3. **I/O 优化** - I/O Optimization
+   - 缓冲读取与写入 (Buffered reading and writing)
+   - 块大小对性能的影响 (Impact of chunk size on performance)
+   - 写合并技术 (Write combining techniques)
+
+### 算法流程 / Algorithm Flow
+
+```
+文件分块 → 内存排序 → 多路归并 → 输出
+Chunk Split → In-Memory Sort → K-Way Merge → Output
+```
+
+---
+
+## 算法详解 / Algorithm Explanation
+
+### 外部排序的两阶段过程 / Two-Phase Process
+
+#### 阶段 1: 生成有序段 (Run Generation)
+
+```
+1. 将大文件按大小分割成块 (Split large file into chunks)
+2. 每个块在内存中排序 (Sort each chunk in memory)
+3. 将排序后的块写入临时文件 (Write sorted chunks to temp files)
+```
+
+每个临时文件称为一个 **run**（有序段）。
+
+#### 阶段 2: 多路归并 (K-Way Merge)
+
+```
+1. 从每个 run 读取当前最小值 (Read current min from each run)
+2. 放入最小堆 (Push to min-heap)
+3. 弹出最小值，写入输出 (Pop min, write to output)
+4. 从对应 run 读取下一个值 (Read next value from corresponding run)
+5. 重复直到所有 run 耗尽 (Repeat until all runs exhausted)
+```
+
+### 时间复杂度 / Time Complexity
+
+| 阶段 | 复杂度 | 说明 |
+|------|--------|------|
+| 分块 | O(n) | 读取所有记录 |
+| 内存排序 | O(n log m) | m 为块大小 |
+| 归并 | O(n log<sub>k</sub> r) | r 为 runs 数，k 为归并路数 |
+| **总计** | **O(n log<sub>k</sub> r)** | |
+
+### 空间复杂度 / Space Complexity
+
+- **O(k + m)**: k 个堆槽位 + 一个块的内存
+
+### I/O 复杂度 / I/O Complexity
+
+- **I/O 次数**: 2n(1 + log<sub>k</sub> r)
+  - 2: 每次读/写各计 1
+  - n: 记录总数
+  - log<sub>k</sub> r: 归并轮数
+
+---
+
+## 项目结构 / Project Structure
 
 ```
 external-sort/
-├── src/                    # 源代码
-│   ├── __init__.py         # 包初始化
-│   ├── min_heap.py         # 最小堆实现
-│   ├── io_buffer.py        # I/O 缓冲区管理
-│   ├── run_generator.py    # 归并段生成器
-│   ├── kway_merger.py      # 多路归并器
-│   └── external_sort.py    # 主排序模块
-├── tests/                  # 测试代码
-│   ├── test_min_heap.py
-│   ├── test_io_buffer.py
-│   ├── test_run_generator.py
-│   ├── test_kway_merger.py
-│   └── test_external_sort.py
-├── examples/               # 示例代码
-│   ├── basic_usage.py      # 基本用法
-│   └── applications.py     # 实际应用
-├── docs/                   # 文档
-│   ├── 01_RESEARCH.md      # 研究文档
-│   ├── 02_REQUIREMENTS.md  # 需求文档
-│   ├── 03_DESIGN.md        # 设计文档
-│   ├── 04_PRODUCT.md       # 产品文档
-│   └── 05_DEVELOPMENT.md   # 开发文档
-└── requirements.txt        # 依赖
+├── src/
+│   ├── __init__.py           # 模块初始化
+│   ├── chunk.py              # 文件分块
+│   ├── in_memory_sort.py     # 内存排序 (Timsort, QuickSort, MergeSort)
+│   ├── k_way_merge.py        # k 路归并 (最小堆实现)
+│   ├── external_sort.py      # 外部排序主逻辑
+│   ├── memory_management.py  # 内存管理
+│   └── io_optimization.py    # I/O 优化
+├── examples/
+│   ├── example_basic_sort.py      # 基本排序演示
+│   ├── example_comparison.py      # 内存排序 vs 外部排序
+│   ├── example_benchmark.py       # 性能基准测试
+│   └── example_visualize.py       # 可视化排序过程
+├── tests/
+│   └── test_external_sort.py     # 单元测试
+├── data/                         # 测试数据目录
+├── README.md
+└── requirements.txt
 ```
 
-## 快速开始
+---
 
-### 安装
+## 运行示例 / Running Examples
+
+### 1. 基本排序演示
 
 ```bash
 cd projects/external-sort
-pip install -r requirements.txt
+python examples/example_basic_sort.py
 ```
 
-### 基本用法
-
-```python
-from src.external_sort import ExternalSorter
-
-# 创建排序器
-sorter = ExternalSorter(
-    memory_limit=10 * 1024 * 1024,  # 10MB 内存限制
-    max_merge_ways=10,               # 最大归并路数
-    use_replacement_selection=True,  # 使用置换选择排序
-)
-
-# 对文件排序
-total = sorter.sort_file("input.txt", "output.txt")
-
-# 查看统计信息
-stats = sorter.stats
-print(f"总记录数: {stats['total_records']}")
-print(f"归并段数: {stats['total_runs']}")
-print(f"总时间: {stats['total_time']:.2f}s")
-```
-
-### 大文件排序
-
-```python
-from src.external_sort import LargeFileSorter
-
-sorter = LargeFileSorter(
-    memory_limit=100 * 1024 * 1024,  # 100MB 内存
-    max_merge_ways=8,
-)
-
-total = sorter.sort("large_file.txt", "sorted_file.txt")
-```
-
-### 日志排序
-
-```python
-from src.external_sort import LogSorter
-
-sorter = LogSorter()
-
-# 按时间戳排序
-sorter.sort_by_timestamp(
-    "app.log", "sorted.log",
-    timestamp_field=0,
-    separator=" "
-)
-
-# 按字段排序
-sorter.sort_by_field(
-    "data.csv", "sorted.csv",
-    field_index=1,
-    separator=","
-)
-```
-
-### 数据库排序
-
-```python
-from src.external_sort import DatabaseSorter
-
-sorter = DatabaseSorter()
-
-# 单列排序
-sorter.sort_by_columns(
-    "employees.csv", "sorted.csv",
-    sort_columns=[3],  # 按薪资排序
-    separator=",",
-    header=True,
-)
-
-# 多列排序
-sorter.sort_by_columns(
-    "scores.csv", "sorted.csv",
-    sort_columns=[1, 2, 3],  # 按数学、英语、科学排序
-    separator=",",
-    header=True,
-)
-```
-
-## 算法详解
-
-### 1. 初始归并段生成
-
-#### 内部排序法
-- 将数据分块，每块大小不超过内存限制
-- 对每块在内存中排序
-- 将排序后的块写入临时文件
-
-#### 置换选择排序
-- 使用最小堆维护当前可用内存中的元素
-- 输出堆顶元素（当前最小值）
-- 从输入读取新元素:
-  - 如果新元素 >= 已输出的最大值，加入当前归并段
-  - 否则，标记为下一个归并段
-- 平均归并段长度为 2M（M 为内存容量）
-
-### 2. 多路归并
-
-- 使用最小堆管理 K 个归并段
-- 每次从堆中弹出最小元素
-- 从对应的归并段读取下一个元素
-- 时间复杂度: O(N log K)
-
-### 3. 缓冲 I/O
-
-- 读缓冲区: 批量读取数据，减少 I/O 次数
-- 写缓冲区: 批量写入数据，减少 I/O 次数
-- 自动刷新机制
-
-## 性能特点
-
-| 特性 | 说明 |
-|------|------|
-| 时间复杂度 | O(N log N) |
-| 空间复杂度 | O(M) - M 为内存限制 |
-| I/O 复杂度 | O(N log_{M/B}(N/M)) |
-| 归并段长度 | 内部排序: M，置换选择: ~2M |
-
-## 应用场景
-
-1. **大文件排序**: 超过内存容量的数据文件排序
-2. **日志排序**: 按时间戳或字段排序日志文件
-3. **数据库排序**: 外部排序操作
-4. **数据处理**: ETL 流程中的排序步骤
-5. **科学计算**: 大规模数据集排序
-
-## 运行测试
+### 2. 内存排序 vs 外部排序对比
 
 ```bash
-# 运行所有测试
-python -m pytest tests/
-
-# 运行特定测试
-python -m pytest tests/test_external_sort.py
-
-# 运行示例
-python examples/basic_usage.py
-python examples/applications.py
+python examples/example_comparison.py
 ```
 
-## 技术栈
+### 3. 性能基准测试
 
-- Python 3.8+
-- 标准库: heapq, os, tempfile
+```bash
+python examples/example_benchmark.py
+```
 
-## 学习资源
+### 4. 可视化排序过程
 
-- [外部排序算法详解](docs/01_RESEARCH.md)
-- [需求分析](docs/02_REQUIREMENTS.md)
-- [系统设计](docs/03_DESIGN.md)
-- [产品说明](docs/04_PRODUCT.md)
-- [开发文档](docs/05_DEVELOPMENT.md)
+```bash
+python examples/example_visualize.py
+```
 
-## 许可证
+### 5. 运行测试
 
-MIT License
+```bash
+pip install pytest
+pytest tests/ -v
+```
+
+---
+
+## 复杂度分析 / Complexity Analysis
+
+### 时间复杂度 / Time Complexity
+
+- **外部排序**: O(n log<sub>k</sub> r)，其中 r = n/m，m 为块大小
+- **内存排序**: O(n log n)
+- **比较**: 当 n >> m 时，外部排序的 log<sub>k</sub> r 远小于内存排序的 log n
+
+### 空间复杂度 / Space Complexity
+
+- **外部排序**: O(k + m)，k 为归并路数，m 为块大小
+- **内存排序**: O(n)，需要存储全部数据
+
+### I/O 复杂度 / I/O Complexity
+
+- **外部排序**: 2n(1 + log<sub>k</sub> r) 次 I/O 操作
+- **优化**: 增大 k 可减少归并轮数，但受内存限制
+
+---
+
+## 学习资源 / Learning Resources
+
+- 📖 Cormen et al., *Introduction to Algorithms*, Chapter on External Sorting
+- 📊 [External Sorting - Wikipedia](https://en.wikipedia.org/wiki/External_sorting)
+- 🎥 [K-Way Merge Explained](https://www.youtube.com/watch?v=IUA2miqjGJk)
+
+---
+
+## License
+
+MIT
