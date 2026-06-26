@@ -1,6 +1,6 @@
-# 控制系统模块
+# 🎛️ 控制系统模块
 
-> 包含经典控制、自适应控制、模糊控制等控制系统相关项目
+> 8 个项目 | 涵盖 PID、状态空间、MPC、自适应控制、模糊控制、系统响应、机械臂运动学、齿轮传动
 
 ---
 
@@ -14,6 +14,8 @@
 | [fuzzy-controller](fuzzy-controller/) | 模糊控制器 | Python | ⭐⭐⭐ | ✅ |
 | [mpc-controller](mpc-controller/) | 模型预测控制 (MPC) | Python, scipy | ⭐⭐⭐⭐ | ✅ |
 | [system-response](system-response/) | 系统响应分析（时域/频域/稳定性/控制器设计） | Python, scipy | ⭐⭐⭐ | ✅ |
+| [robot-arm-kinematics](robot-arm-kinematics/) | 机械臂运动学 | Python, numpy, matplotlib | ⭐⭐⭐⭐ | ✅ |
+| [gear-transmission](gear-transmission/) | 齿轮传动系统 | Python, matplotlib | ⭐⭐⭐ | ✅ |
 
 ---
 

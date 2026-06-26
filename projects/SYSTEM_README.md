@@ -1,6 +1,6 @@
 # ⚙️ 系统基础设施模块
 
-> 24 个深度学习项目，涵盖数据库、存储引擎、并发控制、调度、容器、虚拟机、操作系统、流计算、CI/CD、日志收集、监控告警、设备管理、容器编排、编译器、响应式框架、流媒体服务器、C++20 新特性、C++17 新特性、C++ 奇技淫巧、Paxos 共识算法、数字滤波器、信号采样重建、外部排序、逻辑门模拟器
+> 42 个项目，涵盖数据库、存储引擎、并发控制、调度、容器、虚拟机、操作系统、流计算、CI/CD、日志收集、监控告警、设备管理、容器编排、编译器、响应式框架、流媒体服务器、C++11/14/17/20/23 新特性、模板元编程、编译期计算、奇技淫巧、内存模型、性能优化、三方库、构建工具、陷阱最佳实践、代码规范、约束求解器、贝塞尔引擎、SVG 渲染器、光栅化引擎、图层合成引擎、3D 建模引擎、物理模拟引擎
 
 ---
 
@@ -27,13 +27,39 @@
 | [cpp20-features](cpp20-features/) | C++20 新特性实践 | C++20 | ⭐⭐⭐ | ✅ |
 | [cpp17-features](cpp17-features/) | C++17 新特性实践 | C++17 | ⭐⭐⭐ | ✅ |
 | [cpp-tricks-and-tips](cpp-tricks-and-tips/) | C++ 奇技淫巧集锦 | C++17/20 | ⭐⭐⭐⭐ | ✅ |
+| [cpp11-14-features](cpp11-14-features/) | C++11/14 新特性 | C++ | ⭐⭐⭐ | ✅ |
+| [cpp23-features](cpp23-features/) | C++23 新特性实践 | C++23 | ⭐⭐⭐⭐ | ✅ |
+| [cpp-template-metaprogramming](cpp-template-metaprogramming/) | 模板元编程 | C++ | ⭐⭐⭐⭐⭐ | ✅ |
+| [cpp-template-metaprogramming-advanced](cpp-template-metaprogramming-advanced/) | 模板元编程高级 | C++ | ⭐⭐⭐⭐⭐⭐ | ✅ |
+| [cpp-compile-time-computation](cpp-compile-time-computation/) | 编译期计算 | C++ | ⭐⭐⭐⭐⭐ | ✅ |
+| [cpp-memory-model-concurrency](cpp-memory-model-concurrency/) | 内存模型与并发 | C++ | ⭐⭐⭐⭐⭐ | ✅ |
+| [cpp-performance-optimization](cpp-performance-optimization/) | 性能优化 | C++ | ⭐⭐⭐⭐⭐ | ✅ |
+| [cpp-pitfalls-best-practices](cpp-pitfalls-best-practices/) | 陷阱与最佳实践 | C++ | ⭐⭐⭐⭐⭐ | ✅ |
+| [cpp-third-party-libraries](cpp-third-party-libraries/) | 三方库集成 | C++ | ⭐⭐⭐⭐ | ✅ |
+| [cpp-build-system-toolchain](cpp-build-system-toolchain/) | 构建系统工具链 | C++ | ⭐⭐⭐⭐⭐ | ✅ |
+| [cpp-coding-standards](cpp-coding-standards/) | 代码规范 | C++ | ⭐⭐⭐ | ✅ |
+| [constraint-solver](constraint-solver/) | 约束求解器 | Go | ⭐⭐⭐⭐⭐ | ✅ |
+| [constraint-solver-py](constraint-solver-py/) | 约束求解器 (Python) | Python | ⭐⭐⭐⭐ | ✅ |
+| [bezier-engine](bezier-engine/) | 贝塞尔曲线引擎 | C++ | ⭐⭐⭐⭐ | ✅ |
+| [svg-renderer](svg-renderer/) | SVG 渲染器 | C++ | ⭐⭐⭐⭐ | ✅ |
+| [rasterization-engine](rasterization-engine/) | 光栅化渲染引擎 | C++ | ⭐⭐⭐⭐⭐ | ✅ |
+| [layer-compositing-engine](layer-compositing-engine/) | 图层合成引擎 | C++ | ⭐⭐⭐⭐⭐ | ✅ |
+| [3d-modeling-engine](3d-modeling-engine/) | 3D 建模引擎 | C++ | ⭐⭐⭐⭐⭐⭐ | ✅ |
+| [physics-simulation-engine](physics-simulation-engine/) | 3D 物理模拟引擎 | C++ | ⭐⭐⭐⭐⭐ | ✅ |
+| [convex-optimization](convex-optimization/) | 凸优化算法 | Python, SciPy | ⭐⭐⭐⭐⭐ | ✅ |
+| [form-engine](form-engine/) | 表单引擎 | TypeScript | ⭐⭐⭐⭐ | ✅ |
+| [code-editor](code-editor/) | 代码编辑器 | TypeScript | ⭐⭐⭐⭐⭐ | ✅ |
+| [chart-library](chart-library/) | 图表库 | TypeScript, Canvas | ⭐⭐⭐⭐ | ✅ |
+| [timeline-engine](timeline-engine/) | 时间线动画引擎 | TypeScript | ⭐⭐⭐⭐ | ✅ |
+| [virtual-scroll](virtual-scroll/) | 虚拟滚动组件 | TypeScript | ⭐⭐⭐⭐ | ✅ |
+| [drag-drop](drag-drop/) | 拖放框架 | TypeScript | ⭐⭐⭐⭐ | ✅ |
+| [digital-filter](digital-filter/) | 数字滤波器 | Python, NumPy, SciPy | ⭐⭐⭐ | ✅ |
 | [streaming-server](streaming-server/) | 流媒体服务器 | C++17/20 | ⭐⭐⭐⭐⭐ | ✅ |
 | [gpu-shader-library](gpu-shader-library/) | GPU 着色器库 | C++17/20, GLSL | ⭐⭐⭐⭐ | ✅ |
 | [distributed-cache](distributed-cache/) | 分布式缓存系统 | Go | ⭐⭐⭐⭐ | ✅ |
 | [mapreduce](mapreduce/) | 分布式 MapReduce | Go | ⭐⭐⭐⭐⭐ | ✅ |
 | [paxos](paxos/) | Paxos 共识算法 | Python | ⭐⭐⭐⭐⭐ | ✅ |
 | [vector-db](vector-db/) | 向量数据库 | Python, NumPy | ⭐⭐⭐⭐ | ✅ |
-| [digital-filter](digital-filter/) | 数字滤波器 | Python, NumPy, SciPy | ⭐⭐⭐ | ✅ |
 | [signal-sampling](signal-sampling/) | 信号采样重建 | Python, NumPy | ⭐⭐⭐ | ✅ |
 | [external-sort](external-sort/) | 外部排序 | Python | ⭐⭐⭐⭐ | ✅ |
 | [logic-gates](logic-gates/) | 逻辑门模拟器 | Python | ⭐⭐⭐⭐ | ✅ |

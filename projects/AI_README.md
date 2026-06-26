@@ -1,6 +1,6 @@
 # 🤖 AI 全栈模块
 
-> 25 个深度学习项目，涵盖量化、微调、训练、推理、部署、强化学习、图像分割、Actor-Critic、Vision Transformer、生成对抗网络、姿态估计、对比学习、超分辨率、风格迁移、点云处理、动作识别、手势识别、文字检测、图像描述、遗传算法、梯度下降、粒子群优化、贝叶斯优化
+> 27 个深度学习项目，涵盖量化、微调、训练、推理、部署、强化学习、图像分割、Actor-Critic、Vision Transformer、生成对抗网络、姿态估计、对比学习、超分辨率、风格迁移、点云处理、动作识别、手势识别、文字检测、图像描述、遗传算法、梯度下降、粒子群优化、贝叶斯优化、凸优化、线性规划
 
 ---
 
@@ -35,6 +35,7 @@
 | [particle-swarm](particle-swarm/) | 粒子群优化算法 | Python, matplotlib | ⭐⭐⭐ | ✅ |
 | [bayesian-optimization](bayesian-optimization/) | 贝叶斯优化（高斯过程） | Python, NumPy, SciPy | ⭐⭐⭐⭐ | ✅ |
 | [linear-programming](linear-programming/) | 线性规划（单纯形法、对偶、敏感性分析） | Python, NumPy | ⭐⭐⭐⭐ | ✅ |
+| [convex-optimization](convex-optimization/) | 凸优化算法 | Python, SciPy | ⭐⭐⭐⭐⭐ | ✅ |
 | [q-learning](q-learning/) | Q-Learning 强化学习 | Python, NumPy | ⭐⭐⭐ | ✅ |
 | [hft-engine](hft-engine/) | 高频交易引擎 | C++17/20 | ⭐⭐⭐⭐⭐⭐⭐ | ✅ |
 
